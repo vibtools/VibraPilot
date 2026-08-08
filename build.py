@@ -14,8 +14,9 @@ import venv
 import zipfile
 from pathlib import Path
 
-APP_NAME = "VibraPilot"
-APP_VERSION = "1.0.6.1"
+from config.AppConfig.app import APP_NAME, VERSION
+
+APP_VERSION = VERSION
 TARGET_PYTHON = (3, 12)
 
 ROOT = Path(__file__).resolve().parent
@@ -74,7 +75,7 @@ def make_venv() -> Path:
 
 
 def validate_source(py: Path) -> None:
-    run(str(py), "-m", "compileall", "-q", "src", "vib_validation_app", "run.py")
+    run(str(py), "-m", "compileall", "-q", "src", "config/AppConfig", "vib_validation_app", "run.py")
     run(str(py), "scripts/verify_repository.py")
 
 

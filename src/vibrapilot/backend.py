@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VibraPilot - Authorized Browser Automation
-Version: 1.0.6.1
+Version: 1.0.6.2
 Author: Vib.tools
 
 Feature-preserving backend carried forward from the validated v1.0.6 baseline.
@@ -40,11 +40,13 @@ import pandas as pd
 import requests
 
 
-DISPLAY_APP_NAME = "VibraPilot"
-APP_NAME = "VibraPilot"
-APP_VERSION = "1.0.6.1"
-APP_AUTHOR = "Vib.tools"
-RELEASE_DATE = "2026-08-07"
+from .app_config import APP
+
+DISPLAY_APP_NAME = APP.display_name
+APP_NAME = APP.app_name
+APP_VERSION = APP.version
+APP_AUTHOR = APP.author_name
+RELEASE_DATE = APP.release_date
 # Private deployment license configuration.
 # Set these two values before building/distributing the application.
 # The API key is intentionally read only from this source constant; no PowerShell

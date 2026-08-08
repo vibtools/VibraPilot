@@ -1,5 +1,47 @@
 # Changelog
 
+## v1.0.6.2 — Phase-01 forensic verification and completion — 2026-08-08
+
+### Fixed
+
+- Removed stale active pre-rebrand source/launcher paths that survived an overwrite-only local merge and caused repository verification/tests to fail.
+- Completed the approved Phase-01 support/social configuration using only confirmed Vib Tools public endpoints; removed the unverified developer-portal value.
+- Completed the approved About/company metadata fields and bound verified company/support content to the existing About-page structure.
+- Hardened AppConfig validation for real calendar dates, numeric release versions, required string sequences, support email format and strict boolean social flags.
+- Added regression coverage for the completed AppConfig validation and current support/social contract.
+
+### Version
+
+- Promoted the verified configuration baseline to **1.0.6.2**.
+- The validated browser automation, Licora v1 licensing behavior, selectors, Browser Settings, task/report/safety/retry/persistence logic and frozen Vib Tools UI contract remain unchanged.
+- Licora API v2 and `licensing_public.py` remain reserved for Phase-02.
+
+### Documentation
+
+- Added `docs/updates/v1.0.6.2-phase-01-verification-fix.md`.
+- Updated README, UPDATE_LOG, VERSIONING, AppConfig documentation, documentation manifests and private `project/` forensic records.
+
+## v1.0.6.1 — Phase-01 AppConfig centralization — 2026-08-08
+
+### Added
+
+- Added authoritative `config/AppConfig/` modules for application identity, About/company copy, public support/documentation URLs and social/community metadata.
+- Added `src/vibrapilot/app_config.py` as the validated read-only runtime facade.
+- Added AppConfig/static-metadata, About binding, support/social and build-binding regression coverage.
+- Added public AppConfig architecture/update documentation and private gitignored Phase-01 development records.
+
+### Changed
+
+- Backend compatibility constants, package version metadata and Windows build name/version now consume the central AppConfig source.
+- Activation/company identity and About-page content now resolve from AppConfig while preserving the established UI design and displayed product identity.
+- Repository verification now enforces AppConfig completeness, metadata consistency and the Phase-01 licensing boundary.
+
+### Preserved
+
+- Application version remains **1.0.6.1**.
+- Licora URL/API key/request contract, `LicenseManager`, `AutomationWorker`, selectors, Browser Settings, task/report/safety/retry/persistence behavior and frozen design source are unchanged.
+- Licora API v2 and licensing-public configuration remain reserved for Phase-02.
+
 ## v1.0.6.1 — GitHub CI deterministic backend-contract fix — 2026-08-08
 
 ### Fixed

@@ -1,5 +1,17 @@
 # Update Log
 
+## v1.0.6.2 — Phase-01 forensic verification and completion — 2026-08-08
+
+Phase-01 verification/fix scope only. Removed stale pre-rebrand active paths that broke the repository contract, completed confirmed About/support/social configuration, strengthened AppConfig validation, synchronized release metadata and promoted the verified baseline to **1.0.6.2**. Automation, licensing, browser/task and UI-design behavior remain unchanged.
+
+Detailed note: `docs/updates/v1.0.6.2-phase-01-verification-fix.md`
+
+## v1.0.6.1 — Phase-01 AppConfig centralization — 2026-08-08
+
+Configuration-architecture update only. Application identity, About/company content, confirmed public support/documentation links and social/community metadata now live under `config/AppConfig/` and are exposed through a validated runtime facade. Backend compatibility constants and build/package identity consume that source, while verifier/tests prevent static metadata drift. Licensing transport/API credentials and all automation/runtime behavior remain unchanged and are reserved for Phase-02.
+
+Detailed note: `docs/updates/v1.0.6.1-phase-01-appconfig.md`
+
 ## v1.0.6.1 — GitHub CI deterministic backend-contract fix — 2026-08-08
 
 CI/repository-verification maintenance only. Backend implementation parity hashes now use a canonical semantic AST representation instead of Python-version-dependent raw `ast.dump()` text. This prevents Python 3.12 GitHub runners from reporting false `TaskItem` implementation drift when the backend source is unchanged. The CI workflow also uses Node 24-native `actions/checkout@v5` and `actions/setup-python@v6`. Runtime application behavior is unchanged.

@@ -77,6 +77,8 @@ from vib_validation_app.widgets import (
     vbox,
 )
 
+from .app_config import ABOUT, APP, ENABLED_SOCIAL_LINKS, SUPPORT
+
 from .backend import (
     APP_AUTHOR,
     APP_NAME,
@@ -130,16 +132,16 @@ def brand_pixmap(size: int) -> QPixmap:
     return pixmap.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
 
-def brand_icon_label(size: int, accessible_name: str = "VibraPilot") -> QLabel:
+def brand_icon_label(size: int, accessible_name: str | None = None) -> QLabel:
     widget = QLabel()
     widget.setFixedSize(size, size)
     widget.setAlignment(Qt.AlignCenter)
-    widget.setAccessibleName(accessible_name)
+    widget.setAccessibleName(accessible_name or APP.display_name)
     pixmap = brand_pixmap(size)
     if not pixmap.isNull():
         widget.setPixmap(pixmap)
     else:
-        widget.setText("VP")
+        widget.setText(APP.short_name)
     return widget
 
 
@@ -516,19 +518,19 @@ class ActivationPage(QWidget):
         lay.setSpacing(0)
 
         # 1. Brand header — centered, compact and free of developer metadata.
-        brand_icon = brand_icon_label(48, "VibraPilot")
+        brand_icon = brand_icon_label(48, APP.display_name)
         brand_icon.setObjectName("ActivationBrandIcon")
         lay.addWidget(brand_icon, 0, Qt.AlignHCenter)
         lay.addSpacing(12)
 
-        brand_title = QLabel("VibraPilot Activation")
+        brand_title = QLabel(f"{APP.display_name} Activation")
         brand_title.setObjectName("ActivationTitle")
         brand_title.setAlignment(Qt.AlignCenter)
-        brand_title.setAccessibleName("VibraPilot Activation")
+        brand_title.setAccessibleName(f"{APP.display_name} Activation")
         lay.addWidget(brand_title)
         lay.addSpacing(6)
 
-        subtitle = QLabel("Enter your license key to unlock VibraPilot")
+        subtitle = QLabel(f"Enter your license key to unlock {APP.display_name}")
         subtitle.setObjectName("ActivationSubtitle")
         subtitle.setAlignment(Qt.AlignCenter)
         subtitle.setWordWrap(False)
@@ -1417,7 +1419,7 @@ class MainWindow(QMainWindow):
         self.dashboard_next_action: tuple[str, int | None] = ("tasks", None)
         self.task_layout = None
 
-        self.setWindowTitle(f"{DISPLAY_APP_NAME} — Vib Tools")
+        self.setWindowTitle(f"{DISPLAY_APP_NAME} — {APP.company_name}")
         self.setWindowIcon(application_icon())
         self.setMinimumSize(CONST.min_window_width, CONST.min_window_height)
         self.resize(CONST.default_window_width, CONST.default_window_height)
@@ -1547,7 +1549,7 @@ class MainWindow(QMainWindow):
         central.setObjectName("AppRoot")
         apply_accessibility(
             central,
-            f"{DISPLAY_APP_NAME} Vib Tools desktop application",
+            f"{DISPLAY_APP_NAME} {APP.company_name} desktop application",
             "Main application shell with sidebar navigation and native window controls.",
         )
         root = QVBoxLayout(central)
@@ -1557,7 +1559,7 @@ class MainWindow(QMainWindow):
         header = QFrame()
         header.setObjectName("WindowHeader")
         header_lay = hbox(header, margins=(12, 0, 12, 0), spacing=CONST.shell_header_gap)
-        header_lay.addWidget(brand_icon_label(24, "VibraPilot"))
+        header_lay.addWidget(brand_icon_label(24, APP.display_name))
         self.window_title_label = elide_label(DISPLAY_APP_NAME, "WindowTitle")
         header_lay.addWidget(self.window_title_label)
         self.breadcrumb = elide_label("Home / Dashboard", "Breadcrumb")
@@ -2255,7 +2257,7 @@ class MainWindow(QMainWindow):
     def make_about_page(self) -> QWidget:
         page = page_frame()
         root = vbox(page, margins=(0, 0, 0, 0), spacing=0)
-        root.addWidget(page_header("About", "Product identity, backend provenance and Vib Tools design-system certification."))
+        root.addWidget(page_header(ABOUT.page_title, ABOUT.page_subtitle))
         content = QWidget()
         content.setObjectName("PageInner")
         lay = vbox(
@@ -2263,31 +2265,33 @@ class MainWindow(QMainWindow):
             margins=(CONST.page_padding, CONST.page_padding, CONST.page_padding, CONST.page_padding),
             spacing=CONST.content_gap,
         )
-        identity = card(DISPLAY_APP_NAME, f"Vib Tools desktop UI edition • backend v{APP_VERSION}")
-        identity.layout().addWidget(label(
-            "Authorized Test Mode invite automation with Licora activation, Playwright browser workers, reports, logs and safe persistence.",
-            "Description",
-        ))
-        identity.layout().addWidget(status_badge("Official Vib Tools UI Contract", "success"))
+        identity = card(APP.display_name, f"{ABOUT.edition_label} • backend v{APP.version}")
+        identity.layout().addWidget(label(ABOUT.app_description, "Description"))
+        identity.layout().addWidget(label(ABOUT.company_description, "Description", False))
+        identity.layout().addWidget(label(ABOUT.company_profile_description, "Description", False))
+        if ABOUT.company_legal_name:
+            identity.layout().addWidget(
+                label(f"Legal name: {ABOUT.company_legal_name}", "Description", False)
+            )
+        identity.layout().addWidget(status_badge(ABOUT.identity_badge, "success"))
         lay.addWidget(identity)
 
-        design = card("Desktop UI Design Contract")
+        design = card(ABOUT.design_contract_title)
         dl = design.layout()
-        for text in [
-            "Segoe UI Variable → Segoe UI font priority",
-            "Dark-first token-driven palette",
-            "220px sidebar • 28px nav rows • 28px buttons • 32px inputs",
-            "Flat surfaces • subtle 1px borders • no default shadows/glow/3D",
-            "Thin minimal scrollbars • compact responsive desktop density",
-        ]:
+        for text in ABOUT.design_contract_items:
             dl.addWidget(label(text, "Description", False))
         lay.addWidget(design)
 
-        license_card = card("License Session")
+        license_card = card(ABOUT.license_session_title)
         ll = license_card.layout()
-        ll.addWidget(label(f"License app ID: {APP_NAME}", "Description", False))
+        ll.addWidget(label(f"License app ID: {APP.app_name}", "Description", False))
         ll.addWidget(label(f"Activated until: {self.license_manager.activated_until or 'Server-managed'}", "Description", False))
-        ll.addWidget(label("Website: https://vib.tools/", "Description", False))
+        if SUPPORT.support_email:
+            ll.addWidget(label(f"Support: {SUPPORT.support_email}", "Description", False))
+        for link_label, url in SUPPORT.about_support_links:
+            ll.addWidget(label(f"{link_label}: {url}", "Description", False))
+        for social_link in ENABLED_SOCIAL_LINKS:
+            ll.addWidget(label(f"{social_link.platform}: {social_link.url}", "Description", False))
         lay.addWidget(license_card)
         lay.addStretch(1)
         root.addWidget(self._scroll_page(content), 1)
@@ -3067,7 +3071,7 @@ class MainWindow(QMainWindow):
         compact = width < CONST.compact_breakpoint
         wide = width >= CONST.large_breakpoint
         breadcrumb.setVisible(not compact)
-        window_title_label.setText("VibraPilot" if compact else DISPLAY_APP_NAME)
+        window_title_label.setText(APP.display_name if compact else DISPLAY_APP_NAME)
         mode = "Compact" if compact else ("Wide" if wide else "Medium")
         if responsive_badge is not None:
             responsive_badge.setText(mode)
@@ -3100,15 +3104,15 @@ def main() -> int:
         try:
             import ctypes
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-                f"VibTools.VibraPilot.{APP_VERSION}"
+                f"VibTools.{APP.app_name}.{APP_VERSION}"
             )
         except Exception:
             logging.debug("Windows AppUserModelID could not be set", exc_info=True)
     application = QApplication(sys.argv)
     application.setApplicationName(DISPLAY_APP_NAME)
     application.setApplicationDisplayName(DISPLAY_APP_NAME)
-    application.setOrganizationName("Vib Tools")
-    application.setOrganizationDomain("vib.tools")
+    application.setOrganizationName(APP.company_name)
+    application.setOrganizationDomain(APP.organization_domain)
     application.setWindowIcon(application_icon())
     window = MainWindow()
     window.show()

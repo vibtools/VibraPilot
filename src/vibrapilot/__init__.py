@@ -1,2 +1,5 @@
 """VibraPilot — Vib Tools Desktop UI Edition."""
-__version__ = "1.0.6.1"
+
+from .app_config import APP
+
+__version__ = APP.version

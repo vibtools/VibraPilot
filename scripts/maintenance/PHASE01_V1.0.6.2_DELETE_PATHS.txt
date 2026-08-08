@@ -1,0 +1,3 @@
+# Paths that must be absent after applying the v1.0.6.2 Phase-01 verification delta.
+src/tester_zepto_pro/
+scripts/Start-TesterZeptoPro.ps1

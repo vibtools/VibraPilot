@@ -14,12 +14,15 @@ import json
 import py_compile
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src" / "vibrapilot"
 PRIVATE_BASELINE = ROOT / "project" / "research" / "source_baseline" / "VibraPilot_v1.0.6_original_app.py"
 BACKEND_CONTRACT = ROOT / "config" / "verification" / "backend_v1.0.6_contract.json"
+APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
+APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
 EXPECTED_BRAND_HASHES = {
     "vib_validation_app/tokens.py": "cdae402dccdb8e916f274ea5fa0b8ec1a6505fab6043462d35af8a93e1468a02",
@@ -245,23 +248,145 @@ if PRIVATE_BASELINE.is_file():
         if node is None or ast_contract_sha(node) != expected_sha:
             fail(f"public frozen-helper contract no longer matches private baseline for {name}")
 
-print("[5/8] Licensing and safety invariants")
+print("[5/8] AppConfig, licensing and safety invariants")
 backend_text = (SRC / "backend.py").read_text(encoding="utf-8")
 qt_text = (SRC / "qt_app.py").read_text(encoding="utf-8")
-if literal_assignment(SRC / "backend.py", "APP_VERSION") != "1.0.6.1":
-    fail("APP_VERSION must be 1.0.6.1")
-if literal_assignment(SRC / "__init__.py", "__version__") != "1.0.6.1":
-    fail("package __version__ must be 1.0.6.1")
-if literal_assignment(ROOT / "build.py", "APP_VERSION") != "1.0.6.1":
-    fail("build APP_VERSION must be 1.0.6.1")
-if 'version = "1.0.6.1"' not in (ROOT / "pyproject.toml").read_text(encoding="utf-8"):
-    fail("pyproject version must be 1.0.6.1")
-if 'version: 1.0.6.1' not in (ROOT / "CITATION.cff").read_text(encoding="utf-8"):
-    fail("CITATION version must be 1.0.6.1")
-if json.loads((ROOT / "vibproject.ygit").read_text(encoding="utf-8"))["project"]["version"] != "1.0.6.1":
-    fail("vibproject version must be 1.0.6.1")
-if json.loads((ROOT / "docs" / "docs.manifest.ygit").read_text(encoding="utf-8"))["documentation"]["version"] != "1.0.6.1":
-    fail("documentation manifest version must be 1.0.6.1")
+build_text = (ROOT / "build.py").read_text(encoding="utf-8")
+package_init_text = (SRC / "__init__.py").read_text(encoding="utf-8")
+
+app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
+app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
+app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
+display_name = literal_assignment(APP_CONFIG_APP, "DISPLAY_NAME")
+description = literal_assignment(APP_CONFIG_APP, "DESCRIPTION")
+owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
+license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
+homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
+repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
+if app_version != "1.0.6.2":
+    fail("AppConfig VERSION must be 1.0.6.2 for the verified Phase-01 baseline")
+for name, value in {
+    "APP_ID": app_id,
+    "APP_NAME": app_name,
+    "DISPLAY_NAME": display_name,
+    "DESCRIPTION": description,
+    "OWNER_NAME": owner_name,
+    "LICENSE_IDENTIFIER": license_identifier,
+    "HOMEPAGE_URL": homepage_url,
+    "REPOSITORY_URL": repository_url,
+}.items():
+    if not isinstance(value, str) or not value.strip():
+        fail(f"AppConfig {name} must be a non-empty literal string")
+
+support_config = APP_CONFIG_ROOT / "support.py"
+social_config = APP_CONFIG_ROOT / "social.py"
+about_config = APP_CONFIG_ROOT / "about.py"
+if literal_assignment(support_config, "SUPPORT_EMAIL") != "support@vib.tools":
+    fail("Phase-01 SUPPORT_EMAIL must use the confirmed Vib Tools support address")
+if literal_assignment(support_config, "CONTACT_URL") != "https://vib.tools/contact":
+    fail("Phase-01 CONTACT_URL must use the confirmed Vib Tools contact endpoint")
+if literal_assignment(support_config, "DEVELOPER_PORTAL_URL") != "":
+    fail("Unverified developer portal URLs must remain blank")
+social_links = literal_assignment(social_config, "SOCIAL_LINKS")
+expected_social = {
+    "GitHub": "https://github.com/vibtools",
+    "X": "https://x.com/vibtools",
+    "Facebook": "https://www.facebook.com/vib.tools",
+    "Instagram": "https://www.instagram.com/vibtools",
+    "Reddit": "https://www.reddit.com/user/VibTools/",
+    "TikTok": "https://www.tiktok.com/@vibtools",
+    "GitLab": "https://gitlab.com/vibtools",
+}
+if not isinstance(social_links, tuple):
+    fail("Phase-01 SOCIAL_LINKS must be a literal tuple")
+actual_social = {
+    item.get("platform"): item.get("url")
+    for item in social_links
+    if isinstance(item, dict) and item.get("enabled") is True
+}
+if actual_social != expected_social:
+    fail(f"Phase-01 official social-link contract drift: {actual_social}")
+for field in (
+    "COMPANY_LEGAL_NAME", "COMPANY_DISPLAY_NAME", "COMPANY_DESCRIPTION",
+    "COMPANY_WEBSITE_LABEL", "SUPPORT_TEAM_NAME",
+):
+    if literal_assignment(about_config, field) is None:
+        fail(f"Phase-01 About company metadata field missing: {field}")
+
+for app_config_path in APP_CONFIG_ROOT.glob("*.py"):
+    app_config_text = app_config_path.read_text(encoding="utf-8")
+    for forbidden_secret_name in ("LICENSE_API_KEY", "LICENSE_API_BASE_URL", "LICENSE_VERIFY_URL"):
+        if forbidden_secret_name in app_config_text:
+            fail(
+                f"Phase-01 AppConfig must not contain licensing transport secret/config: "
+                f"{app_config_path.name}:{forbidden_secret_name}"
+            )
+if (APP_CONFIG_ROOT / "licensing_public.py").exists():
+    fail("licensing_public.py is reserved for Phase-02 and must not be introduced in Phase-01")
+
+for marker in [
+    "DISPLAY_APP_NAME = APP.display_name",
+    "APP_NAME = APP.app_name",
+    "APP_VERSION = APP.version",
+    "APP_AUTHOR = APP.author_name",
+    "RELEASE_DATE = APP.release_date",
+]:
+    if marker not in backend_text:
+        fail(f"backend must consume authoritative AppConfig metadata: {marker}")
+if "__version__ = APP.version" not in package_init_text:
+    fail("package __version__ must consume AppConfig VERSION")
+if "from config.AppConfig.app import APP_NAME, VERSION" not in build_text or "APP_VERSION = VERSION" not in build_text:
+    fail("build name/version must consume AppConfig metadata")
+
+app_config_facade_text = (SRC / "app_config.py").read_text(encoding="utf-8")
+for marker in (
+    "date.fromisoformat(text)",
+    "_VERSION_RE.fullmatch(text)",
+    '_optional_email("SUPPORT_EMAIL"',
+    "if not isinstance(enabled, bool):",
+    '_required_text_tuple("TARGET_FEATURES"',
+):
+    if marker not in app_config_facade_text:
+        fail(f"Phase-01 AppConfig validation marker missing: {marker}")
+launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
+if "VibraPilot-1.0.6.2-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.2 release path")
+
+pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+project_meta = pyproject.get("project", {})
+if project_meta.get("name") != app_id:
+    fail("pyproject name must match AppConfig APP_ID")
+if project_meta.get("version") != app_version:
+    fail("pyproject version must match AppConfig VERSION")
+if project_meta.get("description") != description:
+    fail("pyproject description must match AppConfig DESCRIPTION")
+if (project_meta.get("license") or {}).get("text") != license_identifier:
+    fail("pyproject license must match AppConfig LICENSE_IDENTIFIER")
+authors = project_meta.get("authors") or []
+if not authors or authors[0].get("name") != owner_name:
+    fail("pyproject author must match AppConfig OWNER_NAME")
+project_urls = project_meta.get("urls") or {}
+if project_urls.get("Homepage") != homepage_url:
+    fail("pyproject Homepage must match AppConfig HOMEPAGE_URL")
+if project_urls.get("Repository") != repository_url:
+    fail("pyproject Repository must match AppConfig REPOSITORY_URL")
+
+citation_text = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+if f"version: {app_version}" not in citation_text:
+    fail("CITATION version must match AppConfig VERSION")
+if f'license: {license_identifier}' not in citation_text:
+    fail("CITATION license must match AppConfig LICENSE_IDENTIFIER")
+vibproject = json.loads((ROOT / "vibproject.ygit").read_text(encoding="utf-8"))
+if vibproject["project"]["version"] != app_version or vibproject["project"]["displayName"] != display_name:
+    fail("vibproject identity/version must match AppConfig")
+if vibproject["organization"]["company"] != owner_name:
+    fail("vibproject company must match AppConfig OWNER_NAME")
+if vibproject["license"]["spdx"] != license_identifier:
+    fail("vibproject license must match AppConfig LICENSE_IDENTIFIER")
+docs_manifest = json.loads((ROOT / "docs" / "docs.manifest.ygit").read_text(encoding="utf-8"))
+if docs_manifest["documentation"]["version"] != app_version:
+    fail("documentation manifest version must match AppConfig VERSION")
+
 settings_defaults = json.loads((ROOT / "config" / "settings.defaults.json").read_text(encoding="utf-8"))
 if settings_defaults.get("max_test_send_limit") != 50:
     fail("source-controlled default Test Send Limit must remain 50")
@@ -454,9 +579,9 @@ activation_markers = [
     'TEXT_SECONDARY = "#94A3B8"',
     'SUCCESS = "#10B981"',
     'root.setContentsMargins(40, 40, 40, 40)',
-    'brand_icon = brand_icon_label(48, "VibraPilot")',
-    'QLabel("VibraPilot Activation")',
-    'QLabel("Enter your license key to unlock VibraPilot")',
+    'brand_icon = brand_icon_label(48, APP.display_name)',
+    'QLabel(f"{APP.display_name} Activation")',
+    'QLabel(f"Enter your license key to unlock {APP.display_name}")',
     'QLabel("Email Address (Optional)")',
     'line_input("name@example.com"',
     'setPlaceholderText("VT-XXXX-XXXX-XXXX-XXXX")',
@@ -536,9 +661,12 @@ for forbidden in ["includes/config.local.php", ".licora-encryption.key", ".env.p
 
 
 for marker in [
-    'DISPLAY_APP_NAME = "VibraPilot"',
-    'APP_NAME = "VibraPilot"',
-    'QLabel("VibraPilot Activation")',
+    'DISPLAY_APP_NAME = APP.display_name',
+    'APP_NAME = APP.app_name',
+    'QLabel(f"{APP.display_name} Activation")',
+    'page_header(ABOUT.page_title, ABOUT.page_subtitle)',
+    'for link_label, url in SUPPORT.about_support_links:',
+    'for social_link in ENABLED_SOCIAL_LINKS:',
     'application.setWindowIcon(application_icon())',
     'self.setWindowIcon(application_icon())',
     'SetCurrentProcessExplicitAppUserModelID',
@@ -549,11 +677,18 @@ for marker in [
 print("[8/8] Required project files")
 required = [
     "README.md", "CHANGELOG.md", "UPDATE_LOG.md", "VERSIONING.md", "LICENSE", "NOTICE", "pyproject.toml", "requirements.txt", "requirements-build.txt",
-    "run.py", "build.py", "config/settings.defaults.json", "src/vibrapilot/backend.py", "src/vibrapilot/data_io.py",
+    "run.py", "build.py", "config/settings.defaults.json", "config/__init__.py", "config/AppConfig/__init__.py",
+    "config/AppConfig/app.py", "config/AppConfig/about.py", "config/AppConfig/support.py", "config/AppConfig/social.py",
+    "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/data_io.py",
     "src/vibrapilot/qt_app.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
     "docs/updates/v1.0.6.1-vibrapilot-branding.md", "docs/updates/v1.0.6.1-github-ci-repository-hygiene-fix.md",
     "docs/updates/v1.0.6.1-github-ci-deterministic-ast-contract-fix.md",
+    "docs/configuration/APPCONFIG.md", "docs/updates/v1.0.6.1-phase-01-appconfig.md",
+    "docs/updates/v1.0.6.2-phase-01-verification-fix.md",
+    "docs/verification/PHASE01_V1.0.6.2_VERIFICATION.md", "tests/test_app_config_validation.py",
+    "scripts/maintenance/Apply-v1.0.6.2-Phase01-Fix.cmd",
+    "scripts/maintenance/PHASE01_V1.0.6.2_DELETE_PATHS.txt",
     "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",
 ]
 for rel in required:
