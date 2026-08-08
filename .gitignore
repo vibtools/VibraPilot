@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Virtual environments / build
+.venv/
+venv/
+.build/
+.build_*/
+dist/
+release/
+*.spec
+
+# Playwright browsers
+.playwright-browsers/
+ms-playwright/
+
+# App runtime data
+AppData/
+FailedData/
+Reports/
+Logs/
+data/runtime/
+*.log
+
+# Private deployment material
+config/private_*.py
+.env
+.env.*
+!.env.example
+includes/config.local.php
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Binary release artifacts
+*.exe
+*.msi
+*.zip
+*.7z
+*.sha256
+
+# Project folder only for privet - its not needed in the repo
+project/

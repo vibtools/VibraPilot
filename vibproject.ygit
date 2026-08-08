@@ -1,0 +1,78 @@
+{
+  "$schema": "https://schema.ygit.dev/vpms/v2/vibproject.schema.json",
+  "schemaVersion": 2,
+  "manifestVersion": "2.0.0",
+  "project": {
+    "id": "vibrapilot-vib-tools-desktop-ui",
+    "name": "vibrapilot",
+    "slug": "vibrapilot",
+    "displayName": "VibraPilot",
+    "description": "VibraPilot v1.0.6.1 with the official Vib Tools desktop UI design contract.",
+    "summary": "VibraPilot browser automation desktop application preserving the validated v1.0.6.1 runtime baseline.",
+    "version": "1.0.6.1",
+    "status": "development",
+    "visibility": "private",
+    "category": "desktop-application",
+    "keywords": [
+      "vib-tools",
+      "desktop",
+      "python",
+      "pyside6",
+      "playwright",
+      "licora"
+    ],
+    "homepage": "https://vib.tools/"
+  },
+  "classification": {
+    "ownerType": "organization",
+    "productType": "application",
+    "applicationType": "desktop",
+    "distribution": "private-source",
+    "lifecycle": "development"
+  },
+  "organization": {
+    "company": "Vib Tools",
+    "owner": "Vib Tools",
+    "maintainers": [
+      "Vib Tools Core Team"
+    ],
+    "contact": {
+      "website": "https://vib.tools/"
+    }
+  },
+  "branding": {
+    "productName": "VibraPilot",
+    "shortName": "VP",
+    "icon": "assets/icons/app.ico",
+    "theme": "Vib Tools / Vibrix Dark",
+    "designContract": "frozen_design_source/CURRENT_FOUNDATION_TOKENS.json"
+  },
+  "license": {
+    "name": "GNU General Public License v3.0 only",
+    "spdx": "GPL-3.0-only",
+    "file": "LICENSE"
+  },
+  "technology": {
+    "languages": [
+      "Python",
+      "Markdown",
+      "YAML",
+      "JSON",
+      "PowerShell"
+    ],
+    "frameworks": [
+      "PySide6",
+      "Playwright"
+    ],
+    "libraries": [
+      "pandas",
+      "requests",
+      "openpyxl",
+      "xlrd",
+      "defusedxml"
+    ],
+    "packageManagers": [
+      "pip"
+    ]
+  }
+}
