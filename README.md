@@ -89,7 +89,7 @@ python scripts/verify_repository.py
 python -m pytest -q
 ```
 
-The verifier checks the frozen Vib Tools design source, the public backend parity contract, safety invariants, branding metadata, icon assets, UI integration, version metadata and repository hygiene. Frozen text-contract hashing is line-ending canonicalized, and `.gitattributes` pins repository text to LF so verification is deterministic on Windows and Linux runners. GitHub Actions exposes `src` through `PYTHONPATH` for source-layout contract tests and uses Node 24-native official GitHub Actions.
+The verifier checks the frozen Vib Tools design source, the public backend parity contract, safety invariants, branding metadata, icon assets, UI integration, version metadata and repository hygiene. Frozen text-contract hashing is line-ending canonicalized. Backend implementation parity uses a canonical semantic AST contract that omits empty/version-specific AST fields, so the same source verifies consistently across supported Python minor versions such as the Python 3.12 GitHub runner. `.gitattributes` pins repository text to LF, GitHub Actions exposes `src` through `PYTHONPATH`, and the CI workflow uses Node 24-native `actions/checkout@v5` and `actions/setup-python@v6`.
 
 Public documentation belongs under `docs/`. The local `project/` tree is a private development workspace, remains gitignored, and is never a required CI input.
 

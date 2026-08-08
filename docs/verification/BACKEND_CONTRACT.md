@@ -16,11 +16,17 @@ It records only verification metadata derived from the private v1.0.6 developer 
 
 - core class method inventories;
 - the required 54-method `AutomationWorker` inventory count;
-- AST hashes for baseline classes whose implementation is frozen;
+- canonical semantic AST hashes for baseline classes whose implementation is frozen;
 - the original top-level helper inventory;
-- AST hashes for frozen helper functions.
+- canonical semantic AST hashes for frozen helper functions.
 
 The private source baseline itself remains under `project/` locally and is not published. When that private baseline is present during local development, `scripts/verify_repository.py` additionally cross-checks the public contract against it. In public CI, the machine contract is sufficient and no private file is required.
+
+## Deterministic AST hashing
+
+The machine contract declares `ast_hash_algorithm: canonical-semantic-ast-v2`. The verifier serializes semantic AST node/field values while omitting empty or `None` optional fields before hashing. This intentionally avoids raw `ast.dump()` output because CPython minor versions can add empty fields such as `type_params`, which changes the dump text without changing program semantics.
+
+The contract hashes are generated from the private v1.0.6 baseline. When `project/` is available locally, the verifier cross-checks both method inventories and frozen semantic hashes against that private source. Public GitHub CI uses only the machine contract.
 
 ## Repository boundary
 

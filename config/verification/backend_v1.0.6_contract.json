@@ -2,6 +2,7 @@
   "schema_version": 1,
   "contract_name": "VibraPilot public backend parity contract",
   "source_baseline": "private v1.0.6 developer baseline (source is intentionally not published)",
+  "ast_hash_algorithm": "canonical-semantic-ast-v2",
   "automation_worker_method_count": 54,
   "core_method_inventory": {
     "SettingsManager": [
@@ -91,14 +92,14 @@
     "InviteRejected": []
   },
   "frozen_class_ast_sha256": {
-    "TaskItem": "2b0d1d5098e4134d2a87774dfab72d5c7ed4fbf5809ec7066d6d87bbdaaa57e5",
-    "TaskState": "f2dd92e2120d4cf7fbc445b9dd716b3d8f644fbc8c1a5ac50b2e01d965775e3b",
-    "SecurityChallenge": "2f6f6222d0aa2756dffb8377591787d5f4725ad57a3c11e021db3d2ad2392599",
-    "SessionVerificationError": "d778930d6825c1c9da560adef55e210a536a2ce3fe6d5d668e7a7f277db9354d",
-    "TestModeRequired": "bf432a9e5292365536e86b2bf1f8889e2152f04f1efba7261d141aa0ea24bc47",
-    "TestSendLimitReached": "ed3e23f5338b9bd6bb63198b9879b3d16fc89fdf0172e257b3bed183ecdd9542",
-    "SendClickOutcomeUncertain": "5a3dd8d5227a72e3384449922e667ae81df4081b6f4902f5ae8dd83c8c9197cf",
-    "InviteRejected": "0251a4ac596cc9a869b090df31a6e85b584b89f4299c31fcf19ec0dd822f4f32"
+    "TaskItem": "d957d032ca071270512822e25965eff78f52f970c89dfe43d3be5040e1e73453",
+    "TaskState": "8fec81cf772ef910883697198028fb1a189743792bd5459f9de1e8873228c635",
+    "SecurityChallenge": "832dbf21bccb1e5918cd81401a56183b17eef6546dd34fda9953f1c1666e8e19",
+    "SessionVerificationError": "f9a3a68ff6007a6e5eba193ad49dbc02d41107dc90cf22cb59e9cec1c0f52795",
+    "TestModeRequired": "3c18fa55159bc5781e5fd5abd77277205d641c297083a061d029d432f5c5e2d9",
+    "TestSendLimitReached": "99d735a3fa9ae259d99e2fb4e1aa42dea8b17e49e2090457dcdfd2931af935a0",
+    "SendClickOutcomeUncertain": "062d0d75862b30654041178937f4ee5999a0f90985cd296051eef3f3c3c2bd1a",
+    "InviteRejected": "153bd5d1eb41b52ee1d02ee2daf6695e73fc137f8e6159d8bf71480337f145f8"
   },
   "top_level_helpers": [
     "validate_test_send_limit",
@@ -118,14 +119,14 @@
     "effective_ignored_default_args"
   ],
   "frozen_helper_ast_sha256": {
-    "_protect_local_secret": "66c079e3f2d13c7a2c101cfd89b9988ee56db036c3b8682c3d4384ad11069e06",
-    "_unprotect_local_secret": "3d6b99d62dd2a3ad3dfbcc1e4af03e787770d203d6a78d72541468a8f342edda",
-    "_strict_server_boolean": "6e00f10f087a53f0cc640437cd6922a134764da91525d79f77e658c5919c1e6c",
-    "_strict_local_boolean": "98446327cf4127badc53fb3bc8fb1c4f98c78e3ed8bd2b86c5b83e6386da6eed",
-    "safe_spreadsheet_cell": "d2fb007e094636b7c57ac6716bb57dd64702f502793cb1c502e2bc4d577be415",
-    "safe_spreadsheet_rows": "16738e0b524ddf01653fa265f78751da434f8e372c469c1fa7ae84bc02f3522d",
-    "_license_url_is_allowed": "83e42f18af2dfc3a06dbd844ede9530992580bd14adf1a89e8c424e20b14d80d",
-    "now_str": "b6942b915f3ca8757bdaeb31c5be068a9a7c905ee6f98159ead3276f426a7e33",
-    "safe_filename": "9e0e1ae3d49069ef190842146cd969eed45b5d05dd6da76666959e3b7ee442ec"
+    "_protect_local_secret": "4f13d1f0e8147e6795d2f8d448abafc9975242760819679c025e22ec53927bbf",
+    "_unprotect_local_secret": "3e91b9483a382c893b40bd9aa76144f746d94398bd218688819474085069a71e",
+    "_strict_server_boolean": "aa47439cfaeed9fff12f37d97098f5d59e736c2a788256882e9b7b515961defb",
+    "_strict_local_boolean": "700d69853940f31fff098a6676c1b6bf93170e746fdd6ed8c0b3f5c716c03b5c",
+    "safe_spreadsheet_cell": "f6c624c0cfcedd13512046d9933b6abcbb4c8c1c28f415f3003d9754c9c7ac57",
+    "safe_spreadsheet_rows": "1c55b5c2301cd7d54b23b8a5c8305155063cec766265418d3bf4f207b61395fc",
+    "_license_url_is_allowed": "a7295da71a4ce2584b0aa6536db654df63a5499c23dade074ddd1e5cf9e83b16",
+    "now_str": "6992e5d39a05131bc82e42731b388c73781f96a7745f2398d23673a5f71ec787",
+    "safe_filename": "f4fed3969355e32dcf6eb8853c8c0dbd9fe43dc8a71bd9bc8f6044f95f039746"
   }
 }

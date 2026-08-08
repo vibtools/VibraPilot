@@ -99,6 +99,40 @@ def literal_assignment(path: Path, name: str):
     return None
 
 
+AST_HASH_ALGORITHM = "canonical-semantic-ast-v2"
+
+
+def _canonical_ast_value(value):
+    """Return a Python-version-stable semantic representation of an AST value.
+
+    CPython may add optional/empty AST fields between minor versions (for example
+    ``type_params`` on ClassDef/FunctionDef). Raw ``ast.dump()`` output therefore
+    is not a portable release hash. Empty/None fields are omitted while real
+    semantic values and node types remain part of the contract.
+    """
+    if isinstance(value, ast.AST):
+        fields = []
+        for name, child in ast.iter_fields(value):
+            if child is None or child == [] or child == ():
+                continue
+            fields.append([name, _canonical_ast_value(child)])
+        return [value.__class__.__name__, fields]
+    if isinstance(value, list):
+        return [_canonical_ast_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [_canonical_ast_value(item) for item in value]
+    return value
+
+
+def ast_contract_sha(node: ast.AST) -> str:
+    payload = json.dumps(
+        _canonical_ast_value(node),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(AST_HASH_ALGORITHM.encode("ascii") + b"\0" + payload).hexdigest()
+
+
 print("[1/8] Python syntax")
 for path in sorted(ROOT.rglob("*.py")):
     if any(part in {".venv", "build", "dist", "release", "__pycache__"} for part in path.parts):
@@ -143,6 +177,12 @@ except Exception as exc:
 
 production = class_methods(SRC / "backend.py")
 production_nodes = class_nodes(SRC / "backend.py")
+if backend_contract.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
+    fail(
+        "backend contract AST hash algorithm mismatch: "
+        f"{backend_contract.get('ast_hash_algorithm')!r} != {AST_HASH_ALGORITHM!r}"
+    )
+
 expected_methods = backend_contract.get("core_method_inventory", {})
 for cls in CORE_CLASSES:
     if cls not in production:
@@ -162,9 +202,6 @@ if len(production.get("AutomationWorker", [])) != expected_worker_count:
         f"{len(production.get('AutomationWorker', []))} != {expected_worker_count}"
     )
 
-def ast_contract_sha(node: ast.AST) -> str:
-    payload = ast.dump(node, include_attributes=False).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
 
 for cls, expected_sha in backend_contract.get("frozen_class_ast_sha256", {}).items():
     node = production_nodes.get(cls)
@@ -194,9 +231,19 @@ for name, expected_sha in backend_contract.get("frozen_helper_ast_sha256", {}).i
 # the published machine contract still describes the private v1.0.6 baseline.
 if PRIVATE_BASELINE.is_file():
     private_methods = class_methods(PRIVATE_BASELINE)
+    private_nodes = class_nodes(PRIVATE_BASELINE)
+    private_function_nodes = function_nodes(PRIVATE_BASELINE)
     for cls in CORE_CLASSES:
         if private_methods.get(cls) != expected_methods.get(cls):
             fail(f"public backend contract no longer matches private baseline for {cls}")
+    for cls, expected_sha in backend_contract.get("frozen_class_ast_sha256", {}).items():
+        node = private_nodes.get(cls)
+        if node is None or ast_contract_sha(node) != expected_sha:
+            fail(f"public frozen-class contract no longer matches private baseline for {cls}")
+    for name, expected_sha in backend_contract.get("frozen_helper_ast_sha256", {}).items():
+        node = private_function_nodes.get(name)
+        if node is None or ast_contract_sha(node) != expected_sha:
+            fail(f"public frozen-helper contract no longer matches private baseline for {name}")
 
 print("[5/8] Licensing and safety invariants")
 backend_text = (SRC / "backend.py").read_text(encoding="utf-8")
@@ -506,6 +553,7 @@ required = [
     "src/vibrapilot/qt_app.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
     "docs/updates/v1.0.6.1-vibrapilot-branding.md", "docs/updates/v1.0.6.1-github-ci-repository-hygiene-fix.md",
+    "docs/updates/v1.0.6.1-github-ci-deterministic-ast-contract-fix.md",
     "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",
 ]
 for rel in required:

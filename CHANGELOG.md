@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.0.6.1 — GitHub CI deterministic backend-contract fix — 2026-08-08
+
+### Fixed
+
+- Replaced Python-version-dependent raw `ast.dump()` backend implementation hashes with a canonical semantic AST hash format.
+- Regenerated frozen class/helper contract hashes from the private v1.0.6 source baseline without changing production backend source.
+- Added contract-algorithm metadata so stale/incompatible verification contracts fail explicitly.
+- Added regression coverage for production contract hashes and empty version-specific AST fields such as `type_params`.
+- Upgraded GitHub CI to Node 24-native `actions/checkout@v5` and `actions/setup-python@v6`, removing the deprecated Node 20 action warning from the repository workflow.
+
+### Repository policy
+
+- Public CI documentation remains under `docs/`.
+- Private development/source-baseline material remains under gitignored `project/` and is optional for local cross-checking only.
+
+### Preserved
+
+- Application version remains **1.0.6.1**.
+- `src/vibrapilot/backend.py` and all runtime application/browser/workflow behavior are unchanged.
+
 ## v1.0.6.1 — GitHub CI repository hygiene and private-baseline decoupling — 2026-08-08
 
 ### Fixed

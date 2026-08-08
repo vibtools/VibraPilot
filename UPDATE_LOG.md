@@ -1,5 +1,11 @@
 # Update Log
 
+## v1.0.6.1 — GitHub CI deterministic backend-contract fix — 2026-08-08
+
+CI/repository-verification maintenance only. Backend implementation parity hashes now use a canonical semantic AST representation instead of Python-version-dependent raw `ast.dump()` text. This prevents Python 3.12 GitHub runners from reporting false `TaskItem` implementation drift when the backend source is unchanged. The CI workflow also uses Node 24-native `actions/checkout@v5` and `actions/setup-python@v6`. Runtime application behavior is unchanged.
+
+Detailed note: `docs/updates/v1.0.6.1-github-ci-deterministic-ast-contract-fix.md`
+
 ## v1.0.6.1 — GitHub CI repository hygiene fix — 2026-08-08
 
 CI/repository-only maintenance. Public verification no longer depends on the private gitignored `project/` workspace. A machine-readable backend parity contract now lives under `config/verification/`, public documentation/CI guidance lives under `docs/`, Node 24-native GitHub Actions replace the deprecated Node 20 actions, and stale pre-rebrand tracked source paths are removed from the clean repository state. Runtime application behavior is unchanged.
