@@ -50,11 +50,15 @@ def fail(msg: str) -> None:
 
 
 def sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as fh:
-        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
+    """Return a cross-platform stable SHA-256 for frozen text contract files.
+
+    Git may materialize LF-tracked text as CRLF on Windows when no explicit
+    checkout policy is present. The frozen design contract is source-content
+    based, so canonicalize CRLF to LF before hashing instead of treating the
+    checkout platform as a design change.
+    """
+    data = path.read_bytes().replace(b"\r\n", b"\n")
+    return hashlib.sha256(data).hexdigest()
 
 
 def top_functions(path: Path) -> list[str]:

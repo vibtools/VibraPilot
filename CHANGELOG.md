@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.0.6.1 — GitHub Actions cross-platform verification fix — 2026-08-08
+
+### Fixed
+
+- Fixed Windows GitHub Actions false-positive frozen-design hash failures caused by checkout line-ending conversion from LF to CRLF.
+- Frozen Vib Tools text-contract hashes are now computed from canonical LF content, so identical source no longer appears as design drift solely because of runner platform.
+- Added `.gitattributes` rules that keep source/configuration/documentation text on LF and explicitly protect binary assets from line-ending normalization.
+- Fixed the Windows CI contract-test import path by setting `PYTHONPATH` to the repository `src` directory, preventing the next-step `ModuleNotFoundError: vibrapilot` after static verification succeeds.
+
+### Preserved
+
+- No runtime application, browser automation, workflow, selector, settings, licensing, UI behavior or frozen design-source content was changed.
+- Application version remains **1.0.6.1**.
+
 ## Branding Baseline — VibraPilot — 2026-08-08
 
 ### Changed

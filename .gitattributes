@@ -1,0 +1,20 @@
+# Keep source/config/documentation text deterministic across Windows/Linux CI.
+*.py text eol=lf
+*.json text eol=lf
+*.svg text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.cff text eol=lf
+*.ygit text eol=lf
+
+# Binary assets/artifacts must never be line-ending normalized.
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.zip binary
+*.xlsx binary
+*.xls binary

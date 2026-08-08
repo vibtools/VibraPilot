@@ -13,6 +13,8 @@ permissions:
 jobs:
   verify:
     runs-on: windows-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}\src
     strategy:
       fail-fast: false
       matrix:

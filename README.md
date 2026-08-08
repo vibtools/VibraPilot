@@ -89,7 +89,7 @@ python scripts/verify_repository.py
 python -m pytest -q
 ```
 
-The verifier checks the frozen Vib Tools design source, backend method parity, safety invariants, branding metadata, icon assets, UI integration, version metadata and repository hygiene.
+The verifier checks the frozen Vib Tools design source, backend method parity, safety invariants, branding metadata, icon assets, UI integration, version metadata and repository hygiene. Frozen text-contract hashing is line-ending canonicalized, and `.gitattributes` pins repository text to LF so verification is deterministic on Windows and Linux runners. GitHub Actions also exposes `src` through `PYTHONPATH` for the source-layout contract tests.
 
 ## License
 
