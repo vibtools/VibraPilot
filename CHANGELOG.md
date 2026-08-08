@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.0.6.1 — GitHub CI repository hygiene and private-baseline decoupling — 2026-08-08
+
+### Fixed
+
+- Removed GitHub CI's dependency on the gitignored private `project/` workspace.
+- Added `config/verification/backend_v1.0.6_contract.json` as the public machine-readable backend parity contract.
+- Updated backend contract tests and repository verification to work in clean public checkouts while retaining optional private-baseline cross-checks during local development.
+- Removed private `project/` files from public required-file checks and fixed public documentation links that pointed into `project/`.
+- Upgraded CI to Node 24-native `actions/checkout@v5` and `actions/setup-python@v6`.
+- Removed stale pre-rebrand source/launcher paths that conflict with VibraPilot repository hygiene and branding contract tests.
+
+### Repository policy
+
+- `docs/` is the public documentation surface.
+- `project/` is the private development workspace, remains gitignored, and is never a CI dependency.
+
+### Preserved
+
+- Application version remains **1.0.6.1**.
+- Runtime application/browser/workflow behavior is unchanged.
+
 ## v1.0.6.1 — GitHub Actions cross-platform verification fix — 2026-08-08
 
 ### Fixed

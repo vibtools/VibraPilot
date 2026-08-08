@@ -3,13 +3,12 @@
 ```text
 .github/workflows/           CI
 assets/                      Application assets
-config/                      Source-controlled runtime defaults
-docs/                        Product documentation and per-release update notes
+config/                      Source-controlled runtime defaults and public machine contracts
+docs/                        Public product documentation and per-release update notes
 frozen_design_source/        Official frozen Vib Tools token JSON
-project/research/            Forensic audit and preserved v1.0.6 source baseline
-project/specifications/      Feature-parity specification
+project/                     Private local development workspace (gitignored; never required by CI)
 scripts/                     Launch and repository-verification helpers
-src/vibrapilot/        Production application
+src/vibrapilot/              Production application
   backend.py                 v1.0.6 baseline + approved v1.0.6.1 browser-settings hardening
   data_io.py                 Input/export adapters
   qt_app.py                  Vib Tools PySide6 interface

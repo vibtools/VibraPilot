@@ -18,7 +18,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src" / "vibrapilot"
-BASELINE = ROOT / "project" / "research" / "source_baseline" / "VibraPilot_v1.0.6_original_app.py"
+PRIVATE_BASELINE = ROOT / "project" / "research" / "source_baseline" / "VibraPilot_v1.0.6_original_app.py"
+BACKEND_CONTRACT = ROOT / "config" / "verification" / "backend_v1.0.6_contract.json"
 
 EXPECTED_BRAND_HASHES = {
     "vib_validation_app/tokens.py": "cdae402dccdb8e916f274ea5fa0b8ec1a6505fab6043462d35af8a93e1468a02",
@@ -133,34 +134,69 @@ for keys, expected in checks.items():
         fail(f"token {'.'.join(keys)} changed: {cur!r}")
 
 print("[4/8] Core backend class/method parity")
-if not BASELINE.is_file():
-    fail("preserved v1.0.6 source baseline is missing")
-original = class_methods(BASELINE)
+if not BACKEND_CONTRACT.is_file():
+    fail("public backend parity contract is missing")
+try:
+    backend_contract = json.loads(BACKEND_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"public backend parity contract is invalid: {exc}")
+
 production = class_methods(SRC / "backend.py")
-original_nodes = class_nodes(BASELINE)
 production_nodes = class_nodes(SRC / "backend.py")
-allowed_settings_drift_classes = {"SettingsManager", "LicenseManager", "AutomationWorker"}
+expected_methods = backend_contract.get("core_method_inventory", {})
 for cls in CORE_CLASSES:
-    if cls not in original or cls not in production:
+    if cls not in production:
         fail(f"missing core class {cls}")
-    if original[cls] != production[cls]:
-        fail(f"backend method drift in {cls}: original={original[cls]} production={production[cls]}")
-    if cls not in allowed_settings_drift_classes and ast.dump(original_nodes[cls], include_attributes=False) != ast.dump(production_nodes[cls], include_attributes=False):
+    if cls not in expected_methods:
+        fail(f"backend contract missing core class {cls}")
+    if production[cls] != expected_methods[cls]:
+        fail(
+            f"backend method drift in {cls}: "
+            f"contract={expected_methods[cls]} production={production[cls]}"
+        )
+
+expected_worker_count = int(backend_contract.get("automation_worker_method_count", 0))
+if len(production.get("AutomationWorker", [])) != expected_worker_count:
+    fail(
+        "AutomationWorker method count drift: "
+        f"{len(production.get('AutomationWorker', []))} != {expected_worker_count}"
+    )
+
+def ast_contract_sha(node: ast.AST) -> str:
+    payload = ast.dump(node, include_attributes=False).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+for cls, expected_sha in backend_contract.get("frozen_class_ast_sha256", {}).items():
+    node = production_nodes.get(cls)
+    if node is None:
+        fail(f"missing frozen backend class {cls}")
+    actual_sha = ast_contract_sha(node)
+    if actual_sha != expected_sha:
         fail(f"backend implementation drift in core class {cls}")
-if len(production.get("AutomationWorker", [])) != 54:
-    fail("AutomationWorker must preserve all 54 v1.0.6 methods")
-original_helpers = [name for name in top_functions(BASELINE) if name != "main"]
+
 production_helpers = top_functions(SRC / "backend.py")
-allowed_settings_helpers = {"_load_default_settings", "effective_ignored_default_args"}
-if [name for name in production_helpers if name not in allowed_settings_helpers] != original_helpers:
-    fail(f"top-level backend helper drift: original={original_helpers} production={production_helpers}")
-original_function_nodes = function_nodes(BASELINE)
+expected_helpers = list(backend_contract.get("top_level_helpers", []))
+allowed_helpers = set(backend_contract.get("allowed_additional_helpers", []))
+if [name for name in production_helpers if name not in allowed_helpers] != expected_helpers:
+    fail(
+        "top-level backend helper drift: "
+        f"contract={expected_helpers} production={production_helpers}"
+    )
 production_function_nodes = function_nodes(SRC / "backend.py")
-for name in original_helpers:
-    if name in {"validate_test_send_limit", "safe_test_send_limit"}:
-        continue
-    if ast.dump(original_function_nodes[name], include_attributes=False) != ast.dump(production_function_nodes[name], include_attributes=False):
+for name, expected_sha in backend_contract.get("frozen_helper_ast_sha256", {}).items():
+    node = production_function_nodes.get(name)
+    if node is None:
+        fail(f"missing frozen backend helper {name}")
+    if ast_contract_sha(node) != expected_sha:
         fail(f"backend helper implementation drift in {name}")
+
+# Local developer check: when the private project workspace is present, prove that
+# the published machine contract still describes the private v1.0.6 baseline.
+if PRIVATE_BASELINE.is_file():
+    private_methods = class_methods(PRIVATE_BASELINE)
+    for cls in CORE_CLASSES:
+        if private_methods.get(cls) != expected_methods.get(cls):
+            fail(f"public backend contract no longer matches private baseline for {cls}")
 
 print("[5/8] Licensing and safety invariants")
 backend_text = (SRC / "backend.py").read_text(encoding="utf-8")
@@ -467,11 +503,21 @@ print("[8/8] Required project files")
 required = [
     "README.md", "CHANGELOG.md", "UPDATE_LOG.md", "VERSIONING.md", "LICENSE", "NOTICE", "pyproject.toml", "requirements.txt", "requirements-build.txt",
     "run.py", "build.py", "config/settings.defaults.json", "src/vibrapilot/backend.py", "src/vibrapilot/data_io.py",
-    "src/vibrapilot/qt_app.py", "project/research/VIB_TOOLS_DESKTOP_UI_FORENSIC_AUDIT.md", "project/research/VIBRAPILOT_BASELINE_FREEZE.md",
-    "project/specifications/FEATURE_PARITY_MATRIX.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md", "docs/updates/v1.0.6.1-vibrapilot-branding.md", "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",
+    "src/vibrapilot/qt_app.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
+    "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
+    "docs/updates/v1.0.6.1-vibrapilot-branding.md", "docs/updates/v1.0.6.1-github-ci-repository-hygiene-fix.md",
+    "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",
 ]
 for rel in required:
     if not (ROOT / rel).is_file():
-        fail(f"required project file missing: {rel}")
+        fail(f"required public repository file missing: {rel}")
+
+gitignore_text = (ROOT / ".gitignore").read_text(encoding="utf-8")
+if not re.search(r"(?m)^project/$", gitignore_text):
+    fail("private project/ workspace must remain gitignored")
+if (ROOT / "src" / "tester_zepto_pro").exists():
+    fail("stale pre-rebrand source package must not remain in the public repository")
+if (ROOT / "scripts" / "Start-TesterZeptoPro.ps1").exists():
+    fail("stale pre-rebrand launcher must not remain in the public repository")
 
 print("Repository verification passed.")

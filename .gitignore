@@ -50,5 +50,5 @@ Desktop.ini
 *.7z
 *.sha256
 
-# Project folder only for privet - its not needed in the repo
+# Private development workspace. Never publish it and never make CI depend on it.
 project/

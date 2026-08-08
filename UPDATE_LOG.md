@@ -1,5 +1,11 @@
 # Update Log
 
+## v1.0.6.1 — GitHub CI repository hygiene fix — 2026-08-08
+
+CI/repository-only maintenance. Public verification no longer depends on the private gitignored `project/` workspace. A machine-readable backend parity contract now lives under `config/verification/`, public documentation/CI guidance lives under `docs/`, Node 24-native GitHub Actions replace the deprecated Node 20 actions, and stale pre-rebrand tracked source paths are removed from the clean repository state. Runtime application behavior is unchanged.
+
+Detailed note: `docs/updates/v1.0.6.1-github-ci-repository-hygiene-fix.md`
+
 ## v1.0.6.1 — GitHub Actions verification portability fix — 2026-08-08
 
 CI-only maintenance update. The repository verifier now canonicalizes CRLF to LF when hashing frozen text design-contract files, preventing Windows Actions checkout from producing false design-drift failures. `.gitattributes` now pins source/config/documentation text to LF while preserving binary files as binary. The Windows CI job also exports the repository `src` directory through `PYTHONPATH`, so contract tests can import `vibrapilot` without an install step. Runtime application behavior is unchanged.

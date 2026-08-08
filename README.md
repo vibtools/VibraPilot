@@ -80,7 +80,7 @@ The builder produces a `VibraPilot` PyInstaller ONEDIR application and checksum-
 - v1.0.6.1 release note: `docs/updates/v1.0.6.1.md`
 - Browser Settings A–Z binding audit: `docs/updates/v1.0.6.1-browser-settings-audit.md`
 - VibraPilot branding baseline note: `docs/updates/v1.0.6.1-vibrapilot-branding.md`
-- Frozen source baseline record: `project/research/VIBRAPILOT_BASELINE_FREEZE.md`
+- Public CI/backend verification contract: `docs/verification/BACKEND_CONTRACT.md`
 
 ## Verification
 
@@ -89,7 +89,9 @@ python scripts/verify_repository.py
 python -m pytest -q
 ```
 
-The verifier checks the frozen Vib Tools design source, backend method parity, safety invariants, branding metadata, icon assets, UI integration, version metadata and repository hygiene. Frozen text-contract hashing is line-ending canonicalized, and `.gitattributes` pins repository text to LF so verification is deterministic on Windows and Linux runners. GitHub Actions also exposes `src` through `PYTHONPATH` for the source-layout contract tests.
+The verifier checks the frozen Vib Tools design source, the public backend parity contract, safety invariants, branding metadata, icon assets, UI integration, version metadata and repository hygiene. Frozen text-contract hashing is line-ending canonicalized, and `.gitattributes` pins repository text to LF so verification is deterministic on Windows and Linux runners. GitHub Actions exposes `src` through `PYTHONPATH` for source-layout contract tests and uses Node 24-native official GitHub Actions.
+
+Public documentation belongs under `docs/`. The local `project/` tree is a private development workspace, remains gitignored, and is never a required CI input.
 
 ## License
 
