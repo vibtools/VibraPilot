@@ -1,5 +1,9 @@
 # VibraPilot Roadmap
 
+## Verified licensing milestone — v1.0.6.10
+
+License-login state is durable across clean Windows application/source folders, P-256 device identity survives session-cache loss, current Licora `DEVICE_KEY_MISMATCH`/`DEVICE_REVOKED` states have bounded recovery, and logout/recheck behavior is aligned with production server semantics.
+
 ## Verified Workflow Inputs baseline — v1.0.6.9
 
 Forensic verification of `VP-WORKFLOW-INPUTS-001` against GitHub v1.0.6.8. The page separation, keys, values, `default_target_url` ownership and frozen backend/browser/API-v2 boundaries remain intact. Save/Reset persistence failures are now contained and rolled back at the Workflow Inputs page boundary.

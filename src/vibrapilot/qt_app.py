@@ -99,6 +99,7 @@ from .backend import (
     TaskItem,
     TaskState,
     now_str,
+    license_validation_failure_is_transient,
     safe_test_send_limit,
     validate_test_send_limit,
 )
@@ -3511,16 +3512,34 @@ class MainWindow(QMainWindow):
                         self.license_manager.license_key,
                         self.license_manager.user_email,
                     )
+                    validation_code = str(
+                        getattr(self.license_manager, "_last_validation_code", "")
+                    )
+                    still_locally_valid = self.license_manager.is_activated()
+                    transient_with_valid_token = (
+                        not ok
+                        and still_locally_valid
+                        and license_validation_failure_is_transient(validation_code)
+                    )
                     self.ui_queue.put(
                         (
                             "log",
                             {
                                 "slot_id": 0,
                                 "message": f"Background license re-check: {msg}",
-                                "level": "INFO" if ok else "ERROR",
+                                "level": (
+                                    "WARNING"
+                                    if transient_with_valid_token
+                                    else ("INFO" if ok else "ERROR")
+                                ),
                             },
                         )
                     )
+                    if transient_with_valid_token:
+                        # A temporary network/rate-limit/server-response failure is
+                        # not authoritative while the locally verified access token
+                        # is still valid. Keep the session and retry next interval.
+                        continue
                     if not ok:
                         self.license_manager.logout()
                         self.ui_queue.put(

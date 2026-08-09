@@ -27,6 +27,7 @@ CURRENT_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.7_vp_pro
 WINDOWS_SQLITE_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.7_windows_sqlite_concurrency_fix_scope.json"
 WORKFLOW_INPUTS_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.8_workflow_inputs_scope.json"
 WORKFLOW_INPUTS_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.9_workflow_inputs_verification_fix_scope.json"
+LICENSE_LOGIN_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.10_license_login_fix_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -251,6 +252,27 @@ for name, expected_sha in backend_contract.get("frozen_helper_ast_sha256", {}).i
     if ast_contract_sha(node) != expected_sha:
         fail(f"backend helper implementation drift in {name}")
 
+# v1.0.6.10 license-login verification/fix scope anchored to the exact promoted
+# v1.0.6.9 GitHub baseline. Historical scope contracts remain evidence, while
+# this contract authorizes only the current licensing/session surface.
+if not LICENSE_LOGIN_FIX_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.10 license-login fix scope contract is missing")
+try:
+    license_fix_scope = json.loads(LICENSE_LOGIN_FIX_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.10 license-login fix scope contract is invalid: {exc}")
+if license_fix_scope.get("official_baseline_github_commit") != "cd6ec96736626256daeed1d36775d21e90abf7ee":
+    fail("v1.0.6.10 license scope does not identify the exact GitHub v1.0.6.9 baseline")
+if license_fix_scope.get("official_baseline_archive_sha256") != "fe5ebed39608735dc72674a7342cb5f68afa3831afb94b8b944d210464d27805":
+    fail("v1.0.6.10 license scope baseline archive mismatch")
+if license_fix_scope.get("target_version") != "1.0.6.10":
+    fail("v1.0.6.10 license scope target mismatch")
+license_allowed_files = set(license_fix_scope.get("allowed_runtime_source_changes", []))
+license_allowed_lm_methods = set(license_fix_scope.get("approved_licensemanager_method_changes", []))
+license_allowed_mw_methods = set(license_fix_scope.get("approved_mainwindow_method_changes", []))
+if license_allowed_files != {"src/vibrapilot/backend.py", "src/vibrapilot/qt_app.py"}:
+    fail("v1.0.6.10 license runtime surface mismatch")
+
 # VP-PROD-MT-LR-001 production scope lock. The v1.0.6.4 Phase-02 manifest remains
 # historical evidence while the current verifier enforces the approved v1.0.6.5 scope.
 if not PRODUCTION_SCOPE_CONTRACT.is_file():
@@ -292,6 +314,8 @@ checks = {
     "qt_app.BROWSER_SETTING_GROUPS": qt_ann_nodes.get("BROWSER_SETTING_GROUPS"),
 }
 for name, node in checks.items():
+    if name == "backend.LicenseManager" and "src/vibrapilot/backend.py" in license_allowed_files:
+        continue
     expected_sha = production_ast.get(name)
     if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
         fail(f"production out-of-scope AST drift detected: {name}")
@@ -375,7 +399,9 @@ current_checks = {
     "qt_app.BROWSER_SETTING_GROUPS": qt_ann_nodes.get("BROWSER_SETTING_GROUPS"),
 }
 for name, node in current_checks.items():
-    if name == "qt_app.MainWindow" and workflow_approved_mainwindow:
+    if name == "backend.LicenseManager" and "src/vibrapilot/backend.py" in license_allowed_files:
+        continue
+    if name == "qt_app.MainWindow" and (workflow_approved_mainwindow or license_allowed_mw_methods):
         continue
     expected_sha = current_ast.get(name)
     if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
@@ -401,7 +427,9 @@ if windows_sqlite_fix_scope.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
     fail("v1.0.6.7 Windows SQLite fix AST hash algorithm mismatch")
 followup_ast = windows_sqlite_fix_scope.get("frozen_ast_sha256", {})
 for name, node in current_checks.items():
-    if name == "qt_app.MainWindow" and workflow_approved_mainwindow:
+    if name == "backend.LicenseManager" and "src/vibrapilot/backend.py" in license_allowed_files:
+        continue
+    if name == "qt_app.MainWindow" and (workflow_approved_mainwindow or license_allowed_mw_methods):
         continue
     expected_sha = followup_ast.get(name)
     if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
@@ -415,6 +443,8 @@ for method_name, expected_sha in windows_sqlite_fix_scope.get("frozen_automation
 
 # Enforce VP-WORKFLOW-INPUTS-001 against the final v1.0.6.7 baseline.
 for relative, expected_sha in workflow_inputs_scope.get("frozen_file_sha256", {}).items():
+    if relative in license_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
         fail(f"v1.0.6.8 Workflow Inputs out-of-scope file drift detected: {relative}")
@@ -431,6 +461,8 @@ workflow_ast_checks = {
     "qt_app.BROWSER_SETTING_GROUPS": qt_ann_nodes.get("BROWSER_SETTING_GROUPS"),
 }
 for name, node in workflow_ast_checks.items():
+    if name == "backend.LicenseManager" and "src/vibrapilot/backend.py" in license_allowed_files:
+        continue
     expected_sha = workflow_fixed_ast.get(name)
     if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.8 Workflow Inputs out-of-scope AST drift detected: {name}")
@@ -444,6 +476,8 @@ main_window_methods = {
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
 }
 for method_name, expected_sha in workflow_inputs_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
+    if method_name in license_allowed_mw_methods:
+        continue
     if method_name in workflow_approved_mainwindow:
         fail(f"v1.0.6.8 Workflow Inputs scope incorrectly freezes approved MainWindow method: {method_name}")
     node = main_window_methods.get(method_name)
@@ -483,17 +517,60 @@ workflow_fix_approved_methods = set(workflow_fix_scope.get("approved_mainwindow_
 if workflow_fix_approved_methods != {"save_workflow_inputs", "reset_workflow_inputs"}:
     fail("v1.0.6.9 approved MainWindow method surface mismatch")
 for relative, expected_sha in workflow_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in license_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
         fail(f"v1.0.6.9 Workflow Inputs out-of-scope file drift detected: {relative}")
 if workflow_fix_scope.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
     fail("v1.0.6.9 Workflow Inputs fix AST hash algorithm mismatch")
 for method_name, expected_sha in workflow_fix_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
+    if method_name in license_allowed_mw_methods:
+        continue
     if method_name in workflow_fix_approved_methods:
         fail(f"v1.0.6.9 fix scope incorrectly freezes approved MainWindow method: {method_name}")
     node = main_window_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.9 Workflow Inputs out-of-scope MainWindow drift detected: {method_name}")
+
+# v1.0.6.10 exact current scope verification.
+for relative, expected_sha in license_fix_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or sha256(path) != expected_sha:
+        fail(f"v1.0.6.10 license out-of-scope file drift detected: {relative}")
+if license_fix_scope.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
+    fail("v1.0.6.10 license scope AST hash algorithm mismatch")
+license_ast_checks = {
+    "backend.SELECTORS": backend_assignment_nodes.get("SELECTORS"),
+    "backend.TaskItem": production_nodes.get("TaskItem"),
+    "backend.TaskState": production_nodes.get("TaskState"),
+    "backend.AutomationWorker": production_nodes.get("AutomationWorker"),
+    "qt_app.ActivationPage": qt_nodes.get("ActivationPage"),
+    "qt_app.BROWSER_SETTING_GROUPS": qt_ann_nodes.get("BROWSER_SETTING_GROUPS"),
+}
+for name, expected_sha in license_fix_scope.get("frozen_ast_sha256", {}).items():
+    node = license_ast_checks.get(name)
+    if node is None or ast_contract_sha(node) != expected_sha:
+        fail(f"v1.0.6.10 license out-of-scope AST drift detected: {name}")
+license_manager_node = production_nodes.get("LicenseManager")
+if license_manager_node is None:
+    fail("v1.0.6.10 LicenseManager is missing")
+license_manager_methods = {
+    node.name: node for node in license_manager_node.body
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+}
+for method_name, expected_sha in license_fix_scope.get("frozen_licensemanager_method_ast_sha256", {}).items():
+    if method_name in license_allowed_lm_methods:
+        fail(f"v1.0.6.10 license scope incorrectly freezes approved LicenseManager method: {method_name}")
+    node = license_manager_methods.get(method_name)
+    if node is None or ast_contract_sha(node) != expected_sha:
+        fail(f"v1.0.6.10 out-of-scope LicenseManager drift: {method_name}")
+for method_name, expected_sha in license_fix_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
+    if method_name in license_allowed_mw_methods:
+        fail(f"v1.0.6.10 license scope incorrectly freezes approved MainWindow method: {method_name}")
+    node = main_window_methods.get(method_name)
+    if node is None or ast_contract_sha(node) != expected_sha:
+        fail(f"v1.0.6.10 out-of-scope MainWindow drift: {method_name}")
 
 # Local developer check: when the private project workspace is present, prove that
 # the published machine contract still describes the private v1.0.6 baseline.
@@ -528,8 +605,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.9":
-    fail("AppConfig VERSION must be 1.0.6.9 for the Workflow Inputs forensic verification/fix")
+if app_version != "1.0.6.10":
+    fail("AppConfig VERSION must be 1.0.6.10 for the license-login forensic verification/fix")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -643,8 +720,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.9-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.9 release path")
+if "VibraPilot-1.0.6.10-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.10 release path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})
@@ -833,6 +910,22 @@ for method_name, source in (("save_workflow_inputs", save_workflow_source), ("re
         fail(f"v1.0.6.9 {method_name} must restore exact pre-operation values on persistence failure")
     if "except Exception" not in source or '"Workflow Inputs error"' not in source:
         fail(f"v1.0.6.9 {method_name} must contain and report persistence errors")
+
+# v1.0.6.10 license-login durability/recovery invariants.
+for marker in (
+    "LICENSE_STATE_DIR = _default_license_state_dir()",
+    "DEVICE_IDENTITY_FILE = LICENSE_STATE_DIR / \"device_identity.json\"",
+    "_migrate_legacy_license_file()",
+    "DEVICE_KEY_MISMATCH",
+    "DEVICE_REVOKED",
+    "self._remote_logout_done.wait",
+    "license_validation_failure_is_transient",
+):
+    if marker not in backend_text and marker not in qt_text:
+        fail(f"v1.0.6.10 license-login marker missing: {marker}")
+for forbidden in license_fix_scope.get("forbidden_client_markers", []):
+    if forbidden in backend_text or forbidden in (SRC / "licensing_v2.py").read_text(encoding="utf-8"):
+        fail(f"v1.0.6.10 forbidden license client marker present: {forbidden}")
 
 # Dedicated Browser Settings scope.
 qt_tree_for_browser_settings = ast.parse(qt_text)
@@ -1102,6 +1195,7 @@ required = [
     "config/verification/v1.0.6.7_windows_sqlite_concurrency_fix_scope.json",
     "config/verification/v1.0.6.8_workflow_inputs_scope.json",
     "config/verification/v1.0.6.9_workflow_inputs_verification_fix_scope.json",
+    "config/verification/v1.0.6.10_license_login_fix_scope.json",
     "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
     "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
@@ -1116,12 +1210,14 @@ required = [
     "docs/verification/V1.0.6.7_WINDOWS_SQLITE_CONCURRENCY_VERIFICATION.md",
     "docs/verification/V1.0.6.8_WORKFLOW_INPUTS_VERIFICATION.md",
     "docs/verification/V1.0.6.9_WORKFLOW_INPUTS_FORENSIC_VERIFICATION.md",
+    "docs/verification/V1.0.6.10_LICENSE_LOGIN_FORENSIC_VERIFICATION.md",
     "docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md", "docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md",
     "docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md",
     "docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md",
     "docs/updates/v1.0.6.7-windows-sqlite-concurrency-fix.md",
     "docs/updates/v1.0.6.8-workflow-inputs-separation.md",
     "docs/updates/v1.0.6.9-workflow-inputs-verification-fix.md",
+    "docs/updates/v1.0.6.10-license-login-durability-recovery-fix.md",
     "scripts/verify_source_archive.py", "tests/test_v1067_verification_fix.py", "tests/test_app_config_validation.py",
     "tests/test_licensing_v2_crypto.py", "tests/test_licensing_v2_client.py", "tests/test_license_manager_v2.py", "tests/test_phase02_scope_freeze.py", "tests/test_phase02_step002_fix_scope.py",
     "tests/test_production_scope_freeze.py", "tests/test_task_runtime_store.py", "tests/test_task_recovery.py",
@@ -1130,6 +1226,7 @@ required = [
     "tests/test_ui_queue_backpressure.py",
     "tests/test_workflow_inputs.py", "tests/test_workflow_inputs_ui.py", "tests/test_workflow_inputs_scope.py",
     "tests/test_v1069_workflow_inputs_verification_fix.py",
+    "tests/test_v10610_license_login_fix.py",
     "scripts/maintenance/Apply-v1.0.6.2-Phase01-Fix.cmd",
     "scripts/maintenance/PHASE01_V1.0.6.2_DELETE_PATHS.txt",
     "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",

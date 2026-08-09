@@ -80,7 +80,14 @@ class ProductionScopeFreezeTest(unittest.TestCase):
             "qt_app.ActivationPage": _hash(qclasses["ActivationPage"]),
             "qt_app.BROWSER_SETTING_GROUPS": _hash(anns["BROWSER_SETTING_GROUPS"]),
         }
-        self.assertEqual(actual, CONTRACT["frozen_ast_sha256"])
+        expected = dict(CONTRACT["frozen_ast_sha256"])
+        current_license_scope = ROOT / "config/verification/v1.0.6.10_license_login_fix_scope.json"
+        if current_license_scope.is_file():
+            # v1.0.6.10 explicitly authorizes LicenseManager changes while preserving
+            # every other historical production AST contract.
+            actual.pop("backend.LicenseManager", None)
+            expected.pop("backend.LicenseManager", None)
+        self.assertEqual(actual, expected)
 
         worker = bclasses["AutomationWorker"]
         worker_methods = {

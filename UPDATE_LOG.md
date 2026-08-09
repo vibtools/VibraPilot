@@ -1,5 +1,12 @@
 # Update Log
 
+## v1.0.6.10 — License login durability/recovery — 2026-08-09
+
+Corrected production license-login persistence and recovery against the current Licora API v2 server: durable LocalAppData licensing state, independent DPAPI device identity, `DEVICE_KEY_MISMATCH`/`DEVICE_REVOKED` recovery, logout/re-login ordering and transient recheck handling. The API v2 wire protocol, browser/task/workflow behavior and ActivationPage visual design remain frozen.
+
+Detailed note: `docs/updates/v1.0.6.10-license-login-durability-recovery-fix.md`
+Verification: `docs/verification/V1.0.6.10_LICENSE_LOGIN_FORENSIC_VERIFICATION.md`
+
 ## v1.0.6.9 — Workflow Inputs forensic verification/fix — 2026-08-09
 
 Verified the full v1.0.6.8 `VP-WORKFLOW-INPUTS-001` separation and corrected only two page-local persistence-error paths: failed Save and Reset operations now restore the exact prior in-memory values, and Reset write failures no longer propagate into the Qt event path. Backend/browser/task/API-v2 behavior remains frozen.

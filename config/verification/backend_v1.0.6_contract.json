@@ -116,7 +116,16 @@
   ],
   "allowed_additional_helpers": [
     "_load_default_settings",
-    "effective_ignored_default_args"
+    "effective_ignored_default_args",
+    "_default_license_state_dir",
+    "_legacy_device_id",
+    "_current_machine_anchor",
+    "_atomic_json_write",
+    "_migrate_legacy_license_file",
+    "_read_device_identity",
+    "_write_device_identity",
+    "license_validation_failure_is_transient",
+    "_license_error_message"
   ],
   "frozen_helper_ast_sha256": {
     "_protect_local_secret": "4f13d1f0e8147e6795d2f8d448abafc9975242760819679c025e22ec53927bbf",

@@ -1,6 +1,6 @@
 # Licora Secure API v2 Integration
 
-VibraPilot v1.0.6.9 uses Licora Secure API v2 for desktop licensing. The client does **not** embed or send a Licora API v1 shared/master API key.
+VibraPilot v1.0.6.10 uses Licora Secure API v2 for desktop licensing. The client does **not** embed or send a Licora API v1 shared/master API key.
 
 ## Public client configuration
 
@@ -18,7 +18,7 @@ The matching Licora RSA private signing key remains server-side and must never b
 
 VibraPilot uses one persistent P-256 (`secp256r1`) device key identity for the local installation. The key is generated if absent and is DPAPI-protected and atomically persisted **before** any first activation request is sent. This prevents a response-loss/restart from leaving Licora bound to a device public key that the client did not save.
 
-The same protected device key is retained across logout and license switching. The public key is sent to Licora during activation; the private key never leaves the client.
+The same protected device key is retained across logout and license switching. If production Licora reports `DEVICE_KEY_MISMATCH` or `DEVICE_REVOKED`, VibraPilot persists one new device ID and retries activation once with the existing P-256 key. A stale active device that already fills the server device limit is not bypassed; Licora administrator cleanup is required before the recovered ID can consume a slot. The public key is sent to Licora during activation; the private key never leaves the client.
 
 Signed requests use the exact Licora canonical form:
 
@@ -37,7 +37,7 @@ Activation uses `activate:vibrapilot`; refresh uses `refresh:<sha256(refresh_tok
 
 Licora returns a short-lived RS256 access token and a rotating refresh token. VibraPilot validates the access token locally before using it, including `typ`, `alg`, `kid`, signature, issuer, audience/App ID, device ID, device-key fingerprint, timestamps, JTI and token version. Successfully verified access-token state is cached in memory until its verified expiry so dashboard polling does not repeatedly perform identical RSA verification.
 
-`AppData/license.json` schema version 2 stores only protected sensitive values. Windows DPAPI protects:
+`%LOCALAPPDATA%\Vib Tools\VibraPilot\license.json` is the default Windows session cache for v1.0.6.10 (an explicit `VIB_TOOLS_DATA_DIR` remains authoritative). A one-time migration copies the historical install-relative `AppData/license.json` when needed. `device_identity.json` separately preserves the DPAPI-protected P-256 device key and stable client device ID so clean upgrades or a corrupt session cache do not recreate the same server device with a different key. Windows DPAPI protects:
 
 - license key
 - P-256 device private key
@@ -56,11 +56,11 @@ Periodic license recheck runs whenever a protected/current license exists, even 
 
 ## Concurrency and UI behavior
 
-Long-running Licora HTTP validation uses a dedicated validation lock rather than holding the short UI-facing state lock. Dashboard `is_activated()` reads therefore do not wait behind remote network I/O. A state-generation guard prevents a late background validation result from restoring a session after local logout or another session-changing action.
+Long-running Licora HTTP validation uses a dedicated validation lock rather than holding the short UI-facing state lock. Dashboard `is_activated()` reads therefore do not wait behind remote network I/O. A state-generation guard prevents a late background validation result from restoring a session after local logout or another session-changing action. Validation checks the pending-logout event again while holding both validation/state locks, closing the narrow race where a login could otherwise pass the initial wait and acquire the validation lock just ahead of the queued deactivation request.
 
 ## Logout
 
-Logout immediately removes the protected license key, access token and refresh token from local session state while retaining the persistent DPAPI-protected P-256 device key. When a still-valid access token is available, VibraPilot also performs a best-effort API v2 deactivation in the background so Licora can revoke the current device credential and refresh family. Local logout is not blocked by network failure.
+Logout immediately removes the protected license key, access token and refresh token from local session state while retaining the persistent DPAPI-protected P-256 key. Server deactivation remains best-effort and serialized against any new activation. When deactivation is confirmed, VibraPilot persists a new client device ID because the current Licora server permanently revokes the old ID; if the deactivation outcome is unavailable, the old ID is retained and the next activation resolves the actual server state safely.
 
 ## Release-package boundary
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.0.6.10 — License login durability/recovery forensic fix — 2026-08-09
+
+### Fixed
+
+- Moved default Windows license/session persistence out of the install/source folder into durable per-user LocalAppData, with one-time migration from the historical `AppData/license.json` cache.
+- Added a separately DPAPI-protected persistent device identity so a corrupt/missing session cache does not destroy the P-256 key and recreate the same device ID with a different fingerprint.
+- Added one restart-safe recovery attempt for production `DEVICE_KEY_MISMATCH` and `DEVICE_REVOKED` activation states; stale active-device limit conflicts are surfaced explicitly without retry loops.
+- Serialized background logout deactivation against new activation and rotate the device ID only after confirmed remote revocation, preventing stale logout from revoking a fresh login.
+- Background license recheck now preserves a still-locally-valid access-token session across transient network, invalid-response, rate-limit, API-not-ready and server-error conditions.
+
+### Preserved
+
+- Licora API v2 request/signature/token protocol, endpoint paths, pinned server RSA public key, selectors, browser/task/workflow/report behavior and ActivationPage visual design are unchanged.
+
+### Verification
+
+- Added the v1.0.6.10 scope lock and regression coverage for legacy-state migration, corrupt-session identity survival, device mismatch/revoked recovery, logout ordering and transient recheck classification.
+
 ## v1.0.6.9 — VP-WORKFLOW-INPUTS-001 forensic verification/fix — 2026-08-09
 
 ### Fixed

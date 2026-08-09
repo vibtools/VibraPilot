@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VibraPilot - Authorized Browser Automation
-Version: 1.0.6.7
+Version: 1.0.6.10
 Author: Vib.tools
 
 Feature-preserving backend carried forward from the validated v1.0.6 baseline.
@@ -22,6 +22,7 @@ import os
 import queue
 import random
 import re
+import secrets
 import shlex
 import shutil
 import subprocess
@@ -70,7 +71,29 @@ for folder in (APP_DATA_DIR, FAILED_DATA_DIR, REPORTS_DIR, LOGS_DIR):
     folder.mkdir(parents=True, exist_ok=True)
 
 SETTINGS_FILE = APP_DATA_DIR / "settings.json"
-LICENSE_FILE = APP_DATA_DIR / "license.json"
+LEGACY_LICENSE_FILE = APP_DATA_DIR / "license.json"
+
+
+def _default_license_state_dir() -> Path:
+    """Return the durable per-user license-state directory.
+
+    Source checkouts and clean application upgrades may move between folders, but
+    a Licora device key must outlive that installation path.  An explicit
+    ``VIB_TOOLS_DATA_DIR`` deployment remains authoritative; otherwise Windows
+    stores licensing state below LOCALAPPDATA.
+    """
+    if os.environ.get("VIB_TOOLS_DATA_DIR"):
+        return APP_DATA_DIR
+    if os.name == "nt":
+        base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+        if base:
+            return Path(base).expanduser().resolve() / "Vib Tools" / "VibraPilot"
+    return APP_DATA_DIR
+
+
+LICENSE_STATE_DIR = _default_license_state_dir()
+LICENSE_FILE = LICENSE_STATE_DIR / "license.json"
+DEVICE_IDENTITY_FILE = LICENSE_STATE_DIR / "device_identity.json"
 APP_STATE_FILE = APP_DATA_DIR / "state.json"
 TASK_RUNTIME_DB = APP_DATA_DIR / "task_runtime.sqlite3"
 LOG_FILE = LOGS_DIR / f"app_{datetime.now().strftime('%Y%m%d')}.log"
@@ -316,6 +339,165 @@ def _unprotect_local_secret(value: str) -> str:
         return raw.decode("utf-8")
     finally:
         kernel32.LocalFree(output_blob.pbData)
+
+
+
+def _legacy_device_id() -> str:
+    """Return the pre-v1.0.6.10 deterministic device identifier."""
+    raw = f"{uuid.getnode()}-{os.getenv('COMPUTERNAME', '')}-{os.getenv('USERNAME', '')}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:24]
+
+
+def _current_machine_anchor() -> str:
+    """Return a non-secret machine anchor used to reject copied device state.
+
+    Windows MachineGuid is substantially more stable across network-adapter or
+    username changes than the historical device-ID input.  Only its application-
+    scoped SHA-256 digest is persisted.  On non-Windows verification hosts we use
+    the historical local identifier as a deterministic fallback.
+    """
+    material = ""
+    if os.name == "nt":
+        try:
+            import winreg
+
+            with winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\Microsoft\Cryptography",
+            ) as key:
+                material = str(winreg.QueryValueEx(key, "MachineGuid")[0]).strip()
+        except Exception:
+            material = ""
+    if not material:
+        material = _legacy_device_id()
+    return hashlib.sha256(f"{APP.app_id}:{material}".encode("utf-8")).hexdigest()
+
+
+def _atomic_json_write(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(
+        path.name + f".tmp.{os.getpid()}.{threading.get_ident()}"
+    )
+    try:
+        with temporary.open("w", encoding="utf-8", newline="\n") as handle:
+            json.dump(payload, handle, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    except Exception:
+        try:
+            temporary.unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise
+
+
+def _migrate_legacy_license_file() -> None:
+    """Copy the install-relative v1.0.6.9 cache to durable license storage once."""
+    try:
+        if LICENSE_FILE == LEGACY_LICENSE_FILE or LICENSE_FILE.exists() or not LEGACY_LICENSE_FILE.is_file():
+            return
+        raw = LEGACY_LICENSE_FILE.read_bytes()
+        LICENSE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        temporary = LICENSE_FILE.with_name(
+            LICENSE_FILE.name + f".migrate.{os.getpid()}.{threading.get_ident()}"
+        )
+        try:
+            with temporary.open("wb") as handle:
+                handle.write(raw)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, LICENSE_FILE)
+        finally:
+            temporary.unlink(missing_ok=True)
+        logging.info("Migrated protected Licora state to durable per-user storage.")
+    except Exception:
+        # Migration failure must not delete or corrupt the legacy cache.  Activation
+        # can still continue with explicit user input and report persistence errors.
+        logging.exception("Unable to migrate legacy Licora license state")
+
+
+def _read_device_identity() -> dict[str, Any] | None:
+    if not DEVICE_IDENTITY_FILE.is_file():
+        return None
+    raw = json.loads(DEVICE_IDENTITY_FILE.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError("device identity cache must be a JSON object")
+    if int(raw.get("schema_version", 0) or 0) != 1 or raw.get("app_id") != APP.app_id:
+        raise ValueError("device identity cache schema/application mismatch")
+    machine_anchor = str(raw.get("machine_anchor", "")).strip()
+    if machine_anchor and machine_anchor != _current_machine_anchor():
+        raise ValueError("device identity cache belongs to a different Windows machine")
+    device_id = str(raw.get("device_id", "")).strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{24}", device_id):
+        raise ValueError("device identity cache contains an invalid device ID")
+    protected_key = str(raw.get("device_private_key_protected", "")).strip()
+    if not protected_key:
+        raise ValueError("device identity cache is missing the protected private key")
+    private_key = _unprotect_local_secret(protected_key)
+    material = load_device_key_material(private_key)
+    fingerprint = str(raw.get("device_public_key_fingerprint", "")).strip()
+    if fingerprint and fingerprint != material.public_key_fingerprint:
+        raise ValueError("device identity cache fingerprint mismatch")
+    return {
+        "device_id": device_id,
+        "private_key_pem": material.private_key_pem,
+        "fingerprint": material.public_key_fingerprint,
+        "recovery_rotations": max(0, int(raw.get("recovery_rotations", 0) or 0)),
+    }
+
+
+def _write_device_identity(
+    *,
+    device_id: str,
+    private_key_pem: str,
+    fingerprint: str,
+    recovery_rotations: int,
+) -> None:
+    protected = _protect_local_secret(private_key_pem) if private_key_pem else ""
+    if os.name == "nt" and private_key_pem and not protected:
+        raise RuntimeError("Windows DPAPI failed to protect device private key.")
+    _atomic_json_write(
+        DEVICE_IDENTITY_FILE,
+        {
+            "schema_version": 1,
+            "app_id": APP.app_id,
+            "device_id": device_id,
+            "device_private_key_protected": protected,
+            "device_public_key_fingerprint": fingerprint,
+            "machine_anchor": _current_machine_anchor(),
+            "recovery_rotations": max(0, int(recovery_rotations)),
+            "saved_at": now_str(),
+        },
+    )
+
+
+def license_validation_failure_is_transient(code: str) -> bool:
+    """Return whether a failed remote check is non-authoritative/transient."""
+    return str(code or "").upper() in {
+        "NETWORK_ERROR",
+        "INVALID_SERVER_RESPONSE",
+        "RATE_LIMITED",
+        "API_V2_NOT_READY",
+        "INTERNAL_ERROR",
+    }
+
+
+def _license_error_message(exc: LicoraV2Error) -> str:
+    """Return concise activation-shell text while retaining the stable error code."""
+    code = str(exc.code or "LICORA_V2_ERROR")
+    messages = {
+        "NETWORK_ERROR": "Licora server is unreachable. Check your connection and retry.",
+        "INVALID_SERVER_RESPONSE": "Licora returned an invalid response. Please retry shortly.",
+        "RATE_LIMITED": "Too many license requests. Please wait and retry.",
+        "DEVICE_LIMIT_REACHED": "Device limit reached. Remove a stale device in Licora and retry.",
+        "DEVICE_REVOKED": "This device registration is revoked and requires recovery.",
+        "DEVICE_KEY_MISMATCH": "This device registration uses a different key and requires recovery.",
+        "APP_VERSION_UNSUPPORTED": "This VibraPilot version is not accepted by Licora.",
+        "INVALID_LICENSE": "The license key is not valid.",
+    }
+    return f"{messages.get(code, exc.message)} ({code})"
 
 
 def _strict_server_boolean(value: Any) -> bool:
@@ -664,12 +846,30 @@ class LicenseManager:
         self._verified_access_token = ""
         self._verified_access_expires_at = 0
         self._token_verifier = None
+        self._device_id = ""
+        self._device_recovery_rotations = 0
+        self._last_validation_code = "NOT_VALIDATED"
+        self._remote_logout_done = threading.Event()
+        self._remote_logout_done.set()
+        _migrate_legacy_license_file()
         self.load()
 
     def load(self) -> None:
-        if not LICENSE_FILE.exists():
-            return
+        identity_loaded = False
         with self._lock:
+            try:
+                identity = _read_device_identity()
+                if identity:
+                    self._device_id = str(identity["device_id"])
+                    self.device_private_key_pem = str(identity["private_key_pem"])
+                    self.device_public_key_fingerprint = str(identity["fingerprint"])
+                    self._device_recovery_rotations = int(identity["recovery_rotations"])
+                    identity_loaded = True
+            except Exception:
+                logging.exception("Failed to load durable Licora device identity")
+
+            if not LICENSE_FILE.exists():
+                return
             try:
                 data = json.loads(LICENSE_FILE.read_text(encoding="utf-8"))
                 if not isinstance(data, dict):
@@ -695,16 +895,13 @@ class LicenseManager:
                 self.app_id = str(data.get("app_id", APP.app_id)).strip() or APP.app_id
                 self.access_expires_at = int(data.get("access_expires_at", 0) or 0)
                 self.refresh_expires_at = data.get("refresh_expires_at")
-                self.device_public_key_fingerprint = str(
-                    data.get("device_public_key_fingerprint", "")
-                ).strip()
 
                 protected_device_key = str(
                     data.get("device_private_key_protected", "")
                 ).strip()
                 protected_access = str(data.get("access_token_protected", "")).strip()
                 protected_refresh = str(data.get("refresh_token_protected", "")).strip()
-                self.device_private_key_pem = (
+                session_device_key = (
                     _unprotect_local_secret(protected_device_key)
                     if protected_device_key
                     else ""
@@ -726,29 +923,69 @@ class LicenseManager:
                 if self.license_key:
                     self.license_hash = expected_hash
 
-                stored_device_id = str(data.get("device_id", "")).strip()
-                if stored_device_id and stored_device_id != self.device_id():
+                stored_device_id = str(data.get("device_id", "")).strip().lower()
+                stored_anchor = str(data.get("machine_anchor", "")).strip()
+                cache_is_foreign = False
+                if stored_anchor and stored_anchor != _current_machine_anchor():
+                    cache_is_foreign = True
+                elif (
+                    not stored_anchor
+                    and stored_device_id
+                    and not identity_loaded
+                    and stored_device_id != _legacy_device_id()
+                ):
+                    # Preserve the pre-v1.0.6.10 anti-copy check for old caches.
+                    cache_is_foreign = True
+
+                if cache_is_foreign:
                     logging.warning(
                         "Stored license cache belongs to a different device identity; "
                         "the protected license key is retained for re-activation."
                     )
-                    self.device_private_key_pem = ""
-                    self.device_public_key_fingerprint = ""
+                    session_device_key = ""
                     self.access_token = ""
                     self.refresh_token = ""
                     self.access_expires_at = 0
                     self.refresh_expires_at = None
 
-                if self.device_private_key_pem:
-                    material = load_device_key_material(self.device_private_key_pem)
-                    if (
-                        self.device_public_key_fingerprint
-                        and self.device_public_key_fingerprint
-                        != material.public_key_fingerprint
-                    ):
+                if session_device_key:
+                    material = load_device_key_material(session_device_key)
+                    stored_fingerprint = str(
+                        data.get("device_public_key_fingerprint", "")
+                    ).strip()
+                    if stored_fingerprint and stored_fingerprint != material.public_key_fingerprint:
                         raise ValueError("stored device key fingerprint mismatch")
-                    self.device_private_key_pem = material.private_key_pem
-                    self.device_public_key_fingerprint = material.public_key_fingerprint
+
+                    if identity_loaded:
+                        if (
+                            material.public_key_fingerprint
+                            != self.device_public_key_fingerprint
+                            or (stored_device_id and stored_device_id != self._device_id)
+                        ):
+                            # The durable device identity is authoritative across app
+                            # upgrades. Do not let a stale per-install session replace it.
+                            logging.warning(
+                                "Discarding stale Licora session credentials that do not "
+                                "match the durable device identity."
+                            )
+                            self.access_token = ""
+                            self.refresh_token = ""
+                            self.access_expires_at = 0
+                            self.refresh_expires_at = None
+                    else:
+                        self.device_private_key_pem = material.private_key_pem
+                        self.device_public_key_fingerprint = material.public_key_fingerprint
+                        self._device_id = stored_device_id or _legacy_device_id()
+                        self._device_recovery_rotations = max(
+                            0, int(data.get("device_recovery_rotations", 0) or 0)
+                        )
+                        _write_device_identity(
+                            device_id=self._device_id,
+                            private_key_pem=self.device_private_key_pem,
+                            fingerprint=self.device_public_key_fingerprint,
+                            recovery_rotations=self._device_recovery_rotations,
+                        )
+                        identity_loaded = True
 
                 if self.app_id != APP.app_id or (
                     self.schema_version >= 2 and self.protocol != "licora-api-v2"
@@ -757,8 +994,8 @@ class LicenseManager:
                 self._verified_access_token = ""
                 self._verified_access_expires_at = 0
             except Exception:
-                # Fail closed for corrupted/tampered v2 state. A valid protected
-                # legacy license key may be re-entered through the activation UI.
+                # Fail closed for corrupted/tampered session state, but preserve a
+                # separately protected durable device identity when one was loaded.
                 self.license_key = ""
                 self.license_hash = ""
                 self.user_email = ""
@@ -766,8 +1003,11 @@ class LicenseManager:
                 self.schema_version = 2
                 self.protocol = "licora-api-v2"
                 self.app_id = APP.app_id
-                self.device_private_key_pem = ""
-                self.device_public_key_fingerprint = ""
+                if not identity_loaded:
+                    self._device_id = ""
+                    self.device_private_key_pem = ""
+                    self.device_public_key_fingerprint = ""
+                    self._device_recovery_rotations = 0
                 self.access_token = ""
                 self.refresh_token = ""
                 self.access_expires_at = 0
@@ -809,6 +1049,16 @@ class LicenseManager:
                     if raw and not protected:
                         raise RuntimeError(f"Windows DPAPI failed to protect {label}.")
 
+            if self.device_private_key_pem:
+                if not self._device_id:
+                    self._device_id = _legacy_device_id()
+                _write_device_identity(
+                    device_id=self._device_id,
+                    private_key_pem=self.device_private_key_pem,
+                    fingerprint=self.device_public_key_fingerprint,
+                    recovery_rotations=self._device_recovery_rotations,
+                )
+
             payload = {
                 "schema_version": 2,
                 "protocol": "licora-api-v2",
@@ -819,6 +1069,8 @@ class LicenseManager:
                 "device_id": self.device_id(),
                 "device_private_key_protected": protected_device,
                 "device_public_key_fingerprint": self.device_public_key_fingerprint,
+                "device_recovery_rotations": int(self._device_recovery_rotations),
+                "machine_anchor": _current_machine_anchor(),
                 "access_token_protected": protected_access,
                 "refresh_token_protected": protected_refresh,
                 "access_expires_at": int(self.access_expires_at or 0),
@@ -826,35 +1078,24 @@ class LicenseManager:
                 "activated_until": self.activated_until,
                 "saved_at": now_str(),
             }
-            LICENSE_FILE.parent.mkdir(parents=True, exist_ok=True)
-            temporary = LICENSE_FILE.with_name(
-                LICENSE_FILE.name + f".tmp.{os.getpid()}.{threading.get_ident()}"
-            )
-            try:
-                with temporary.open("w", encoding="utf-8", newline="\n") as handle:
-                    json.dump(payload, handle, indent=2)
-                    handle.write("\n")
-                    handle.flush()
-                    os.fsync(handle.fileno())
-                os.replace(temporary, LICENSE_FILE)
-            except Exception:
-                try:
-                    temporary.unlink(missing_ok=True)
-                except Exception:
-                    pass
-                raise
+            _atomic_json_write(LICENSE_FILE, payload)
 
     def device_id(self) -> str:
-        raw = f"{uuid.getnode()}-{os.getenv('COMPUTERNAME', '')}-{os.getenv('USERNAME', '')}"
-        return hashlib.sha256(raw.encode()).hexdigest()[:24]
+        return self._device_id or _legacy_device_id()
 
     def validate(self, license_key: str, email: str) -> tuple[bool, str]:
         license_key = license_key.strip().upper()
         email = email.strip()
+
+        def outcome(ok: bool, message: str, code: str) -> tuple[bool, str]:
+            with self._lock:
+                self._last_validation_code = str(code or "LICORA_V2_ERROR")
+            return ok, message
+
         if len(license_key) < 8:
-            return False, "License key must be at least 8 characters."
+            return outcome(False, "License key must be at least 8 characters.", "INPUT_ERROR")
         if email and not EMAIL_RE.match(email):
-            return False, "Please enter a valid email address."
+            return outcome(False, "Please enter a valid email address.", "INPUT_ERROR")
 
         request_timeout = min(
             300.0,
@@ -867,21 +1108,48 @@ class LicenseManager:
                 ),
             ),
         )
+
+        # Explicit logout performs best-effort server deactivation in the background.
+        # A new activation must not overtake that request and then be revoked by the
+        # stale logout thread after it succeeds.
+        if not self._remote_logout_done.wait(timeout=request_timeout + 1.0):
+            return outcome(
+                False,
+                "Previous license logout is still finishing. Please retry shortly.",
+                "LOGOUT_PENDING",
+            )
+
         try:
             client = LicoraV2Client(app_version=APP_VERSION, timeout=request_timeout)
         except LicoraV2Error as exc:
             logging.error("Licora API v2 configuration rejected: %s", exc.code)
-            return False, f"Secure licensing configuration error ({exc.code})."
+            return outcome(
+                False,
+                f"Secure licensing configuration error ({exc.code}).",
+                exc.code,
+            )
 
         # Only one remote validation/refresh/activation sequence may mutate the
         # rotating credential state at a time. The separate state lock remains free
         # while network I/O is in flight so UI reads cannot freeze behind HTTP.
         with self._validation_lock:
             with self._lock:
+                # Re-check while holding both the remote-validation lock and the
+                # short state lock.  Logout clears this event while holding
+                # ``_lock``; without this second check a validate() call that passed
+                # the earlier wait could still acquire ``_validation_lock`` ahead of
+                # the queued deactivation thread and reactivate the just-revoked ID.
+                if not self._remote_logout_done.is_set():
+                    return outcome(
+                        False,
+                        "Previous license logout is still finishing. Please retry shortly.",
+                        "LOGOUT_PENDING",
+                    )
                 generation = self._state_generation
                 previous_license = self.license_key
                 previous_access = self.access_token
                 previous_private_key = self.device_private_key_pem
+                previous_device_id = self.device_id()
                 same_license = previous_license == license_key and bool(previous_license)
 
                 key_was_generated = False
@@ -891,6 +1159,8 @@ class LicenseManager:
                     except LicoraV2Error:
                         material = generate_device_key_material()
                         key_was_generated = True
+                        self._device_id = _legacy_device_id()
+                        self._device_recovery_rotations = 0
                         self.access_token = ""
                         self.refresh_token = ""
                         self.access_expires_at = 0
@@ -900,15 +1170,17 @@ class LicenseManager:
                 else:
                     material = generate_device_key_material()
                     key_was_generated = True
+                    if not self._device_id:
+                        self._device_id = _legacy_device_id()
 
                 self.device_private_key_pem = material.private_key_pem
                 self.device_public_key_fingerprint = material.public_key_fingerprint
 
                 if previous_license and previous_license != license_key:
                     # A license switch clears only license/session state. The P-256
-                    # device identity is intentionally persistent so an unavailable
-                    # deactivation request cannot strand a server credential with a
-                    # private key the client has discarded.
+                    # device identity remains persistent. If the previous server-side
+                    # deactivation succeeds, a future switch back is recovered through
+                    # the revoked-device identity rollover below.
                     self.license_key = ""
                     self.license_hash = ""
                     self.user_email = ""
@@ -921,27 +1193,31 @@ class LicenseManager:
                     self._verified_access_expires_at = 0
 
                 # Persist a newly generated P-256 device key before any activation
-                # request can register it server-side. This makes a lost/ambiguous
-                # activation response recoverable on the next attempt/restart.
+                # request can register it server-side. The separate durable identity
+                # file survives clean source/application upgrades and session-cache
+                # corruption.
                 if key_was_generated or (previous_license and previous_license != license_key):
                     try:
                         self.save()
                     except Exception as exc:
                         logging.exception("Unable to persist the secure Licora device identity")
-                        return False, f"Unable to persist secure device identity: {exc}"
+                        return outcome(
+                            False,
+                            f"Unable to persist secure device identity: {exc}",
+                            "LOCAL_PERSISTENCE_ERROR",
+                        )
 
                 access_token = self.access_token if same_license else ""
                 refresh_token = self.refresh_token if same_license else ""
                 private_key_pem = self.device_private_key_pem
                 fingerprint = self.device_public_key_fingerprint
-
-            device_id = self.device_id()
+                device_id = self.device_id()
 
             if previous_license and previous_license != license_key and previous_access and previous_private_key:
                 try:
                     client.deactivate(
                         access_token=previous_access,
-                        device_id=device_id,
+                        device_id=previous_device_id,
                         private_key_pem=previous_private_key,
                     )
                 except Exception:
@@ -952,7 +1228,7 @@ class LicenseManager:
 
             with self._lock:
                 if self._state_generation != generation:
-                    return False, "License session changed locally."
+                    return outcome(False, "License session changed locally.", "SESSION_CHANGED")
 
             # First prefer the existing short-lived access credential. The request
             # still performs server-side status validation and device proof.
@@ -976,7 +1252,7 @@ class LicenseManager:
                     )
                     with self._lock:
                         if self._state_generation != generation:
-                            return False, "License session changed locally."
+                            return outcome(False, "License session changed locally.", "SESSION_CHANGED")
                         self.license_key = license_key
                         self.license_hash = hashlib.sha256(license_key.encode()).hexdigest()
                         self.user_email = email
@@ -990,23 +1266,32 @@ class LicenseManager:
                         self._verified_access_expires_at = claims.expires_at
                         self._token_verifier = client
                         self.save()
-                    return True, "Secure license session verified."
+                    return outcome(True, "Secure license session verified.", "OK")
                 except LicoraV2Error as exc:
-                    if exc.code not in {"TOKEN_EXPIRED", "TOKEN_NOT_YET_VALID", "INVALID_TOKEN"}:
+                    recoverable_status = exc.code in {"DEVICE_REVOKED", "INVALID_DEVICE_PROOF"}
+                    token_invalid = exc.code in {"TOKEN_EXPIRED", "TOKEN_NOT_YET_VALID", "INVALID_TOKEN"}
+                    if not token_invalid and not recoverable_status:
                         logging.warning("Licora API v2 status failed: %s", exc.code)
-                        if exc.is_network_error:
-                            return False, f"License validation failed: {exc.message}"
-                        return False, f"{exc.message} ({exc.code})"
+                        return outcome(False, _license_error_message(exc), exc.code)
                     with self._lock:
                         if self._state_generation != generation:
-                            return False, "License session changed locally."
+                            return outcome(False, "License session changed locally.", "SESSION_CHANGED")
                         if self.access_token == access_token:
                             self.access_token = ""
                             self.access_expires_at = 0
                             self._verified_access_token = ""
                             self._verified_access_expires_at = 0
-                            self.save()
+                        if recoverable_status:
+                            self.refresh_token = ""
+                            self.refresh_expires_at = None
+                        self.save()
                     access_token = ""
+                    if recoverable_status:
+                        refresh_token = ""
+                        logging.warning(
+                            "Licora status requires device re-activation recovery: %s",
+                            exc.code,
+                        )
 
             # Refresh is one-shot because Licora rotates refresh credentials. If a
             # network failure makes the result ambiguous, persistently discard the
@@ -1034,7 +1319,7 @@ class LicenseManager:
                     )
                     with self._lock:
                         if self._state_generation != generation:
-                            return False, "License session changed locally."
+                            return outcome(False, "License session changed locally.", "SESSION_CHANGED")
                         self.license_key = license_key
                         self.license_hash = hashlib.sha256(license_key.encode()).hexdigest()
                         self.user_email = email
@@ -1050,12 +1335,12 @@ class LicenseManager:
                         self._verified_access_expires_at = int(claims_raw["exp"])
                         self._token_verifier = client
                         self.save()
-                    return True, "Secure license session refreshed."
+                    return outcome(True, "Secure license session refreshed.", "OK")
                 except LicoraV2Error as exc:
                     logging.warning("Licora API v2 refresh failed: %s", exc.code)
                     with self._lock:
                         if self._state_generation != generation:
-                            return False, "License session changed locally."
+                            return outcome(False, "License session changed locally.", "SESSION_CHANGED")
                         # Clear the exact one-shot credential on disk before any
                         # re-activation attempt. The server may already have rotated
                         # it even when the response was lost in transit.
@@ -1070,14 +1355,66 @@ class LicenseManager:
                             self.save()
                         except Exception as save_exc:
                             logging.exception("Failed to persist discarded Licora refresh credentials")
-                            return False, f"Unable to persist secure refresh state: {save_exc}"
+                            return outcome(
+                                False,
+                                f"Unable to persist secure refresh state: {save_exc}",
+                                "LOCAL_PERSISTENCE_ERROR",
+                            )
 
-            try:
-                activated = client.activate(
+            def activate_once(active_device_id: str) -> dict[str, Any]:
+                return client.activate(
                     license_key=license_key,
-                    device_id=device_id,
+                    device_id=active_device_id,
                     private_key_pem=private_key_pem,
                 )
+
+            try:
+                try:
+                    activated = activate_once(device_id)
+                except LicoraV2Error as first_exc:
+                    if first_exc.code not in {"DEVICE_KEY_MISMATCH", "DEVICE_REVOKED"}:
+                        raise
+
+                    # The current Licora server binds a credential fingerprint to a
+                    # client-provided device ID, and deactivation permanently revokes
+                    # that ID.  If the old private key was lost in an install-local
+                    # cache, or a previous logout successfully revoked the ID, the
+                    # client cannot prove/restore that old record.  Rotate to one new
+                    # stable device ID and retry exactly once.  The new ID is persisted
+                    # before transmission so an ambiguous response is restart-safe.
+                    with self._lock:
+                        if self._state_generation != generation:
+                            return outcome(False, "License session changed locally.", "SESSION_CHANGED")
+                        self._device_id = secrets.token_hex(12)
+                        self._device_recovery_rotations += 1
+                        self.access_token = ""
+                        self.refresh_token = ""
+                        self.access_expires_at = 0
+                        self.refresh_expires_at = None
+                        self._verified_access_token = ""
+                        self._verified_access_expires_at = 0
+                        self.save()
+                        device_id = self._device_id
+                    logging.warning(
+                        "Licora device identity recovery: %s -> new device id (%s).",
+                        first_exc.code,
+                        device_id,
+                    )
+                    try:
+                        activated = activate_once(device_id)
+                    except LicoraV2Error as recovery_exc:
+                        if (
+                            first_exc.code == "DEVICE_KEY_MISMATCH"
+                            and recovery_exc.code == "DEVICE_LIMIT_REACHED"
+                        ):
+                            return outcome(
+                                False,
+                                "A stale registered device still occupies the license limit. "
+                                "Remove that old device in Licora, then retry. (DEVICE_LIMIT_REACHED)",
+                                recovery_exc.code,
+                            )
+                        raise recovery_exc
+
                 claims_raw = activated["verified_claims"]
                 new_access = str(activated["access_token"])
                 new_refresh = str(activated["refresh_token"])
@@ -1118,19 +1455,19 @@ class LicenseManager:
                             "Stale Licora activation could not be deactivated after a local session change.",
                             exc_info=True,
                         )
-                    return False, "License session changed locally."
+                    return outcome(False, "License session changed locally.", "SESSION_CHANGED")
                 logging.info("Licora API v2 license activated for %s", email or "local user")
-                return True, "License activated securely."
+                return outcome(True, "License activated securely.", "OK")
             except LicoraV2Error as exc:
                 logging.warning(
                     "Licora API v2 activation rejected: code=%s request_id=%s",
                     exc.code,
                     exc.request_id or "n/a",
                 )
-                return False, f"{exc.message} ({exc.code})"
+                return outcome(False, _license_error_message(exc), exc.code)
             except Exception as exc:
                 logging.exception("Secure remote license validation failed")
-                return False, f"License validation failed: {exc}"
+                return outcome(False, f"License validation failed: {exc}", "UNEXPECTED_ERROR")
 
     def is_activated(self) -> bool:
         with self._lock:
@@ -1196,20 +1533,23 @@ class LicenseManager:
                 ),
             )
             self._state_generation += 1
+            logout_generation = self._state_generation
             self.license_key = ""
             self.license_hash = ""
             self.user_email = ""
             self.activated_until = None
-            # Device key material intentionally survives logout. The remote
-            # deactivation is best-effort; discarding the key before confirmation
-            # can cause DEVICE_KEY_MISMATCH on the next activation if the server
-            # credential remained active.
             self.access_token = ""
             self.refresh_token = ""
             self.access_expires_at = 0
             self.refresh_expires_at = None
             self._verified_access_token = ""
             self._verified_access_expires_at = 0
+            self._last_validation_code = "LOGGED_OUT"
+            needs_remote_deactivate = bool(access_token and private_key_pem)
+            if needs_remote_deactivate:
+                self._remote_logout_done.clear()
+            else:
+                self._remote_logout_done.set()
             try:
                 if self.device_private_key_pem:
                     self.save()
@@ -1222,9 +1562,16 @@ class LicenseManager:
                 except Exception:
                     logging.exception("Failed to remove protected Licora API v2 license file")
 
-        if access_token and private_key_pem:
-            def revoke_remote() -> None:
-                try:
+        if not needs_remote_deactivate:
+            return
+
+        def revoke_remote() -> None:
+            deactivated = False
+            try:
+                # Serialize server deactivation with validate(). A subsequent login
+                # waits on _remote_logout_done and therefore cannot be revoked by a
+                # stale logout request after its own activation succeeds.
+                with self._validation_lock:
                     LicoraV2Client(
                         app_version=APP_VERSION, timeout=request_timeout
                     ).deactivate(
@@ -1232,15 +1579,37 @@ class LicenseManager:
                         device_id=device_id,
                         private_key_pem=private_key_pem,
                     )
-                except Exception:
-                    # Local logout must never be blocked by an unavailable server or
-                    # an already-expired/revoked access token.
-                    logging.info(
-                        "Licora API v2 remote deactivation was not completed during logout.",
-                        exc_info=True,
-                    )
+                    deactivated = True
+            except Exception:
+                # Local logout must never be blocked by an unavailable server or an
+                # already-expired/revoked access token. If the outcome was ambiguous,
+                # keeping the old device ID lets the next activation safely discover
+                # whether server-side recovery is necessary.
+                logging.info(
+                    "Licora API v2 remote deactivation was not completed during logout.",
+                    exc_info=True,
+                )
+            finally:
+                if deactivated:
+                    with self._lock:
+                        if (
+                            self._state_generation == logout_generation
+                            and not self.license_key
+                        ):
+                            # Licora deactivation permanently revokes the old device
+                            # ID. Rotate only after confirmed success so same-device
+                            # re-login works even for a one-device license.
+                            self._device_id = secrets.token_hex(12)
+                            self._device_recovery_rotations += 1
+                            try:
+                                self.save()
+                            except Exception:
+                                logging.exception(
+                                    "Failed to persist post-logout Licora device identity rotation"
+                                )
+                self._remote_logout_done.set()
 
-            threading.Thread(target=revoke_remote, daemon=True).start()
+        threading.Thread(target=revoke_remote, daemon=True).start()
 
 @dataclass
 class TaskItem:

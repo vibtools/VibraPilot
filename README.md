@@ -1,6 +1,12 @@
-# VibraPilot v1.0.6.9 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.10 — Vib Tools Browser Automation Desktop
 
-**VibraPilot v1.0.6.9** is the forensic verification/fix promotion of the approved v1.0.6.8 `VP-WORKFLOW-INPUTS-001` release. It preserves the dedicated **Workflow Inputs** page, existing setting keys/values and all frozen backend/browser/API-v2 behavior while correcting only verified Workflow Inputs persistence-error handling: failed Save/Reset operations now restore the pre-operation in-memory values and surface an error instead of leaving unsaved state authoritative or propagating a reset exception into the Qt event path.
+**VibraPilot v1.0.6.10** is the scope-locked license-login durability/recovery correction built from GitHub v1.0.6.9 commit `cd6ec96736626256daeed1d36775d21e90abf7ee`. It preserves the Licora Secure API v2 wire protocol, pinned RSA public key, browser/task/workflow/report behavior and ActivationPage visual design while fixing persistent device identity, clean-upgrade activation, `DEVICE_KEY_MISMATCH`/`DEVICE_REVOKED` recovery, logout/re-login ordering and transient background recheck handling.
+
+## v1.0.6.10 License login durability and recovery
+
+On Windows, protected licensing state now migrates from the historical install-relative `AppData/license.json` into a durable per-user `%LOCALAPPDATA%\Vib Tools\VibraPilot` location unless an explicit `VIB_TOOLS_DATA_DIR` deployment is configured. A separate DPAPI-protected device-identity record preserves the P-256 private key and stable device ID across clean source/application folders and session-cache corruption.
+
+When the production Licora server reports `DEVICE_KEY_MISMATCH` or `DEVICE_REVOKED`, VibraPilot performs one restart-safe device-ID recovery attempt with the existing P-256 key. If a stale active device already fills the license limit, the client stops and gives an explicit Licora stale-device cleanup message instead of looping or silently consuming slots. Confirmed logout deactivation rotates the now-revoked device ID before the next login, while a new login cannot overtake the background deactivation request. Temporary network/rate-limit/server-response failures no longer force an otherwise locally valid access-token session to logout.
 
 
 ## v1.0.6.9 Workflow Inputs verification/fix
@@ -46,7 +52,7 @@ P-256 device key → activate → RS256 access token + rotating refresh token
                  → status → refresh/rotate → status → deactivate
 ```
 
-VibraPilot signs API v2 requests with the locally generated P-256 device private key. The server private signing key never leaves Licora. Sensitive local licensing material is protected with Windows DPAPI and persisted atomically in schema-v2 `AppData/license.json`. The P-256 device identity is persistent across logout, license switching and restart; session tokens and the protected license are cleared on logout.
+VibraPilot signs API v2 requests with the locally generated P-256 device private key. The server private signing key never leaves Licora. Sensitive local licensing material is protected with Windows DPAPI. By default on Windows, session state is persisted atomically in `%LOCALAPPDATA%\Vib Tools\VibraPilot\license.json` and the durable P-256 identity in `device_identity.json`; an explicit `VIB_TOOLS_DATA_DIR` remains authoritative. The historical install-relative `AppData/license.json` is migration input only. The P-256 device identity is persistent across logout, license switching and restart; session tokens and the protected license are cleared on logout.
 
 The active source contains **no Licora API v1 master/shared API key** and no `/api/verify.php` desktop authentication flow. See `docs/guides/LICENSING.md`.
 

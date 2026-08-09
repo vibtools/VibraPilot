@@ -100,8 +100,12 @@ class LicenseManagerV2Test(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name) / "license.json"
+        self.identity_path = Path(self.temp.name) / "device_identity.json"
+        self.legacy_path = Path(self.temp.name) / "legacy-license.json"
         self.patches = [
             patch.object(backend, "LICENSE_FILE", self.path),
+            patch.object(backend, "DEVICE_IDENTITY_FILE", self.identity_path),
+            patch.object(backend, "LEGACY_LICENSE_FILE", self.legacy_path),
             patch.object(backend, "LicoraV2Client", FakeClient),
             patch.object(
                 backend,
@@ -223,6 +227,7 @@ class LicenseManagerV2Test(unittest.TestCase):
         fingerprint = manager.device_public_key_fingerprint
 
         manager.logout()
+        self.assertTrue(manager._remote_logout_done.wait(timeout=2))
         data = json.loads(self.path.read_text())
         self.assertFalse(data["license_key_protected"])
         self.assertFalse(data["access_token_protected"])
@@ -287,6 +292,7 @@ class LicenseManagerV2Test(unittest.TestCase):
             manager.logout()
             BlockingStatusClient.release.set()
             worker.join(timeout=2)
+            self.assertTrue(manager._remote_logout_done.wait(timeout=2))
 
         self.assertFalse(worker.is_alive())
         self.assertFalse(result["validate"][0])
