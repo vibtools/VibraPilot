@@ -37,6 +37,10 @@ class TaskRuntimeStore:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._schema_lock = threading.Lock()
+        # SQLite WAL allows concurrent readers but only one writer.  Serialize
+        # in-process writes before they reach SQLite's file lock so Windows worker
+        # threads cannot spend the full busy timeout contending with each other.
+        self._write_lock = threading.RLock()
         self.recovery_warning = ""
         try:
             self._ensure_schema()
@@ -89,9 +93,16 @@ class TaskRuntimeStore:
         finally:
             conn.close()
 
+    @contextmanager
+    def _write_connection(self):
+        """Serialize local writers while preserving concurrent WAL readers."""
+        with self._write_lock:
+            with self._connection() as conn:
+                yield conn
+
     def _ensure_schema(self) -> None:
         with self._schema_lock:
-            with self._connection() as conn:
+            with self._write_connection() as conn:
                 conn.executescript(
                     """
                 PRAGMA journal_mode=WAL;
@@ -165,7 +176,7 @@ class TaskRuntimeStore:
     ) -> str:
         run_id = run_id or self.new_run_id()
         item_rows = list(items)
-        with self._connection() as conn:
+        with self._write_connection() as conn:
             conn.execute(
                 "UPDATE runs SET task_status='Discarded', updated_at=? "
                 "WHERE slot_id=? AND completed_at IS NULL AND task_status!='Discarded'",
@@ -215,7 +226,7 @@ class TaskRuntimeStore:
     ) -> None:
         if not run_id:
             return
-        with self._connection() as conn:
+        with self._write_connection() as conn:
             if target_url is None:
                 conn.execute(
                     """UPDATE runs SET current_index=?,total=?,success_count=?,failed_count=?,
@@ -244,7 +255,7 @@ class TaskRuntimeStore:
     def save_item(self, run_id: str, item_index: int, item: Any) -> None:
         if not run_id:
             return
-        with self._connection() as conn:
+        with self._write_connection() as conn:
             conn.execute(
                 """UPDATE items SET email=?,name=?,status=?,attempts=?,message=?,result=?
                    WHERE run_id=? AND item_index=?""",
@@ -259,7 +270,7 @@ class TaskRuntimeStore:
     def upsert_result(self, run_id: str, item_index: int, row: dict[str, Any]) -> None:
         if not run_id:
             return
-        with self._connection() as conn:
+        with self._write_connection() as conn:
             conn.execute(
                 """INSERT INTO results(
                     run_id,item_index,timestamp,slot_id,email,status,message,attempts,target_url,result
@@ -277,18 +288,97 @@ class TaskRuntimeStore:
                 ),
             )
 
+    def persist_item_result_progress(
+        self,
+        *,
+        run_id: str,
+        item_index: int,
+        item: Any,
+        result_row: dict[str, Any] | None,
+        current_index: int,
+        total: int,
+        success_count: int,
+        failed_count: int,
+        send_limit_used: int,
+        task_status: str,
+        manual_review_required: bool,
+        updated_at: str,
+        target_url: str | None = None,
+    ) -> None:
+        """Persist one recipient outcome and run progress in one durable write transaction.
+
+        This is the hot path used by concurrent workers.  A single transaction avoids
+        three separate writer-lock acquisitions per recipient while keeping the same
+        FULL-synchronous WAL durability contract.
+        """
+        if not run_id:
+            return
+        with self._write_connection() as conn:
+            conn.execute(
+                """UPDATE items SET email=?,name=?,status=?,attempts=?,message=?,result=?
+                   WHERE run_id=? AND item_index=?""",
+                (
+                    str(getattr(item, "email", "")), str(getattr(item, "name", "")),
+                    str(getattr(item, "status", "pending")), int(getattr(item, "attempts", 0)),
+                    str(getattr(item, "message", "")), str(getattr(item, "result", "")),
+                    run_id, int(item_index),
+                ),
+            )
+            if result_row is not None:
+                row = result_row
+                conn.execute(
+                    """INSERT INTO results(
+                        run_id,item_index,timestamp,slot_id,email,status,message,attempts,target_url,result
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?)
+                    ON CONFLICT(run_id,item_index) DO UPDATE SET
+                        timestamp=excluded.timestamp,slot_id=excluded.slot_id,email=excluded.email,
+                        status=excluded.status,message=excluded.message,attempts=excluded.attempts,
+                        target_url=excluded.target_url,result=excluded.result""",
+                    (
+                        run_id, int(item_index), str(row.get("timestamp", "")),
+                        int(row.get("slot_id", 0)), str(row.get("email", "")),
+                        str(row.get("status", "")), str(row.get("message", "")),
+                        int(row.get("attempts", 0)), str(row.get("target_url", "")),
+                        str(row.get("result", "")),
+                    ),
+                )
+            if target_url is None:
+                conn.execute(
+                    """UPDATE runs SET current_index=?,total=?,success_count=?,failed_count=?,
+                       send_limit_used=?,task_status=?,manual_review_required=?,updated_at=?
+                       WHERE run_id=?""",
+                    (
+                        max(0, int(current_index)), max(0, int(total)),
+                        max(0, int(success_count)), max(0, int(failed_count)),
+                        max(0, int(send_limit_used)), str(task_status),
+                        1 if manual_review_required else 0, updated_at, run_id,
+                    ),
+                )
+            else:
+                conn.execute(
+                    """UPDATE runs SET current_index=?,total=?,success_count=?,failed_count=?,
+                       send_limit_used=?,task_status=?,manual_review_required=?,updated_at=?,target_url=?
+                       WHERE run_id=?""",
+                    (
+                        max(0, int(current_index)), max(0, int(total)),
+                        max(0, int(success_count)), max(0, int(failed_count)),
+                        max(0, int(send_limit_used)), str(task_status),
+                        1 if manual_review_required else 0, updated_at, str(target_url), run_id,
+                    ),
+                )
+
     def mark_completed(self, run_id: str, status: str, timestamp: str) -> None:
         if not run_id:
             return
         completed = timestamp if status == "Completed" else None
-        with self._connection() as conn:
+        with self._write_connection() as conn:
             conn.execute(
                 "UPDATE runs SET task_status=?,updated_at=?,completed_at=? WHERE run_id=?",
                 (status, timestamp, completed, run_id),
             )
 
     def discard_run(self, run_id: str, timestamp: str) -> None:
-        with self._connection() as conn:
+        with self._write_connection() as conn:
             conn.execute(
                 "UPDATE runs SET task_status='Discarded',manual_review_required=0,updated_at=? WHERE run_id=?",
                 (timestamp, run_id),
@@ -333,7 +423,7 @@ class TaskRuntimeStore:
         suffix = "Manual review completed; recipient skipped without automatic retry."
         item["message"] = f"{message} {suffix}".strip()
         item["status"] = "interrupted"
-        with self._connection() as conn:
+        with self._write_connection() as conn:
             conn.execute(
                 "UPDATE items SET status=?,message=? WHERE run_id=? AND item_index=?",
                 (item["status"], item["message"], run_id, index),
@@ -394,12 +484,12 @@ class TaskRuntimeStore:
         return [int(row[0]) for row in rows]
 
     def clear_results(self) -> None:
-        with self._connection() as conn:
+        with self._write_connection() as conn:
             conn.execute("DELETE FROM results")
 
     def checkpoint(self) -> None:
         """Checkpoint the local WAL at an explicit sequential batch boundary."""
-        with self._connection() as conn:
+        with self._write_connection() as conn:
             conn.execute("PRAGMA wal_checkpoint(PASSIVE)").fetchall()
 
     def close(self) -> None:

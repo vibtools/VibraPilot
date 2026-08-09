@@ -23,6 +23,8 @@ PRIVATE_BASELINE = ROOT / "project" / "research" / "source_baseline" / "VibraPil
 BACKEND_CONTRACT = ROOT / "config" / "verification" / "backend_v1.0.6_contract.json"
 FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "phase02_step002_v1.0.6.4_fix_scope.json"
 PRODUCTION_SCOPE_CONTRACT = ROOT / "config" / "verification" / "production_mt_lr_v1.0.6.5_scope.json"
+CURRENT_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.7_vp_prod_mt_lr_verification_fix_scope.json"
+WINDOWS_SQLITE_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.7_windows_sqlite_concurrency_fix_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -305,6 +307,82 @@ for method_name, expected_sha in production_scope.get("frozen_automationworker_m
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"production out-of-scope AutomationWorker method drift detected: {method_name}")
 
+# Follow-up v1.0.6.7 Windows SQLite concurrency fix is anchored to the clean
+# v1.0.6.7 Official Baseline and may supersede only the explicitly authorized
+# file/method locks from the earlier verification scope.
+if not WINDOWS_SQLITE_FIX_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.7 Windows SQLite fix scope contract is missing")
+try:
+    windows_sqlite_fix_scope = json.loads(WINDOWS_SQLITE_FIX_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.7 Windows SQLite fix scope contract is invalid: {exc}")
+if windows_sqlite_fix_scope.get("official_baseline_archive_sha256") != "76dbc63cd9c033f1b471e4624d3b6f704a3c5552b4ce3a081fabb99c6b0b72e6":
+    fail("v1.0.6.7 Windows SQLite fix scope baseline mismatch")
+if windows_sqlite_fix_scope.get("target_version") != "1.0.6.7":
+    fail("v1.0.6.7 Windows SQLite fix scope target version mismatch")
+followup_allowed_files = set(windows_sqlite_fix_scope.get("allowed_runtime_source_changes", []))
+followup_allowed_worker = set(windows_sqlite_fix_scope.get("approved_automationworker_method_changes", []))
+
+# v1.0.6.7 verification/fix scope anchored to the exact user-frozen v1.0.6.5 ZIP.
+if not CURRENT_FIX_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.7 verification/fix scope contract is missing")
+try:
+    current_fix_scope = json.loads(CURRENT_FIX_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.7 verification/fix scope contract is invalid: {exc}")
+if current_fix_scope.get("official_baseline_archive_sha256") != "f391099de9d0d117d190b2898b96d5e90b3f102541cf8efa217f9e9fbfbed118":
+    fail("v1.0.6.7 fix scope does not identify the exact uploaded v1.0.6.5 baseline")
+if current_fix_scope.get("target_version") != "1.0.6.7":
+    fail("v1.0.6.7 fix scope target version mismatch")
+for relative, expected_sha in current_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in followup_allowed_files:
+        continue
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.7 out-of-scope file drift detected: {relative}")
+if current_fix_scope.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
+    fail("v1.0.6.7 fix-scope AST hash algorithm mismatch")
+current_ast = current_fix_scope.get("frozen_ast_sha256", {})
+current_checks = {
+    "backend.LicenseManager": production_nodes.get("LicenseManager"),
+    "backend.SELECTORS": backend_assignment_nodes.get("SELECTORS"),
+    "qt_app.ActivationPage": qt_nodes.get("ActivationPage"),
+    "qt_app.MainWindow": qt_nodes.get("MainWindow"),
+    "qt_app.BROWSER_SETTING_GROUPS": qt_ann_nodes.get("BROWSER_SETTING_GROUPS"),
+}
+for name, node in current_checks.items():
+    expected_sha = current_ast.get(name)
+    if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
+        fail(f"v1.0.6.7 out-of-scope AST drift detected: {name}")
+allowed_current_worker = set(current_fix_scope.get("approved_automationworker_method_changes", []))
+for method_name, expected_sha in current_fix_scope.get("frozen_automationworker_method_ast_sha256", {}).items():
+    if method_name in allowed_current_worker:
+        fail(f"v1.0.6.7 fix scope incorrectly freezes an approved worker method: {method_name}")
+    if method_name in followup_allowed_worker:
+        continue
+    node = automation_worker_methods.get(method_name)
+    if node is None or ast_contract_sha(node) != expected_sha:
+        fail(f"v1.0.6.7 out-of-scope AutomationWorker method drift detected: {method_name}")
+
+# Enforce the later Windows SQLite fix boundary against the clean v1.0.6.7 baseline.
+for relative, expected_sha in windows_sqlite_fix_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or sha256(path) != expected_sha:
+        fail(f"v1.0.6.7 Windows SQLite fix out-of-scope file drift detected: {relative}")
+if windows_sqlite_fix_scope.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
+    fail("v1.0.6.7 Windows SQLite fix AST hash algorithm mismatch")
+followup_ast = windows_sqlite_fix_scope.get("frozen_ast_sha256", {})
+for name, node in current_checks.items():
+    expected_sha = followup_ast.get(name)
+    if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
+        fail(f"v1.0.6.7 Windows SQLite fix out-of-scope AST drift detected: {name}")
+for method_name, expected_sha in windows_sqlite_fix_scope.get("frozen_automationworker_method_ast_sha256", {}).items():
+    if method_name in followup_allowed_worker:
+        fail(f"v1.0.6.7 Windows SQLite fix incorrectly freezes an approved worker method: {method_name}")
+    node = automation_worker_methods.get(method_name)
+    if node is None or ast_contract_sha(node) != expected_sha:
+        fail(f"v1.0.6.7 Windows SQLite fix out-of-scope AutomationWorker drift: {method_name}")
+
 # Local developer check: when the private project workspace is present, prove that
 # the published machine contract still describes the private v1.0.6 baseline.
 if PRIVATE_BASELINE.is_file():
@@ -338,8 +416,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.5":
-    fail("AppConfig VERSION must be 1.0.6.5 for VP-PROD-MT-LR-001")
+if app_version != "1.0.6.7":
+    fail("AppConfig VERSION must be 1.0.6.7 for the VP-PROD-MT-LR-001 verification/fix release")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -453,8 +531,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.5-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.5 release path")
+if "VibraPilot-1.0.6.7-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.7 release path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})
@@ -507,9 +585,14 @@ production_runtime_text = production_runtime_store.read_text(encoding="utf-8")
 for marker in (
     "class TaskRuntimeStore", "PRAGMA journal_mode=WAL", "PRAGMA foreign_keys=ON",
     "def recoverable_runs", "def skip_current_manual_review", "def upsert_result",
+    "self._write_lock = threading.RLock()", "def _write_connection",
+    "def persist_item_result_progress",
 ):
     if marker not in production_runtime_text:
         fail(f"production runtime-store invariant missing: {marker}")
+for forbidden_sqlite_durability in ("PRAGMA synchronous=NORMAL", "PRAGMA synchronous=OFF"):
+    if forbidden_sqlite_durability in production_runtime_text:
+        fail(f"Windows SQLite fix must not weaken durability: {forbidden_sqlite_durability}")
 for marker in (
     "UI_QUEUE_CAPACITY = 4096", "UI_QUEUE_MAX_EVENTS_PER_TICK = 250",
     "queue.Queue(maxsize=UI_QUEUE_CAPACITY)", "max_concurrent_tasks",
@@ -523,6 +606,24 @@ for marker in (
 ):
     if marker not in backend_text:
         fail(f"production worker/runtime invariant missing: {marker}")
+
+# v1.0.6.7 verified corrections: startup style binding, shutdown-safe queue backpressure,
+# crash-marker result durability, user-facing Send-attempt semantics and source ZIP hygiene.
+if qt_text.count("@classmethod\n    @classmethod\n    def task_qss"):
+    fail("TaskSlotWidget.task_qss has a duplicated @classmethod decorator")
+for marker in (
+    'visible_metric_name = "Send Attempts / Limit" if name == "Send Limit" else name',
+    "TaskSlotWidget.task_qss()",
+):
+    if marker not in qt_text:
+        fail(f"v1.0.6.7 UI correction marker missing: {marker}")
+for marker in (
+    "dropping saturated critical UI event during shutdown",
+    "self.stop_event.is_set() or self.close_event.is_set()",
+    "self.runtime_store.persist_item_result_progress(",
+):
+    if marker not in backend_text:
+        fail(f"v1.0.6.7 worker/data-integrity correction marker missing: {marker}")
 licensing_client_path = SRC / "licensing_v2.py"
 if not licensing_client_path.is_file():
     fail("Phase-02 Licora API v2 client module is missing")
@@ -825,6 +926,8 @@ required = [
     "config/AppConfig/app.py", "config/AppConfig/about.py", "config/AppConfig/support.py", "config/AppConfig/social.py",
     "config/AppConfig/licensing_public.py", "config/verification/phase02_step002_scope.json", "config/verification/phase02_step002_v1.0.6.4_fix_scope.json",
     "config/verification/production_mt_lr_v1.0.6.5_scope.json",
+    "config/verification/v1.0.6.7_vp_prod_mt_lr_verification_fix_scope.json",
+    "config/verification/v1.0.6.7_windows_sqlite_concurrency_fix_scope.json",
     "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
     "src/vibrapilot/qt_app.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
@@ -835,8 +938,13 @@ required = [
     "docs/verification/PHASE01_V1.0.6.2_VERIFICATION.md", "docs/verification/PHASE02_STEP002_V1.0.6.3_VERIFICATION.md",
     "docs/verification/PHASE02_STEP002_V1.0.6.4_FORENSIC_VERIFICATION.md",
     "docs/verification/V1.0.6.5_PRODUCTION_RUNTIME_VERIFICATION.md",
+    "docs/verification/V1.0.6.7_VP_PROD_MT_LR_FORENSIC_VERIFICATION.md",
+    "docs/verification/V1.0.6.7_WINDOWS_SQLITE_CONCURRENCY_VERIFICATION.md",
     "docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md", "docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md",
-    "docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md", "tests/test_app_config_validation.py",
+    "docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md",
+    "docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md",
+    "docs/updates/v1.0.6.7-windows-sqlite-concurrency-fix.md",
+    "scripts/verify_source_archive.py", "tests/test_v1067_verification_fix.py", "tests/test_app_config_validation.py",
     "tests/test_licensing_v2_crypto.py", "tests/test_licensing_v2_client.py", "tests/test_license_manager_v2.py", "tests/test_phase02_scope_freeze.py", "tests/test_phase02_step002_fix_scope.py",
     "tests/test_production_scope_freeze.py", "tests/test_task_runtime_store.py", "tests/test_task_recovery.py",
     "tests/test_multi_task_isolation.py", "tests/test_long_run_worker_stability.py", "tests/test_report_integrity.py",

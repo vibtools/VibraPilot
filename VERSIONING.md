@@ -2,11 +2,13 @@
 
 VibraPilot uses a four-segment production release version for hardening/configuration/security maintenance on top of the validated v1.0.6 automation baseline.
 
-Current release: **1.0.6.5**
+Current release: **1.0.6.7**
 
-The exact user-supplied **`VibraPilot_v1.0.6.4_Latest_Updated_Baseline.zip`** (SHA-256 `ea65bd89d908c5db8edfcf01e6b7c5e11410ffe57a98044f9e8913477f9e89e6`) is the Official Baseline Freeze for `VP-PROD-MT-LR-001`. Version **1.0.6.5** is the approved production runtime hardening promotion for Multiple Task, long-run worker stability and data integrity/recovery.
+A verification-only Windows SQLite concurrency correction is retained within **1.0.6.7** because it fixes the already-promoted production runtime store without introducing a new feature/version boundary.
 
-The current production scope is machine-checked through `config/verification/production_mt_lr_v1.0.6.5_scope.json`. The approved runtime surface is limited to `backend.py`, `qt_app.py`, `data_io.py`, the new `task_runtime_store.py` and `config/settings.defaults.json`, plus required tests/verifier/version/documentation records. Licora API v2, selectors, ActivationPage, Browser Settings and out-of-scope files/settings remain frozen by hash/AST contracts. Historical Phase-02 scope manifests remain retained as prior-release evidence.
+The exact user-supplied **`VibraPilot v1.0.6.5.zip`** (SHA-256 `f391099de9d0d117d190b2898b96d5e90b3f102541cf8efa217f9e9fbfbed118`) is the Official Baseline Freeze for the v1.0.6.7 verification/fix cycle. Version **1.0.6.7** preserves the approved `VP-PROD-MT-LR-001` architecture and corrects only verified startup, worker-shutdown backpressure, crash-result-ledger and source-package hygiene defects plus synchronized wording/version records.
+
+The original production scope remains recorded in `config/verification/production_mt_lr_v1.0.6.5_scope.json`. The current correction boundary is additionally machine-checked by `config/verification/v1.0.6.7_vp_prod_mt_lr_verification_fix_scope.json`, which freezes `LicenseManager`, selectors, `ActivationPage`, Browser Settings, `MainWindow`, `TaskRuntimeStore`, import logic and all non-approved `AutomationWorker` methods against the uploaded v1.0.6.5 baseline.
 
 ## Release documentation policy
 

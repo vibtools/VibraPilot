@@ -35,6 +35,11 @@ class FakeStore:
         self.progress.append(kwargs)
     def upsert_result(self, run_id, item_index, row):
         self.results[(run_id, item_index)] = dict(row)
+    def persist_item_result_progress(self, *, run_id, item_index, item, result_row, **progress):
+        self.items += 1
+        if result_row is not None:
+            self.results[(run_id, item_index)] = dict(result_row)
+        self.progress.append(dict(progress, run_id=run_id))
     def mark_completed(self, run_id, status, timestamp):
         self.completed.append((run_id, status))
     def checkpoint(self):

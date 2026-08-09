@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VibraPilot - Authorized Browser Automation
-Version: 1.0.6.5
+Version: 1.0.6.7
 Author: Vib.tools
 
 Feature-preserving backend carried forward from the validated v1.0.6 baseline.
@@ -1341,13 +1341,26 @@ class AutomationWorker(threading.Thread):
             except queue.Full:
                 logging.warning("Slot %s: coalescible UI event dropped under backpressure: %s", self.state.slot_id, kind)
             return
-        # Critical lifecycle/result events apply backpressure instead of being silently lost.
+        # Critical lifecycle/result events apply backpressure during normal operation.
+        # During an explicit stop/close, the runtime store is authoritative for item
+        # outcomes, so a saturated UI queue must not keep the worker alive forever.
         while True:
             try:
                 self.ui_queue.put(event, timeout=0.5)
                 return
             except queue.Full:
-                logging.warning("Slot %s: waiting for UI queue capacity for critical event: %s", self.state.slot_id, kind)
+                if self.stop_event.is_set() or self.close_event.is_set():
+                    logging.warning(
+                        "Slot %s: dropping saturated critical UI event during shutdown: %s",
+                        self.state.slot_id,
+                        kind,
+                    )
+                    return
+                logging.warning(
+                    "Slot %s: waiting for UI queue capacity for critical event: %s",
+                    self.state.slot_id,
+                    kind,
+                )
 
     def log(self, message: str, level: str = "INFO") -> None:
         logging.log(
@@ -1383,10 +1396,24 @@ class AutomationWorker(threading.Thread):
 
     def _save_runtime_item(self, index: int, item: TaskItem, message: str) -> None:
         if self.runtime_store is not None and self.state.run_id:
-            self.runtime_store.save_item(self.state.run_id, index, item)
-            if item.status != "processing":
-                row = self.report_row(item, message, item_index=index)
-                self.runtime_store.upsert_result(self.state.run_id, index, row)
+            row = None if item.status == "processing" else self.report_row(item, message, item_index=index)
+            self.runtime_store.persist_item_result_progress(
+                run_id=self.state.run_id,
+                item_index=index,
+                item=item,
+                result_row=row,
+                current_index=self.state.current_index,
+                total=self.state.total,
+                success_count=self.state.success_count,
+                failed_count=self.state.failed_count,
+                send_limit_used=self.run_send_count,
+                task_status=self.state.status,
+                manual_review_required=self.state.manual_review_required,
+                updated_at=now_str(),
+                target_url=self.state.target_url,
+            )
+            self.last_autosave_at = time.monotonic()
+            return
         self._save_runtime_progress(force=True)
 
     def request_start(self, settings: dict[str, Any], target_url: str) -> None:
@@ -3645,8 +3672,24 @@ class AutomationWorker(threading.Thread):
                 "Send click attempt started; a definitive success/rejection is not yet "
                 "persisted. Manual review is required after an unexpected process stop."
             )
-            self.runtime_store.save_item(self.state.run_id, index, current)
-        self._save_runtime_progress(force=True)
+            self.runtime_store.persist_item_result_progress(
+                run_id=self.state.run_id,
+                item_index=index,
+                item=current,
+                result_row=self.report_row(current, current.message, item_index=index),
+                current_index=self.state.current_index,
+                total=self.state.total,
+                success_count=self.state.success_count,
+                failed_count=self.state.failed_count,
+                send_limit_used=self.run_send_count,
+                task_status=self.state.status,
+                manual_review_required=True,
+                updated_at=now_str(),
+                target_url=self.state.target_url,
+            )
+            self.last_autosave_at = time.monotonic()
+        else:
+            self._save_runtime_progress(force=True)
         self.emit(
             "send_limit", {"used": self.run_send_count, "limit": self.run_send_limit}
         )

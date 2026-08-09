@@ -1,5 +1,37 @@
 # Changelog
 
+### Windows SQLite concurrent-write verification correction
+
+- Fixed a Windows-only multi-worker persistence contention failure where four concurrent task writers could exceed the 15-second verification window and leave a temporary SQLite file handle active during test cleanup.
+- Added process-local write serialization before SQLite's WAL writer lock and an atomic recipient/result/progress transaction used by the worker hot path.
+- Preserved FULL-synchronous WAL durability; no `synchronous=NORMAL/OFF` durability downgrade is used.
+- Scope remains limited to `TaskRuntimeStore` concurrent-write persistence and the two directly connected worker persistence methods.
+
+
+## v1.0.6.7 — VP-PROD-MT-LR-001 forensic verification/fix — 2026-08-08
+
+### Fixed
+
+- Removed a duplicated `@classmethod` decorator from `TaskSlotWidget.task_qss`; the double descriptor made the startup stylesheet call fail with `TypeError` before the main UI could open.
+- Made critical worker UI-event backpressure shutdown-aware so a saturated 4096-event queue cannot keep a stopping/closing worker alive indefinitely. Normal-operation critical events still apply backpressure.
+- Persist the pre-Send manual-review crash marker into both the task item and authoritative result ledger before Playwright invokes the Send click.
+- Clarified the Task metric label to **Send Attempts / Limit** while preserving the existing conservative send-click counting semantics.
+- Added a source-archive verifier that rejects runtime/private/cache paths and unsafe ZIP members before a source baseline is published.
+
+### Packaging
+
+- The user-frozen v1.0.6.5 ZIP was found to contain gitignored runtime/private data (`AppData`, Logs, private `project/` records and Python caches) despite the v1.0.6.5 release-hygiene contract. v1.0.6.7 release/baseline packaging excludes those paths; existing runtime data remains preserved when applying the source delta to a working installation.
+
+### Preserved
+
+- `LicenseManager`, Licora API v2, P-256/RS256 behavior, Razorpay Share Invite selectors/Send sequence, Browser Settings contract, `ActivationPage`, `TaskRuntimeStore`, data-import semantics and all unrelated UI/UX remain unchanged.
+
+### Verification
+
+- Added `config/verification/v1.0.6.7_vp_prod_mt_lr_verification_fix_scope.json` anchored to the exact uploaded v1.0.6.5 ZIP SHA-256.
+- Added regression coverage for startup decorator correctness, shutdown queue saturation, pre-click result-ledger durability and clean source-ZIP verification.
+- Added `scripts/verify_source_archive.py` for future source baseline/release ZIP validation.
+
 ## v1.0.6.5 — VP-PROD-MT-LR-001 production runtime hardening — 2026-08-08
 
 ### Added

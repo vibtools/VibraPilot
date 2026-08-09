@@ -9,11 +9,11 @@ config/                      Source-controlled application/runtime configuration
 docs/                        Public product documentation and per-release update notes
 frozen_design_source/        Official frozen Vib Tools token JSON
 project/                     Private local development workspace (gitignored; never required by CI)
-scripts/                     Launch and repository-verification helpers
+scripts/                     Launch, repository verification and clean source-archive verification helpers
 src/vibrapilot/              Production application
   app_config.py              Validated read-only AppConfig facade
   licensing_v2.py            Secure Licora API v2 protocol/cryptographic client
-  backend.py                 validated automation + production worker/runtime wiring; current release v1.0.6.5
+  backend.py                 validated automation + production worker/runtime wiring; current release v1.0.6.7
   data_io.py                 Input/export adapters + import reconciliation
   task_runtime_store.py       SQLite task/checkpoint/result persistence
   qt_app.py                  Vib Tools PySide6 interface

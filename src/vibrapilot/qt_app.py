@@ -810,7 +810,6 @@ class TaskSlotWidget(QFrame):
         QTimer.singleShot(0, self._apply_task_spacing_contract)
 
     @classmethod
-    @classmethod
     def task_qss(cls) -> str:
         """Task-page-only QSS for the approved compact monitoring layout."""
         return """
@@ -1067,7 +1066,8 @@ class TaskSlotWidget(QFrame):
             metric.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             metric_lay = vbox(metric, margins=(10, 6, 10, 6), spacing=0)
             self._task_metric_layouts.append(metric_lay)
-            metric_lay.addWidget(elide_label(name, "TaskMetricLabel"))
+            visible_metric_name = "Send Attempts / Limit" if name == "Send Limit" else name
+            metric_lay.addWidget(elide_label(visible_metric_name, "TaskMetricLabel"))
             value_object = (
                 "TaskMetricValueSuccess" if name == "Success"
                 else "TaskMetricValueFailed" if name == "Failed"

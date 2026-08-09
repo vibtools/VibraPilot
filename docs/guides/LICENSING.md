@@ -1,6 +1,6 @@
 # Licora Secure API v2 Integration
 
-VibraPilot v1.0.6.5 uses Licora Secure API v2 for desktop licensing. The client does **not** embed or send a Licora API v1 shared/master API key.
+VibraPilot v1.0.6.7 uses Licora Secure API v2 for desktop licensing. The client does **not** embed or send a Licora API v1 shared/master API key.
 
 ## Public client configuration
 

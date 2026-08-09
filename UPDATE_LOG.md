@@ -1,5 +1,17 @@
 # Update Log
 
+## v1.0.6.7 Windows SQLite concurrency verification correction
+
+Corrected the verified Windows four-worker `TaskRuntimeStore` contention/file-handle failure without changing the application version or unrelated runtime behavior. Concurrent workers now serialize local SQLite write transactions before the WAL writer lock, and the high-frequency recipient/result/progress persistence path commits atomically in one transaction.
+
+
+## v1.0.6.7 — VP-PROD-MT-LR-001 forensic verification/fix — 2026-08-08
+
+Verified the user-frozen v1.0.6.5 production-hardening baseline and corrected only confirmed defects: a startup-blocking duplicated classmethod descriptor, shutdown liveness under a saturated bounded UI queue, missing pre-Send crash-marker result-ledger persistence, ambiguous Send-limit wording and incomplete source-archive hygiene enforcement. Runtime/private data is excluded from the clean v1.0.6.7 baseline while working-installation runtime data remains untouched by the delta.
+
+Detailed note: `docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md`
+Forensic report: `docs/verification/V1.0.6.7_VP_PROD_MT_LR_FORENSIC_VERIFICATION.md`
+
 ## v1.0.6.5 — VP-PROD-MT-LR-001 production runtime hardening — 2026-08-08
 
 Hardened Multiple Task and long-running processing with per-task crash-safe runtime persistence/recovery, input reconciliation, functional seconds-based autosave and sequential batch boundaries, corrected Browser Context recycling, deterministic worker shutdown, bounded UI event processing, scalable one-recipient-one-outcome reporting, Task-scoped Reports filtering, concurrent-worker limits and shared-profile collision protection. Licora API v2, selectors, Send workflow, Browser Settings contract and visual foundation remain frozen.

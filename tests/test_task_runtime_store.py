@@ -114,17 +114,28 @@ class TaskRuntimeStoreTest(unittest.TestCase):
                 try:
                     for index in range(count_per_run):
                         item = Item(f"s{slot}-{index}@example.com", status="success", attempts=1, result="sent")
-                        store.save_item(run_id, index, item)
-                        store.upsert_result(
-                            run_id, index,
-                            {"timestamp": f"{slot:02d}-{index:04d}", "slot_id": slot, "email": item.email,
-                             "status": "success", "message": "ok", "attempts": 1,
-                             "target_url": "https://example.test", "result": "sent"},
-                        )
-                        store.save_progress(
-                            run_id=run_id, current_index=index + 1, total=count_per_run,
-                            success_count=index + 1, failed_count=0, send_limit_used=index + 1,
-                            task_status="Running", manual_review_required=False, updated_at=f"u{index}"
+                        store.persist_item_result_progress(
+                            run_id=run_id,
+                            item_index=index,
+                            item=item,
+                            result_row={
+                                "timestamp": f"{slot:02d}-{index:04d}",
+                                "slot_id": slot,
+                                "email": item.email,
+                                "status": "success",
+                                "message": "ok",
+                                "attempts": 1,
+                                "target_url": "https://example.test",
+                                "result": "sent",
+                            },
+                            current_index=index + 1,
+                            total=count_per_run,
+                            success_count=index + 1,
+                            failed_count=0,
+                            send_limit_used=index + 1,
+                            task_status="Running",
+                            manual_review_required=False,
+                            updated_at=f"u{index}",
                         )
                 except BaseException as exc:
                     errors.append(exc)

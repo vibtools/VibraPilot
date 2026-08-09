@@ -8,7 +8,8 @@
 6. Run `python scripts/verify_repository.py`.
 7. Run `python -m pytest -q`.
 8. Run `python -m unittest discover -s tests -p "test_*.py" -v`. The test modules bootstrap the repository `src` layout directly, so no shell-specific `PYTHONPATH` command is required in Command Prompt or PowerShell.
-9. Launch with `python run.py`.
+9. For any source ZIP intended to become a release/baseline, run `python scripts/verify_source_archive.py path\to\VibraPilot-source.zip` and require a PASS before distribution or freezing.
+10. Launch with `python run.py`.
 
 On first successful Secure API v2 activation, VibraPilot creates and persistently protects a P-256 device key through Windows DPAPI. Existing protected pre-v2 license caches are restored through the existing activation shell and migrated only after successful API v2 server validation.
 

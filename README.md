@@ -1,6 +1,10 @@
-# VibraPilot v1.0.6.5 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.7 — Vib Tools Browser Automation Desktop
 
-**VibraPilot v1.0.6.5** is the approved `VP-PROD-MT-LR-001` production-hardening release built from the exact user-frozen **VibraPilot_v1.0.6.4_Latest_Updated_Baseline.zip** (SHA-256 `ea65bd89d908c5db8edfcf01e6b7c5e11410ffe57a98044f9e8913477f9e89e6`). It hardens Multiple Task execution, long-running worker lifecycle, recipient/result integrity and crash recovery while preserving the existing Razorpay Share Invite workflow, selectors, Licora Secure API v2, Browser Settings contract, ActivationPage and Vib Tools visual foundation.
+**VibraPilot v1.0.6.7** is the forensic verification/fix promotion of the user-frozen **VibraPilot v1.0.6.5** `VP-PROD-MT-LR-001` baseline (SHA-256 `f391099de9d0d117d190b2898b96d5e90b3f102541cf8efa217f9e9fbfbed118`). It preserves the approved Multiple Task, long-run worker, recovery and reporting architecture while correcting verified startup, shutdown-backpressure, crash-result-ledger and source-package hygiene defects. The Razorpay Share Invite selectors/Send sequence, Licora Secure API v2, Browser Settings contract, ActivationPage and Vib Tools visual foundation remain unchanged.
+
+## Windows SQLite concurrency verification
+
+The v1.0.6.7 verification baseline includes a follow-up Windows concurrency correction for the local SQLite task runtime store. In-process writers are serialized before SQLite's WAL writer lock, and per-recipient item/result/progress persistence uses one atomic transaction on the worker hot path. This keeps `PRAGMA synchronous` at SQLite's durable default instead of weakening crash durability to improve test speed.
 
 ## Application areas
 
@@ -52,6 +56,18 @@ Production behavior now includes:
 - a persistent-profile collision guard when multiple tasks would claim the same shared profile.
 
 No new permanent top-level UI page was added. Recovery uses the existing Tasks workspace plus transient confirmation dialogs.
+
+## v1.0.6.7 forensic corrections
+
+The v1.0.6.7 verification pass corrects four operational defects without redesigning the v1.0.6.5 production architecture: the Task-card stylesheet classmethod now binds correctly at startup, saturated critical UI events can exit during an explicit worker stop/close, the conservative pre-Send manual-review marker is immediately represented in the authoritative result ledger, and the Task metric explicitly labels the counter as **Send Attempts / Limit**.
+
+Source baseline ZIPs can be checked with:
+
+```powershell
+python scripts/verify_source_archive.py path\to\VibraPilot-source.zip
+```
+
+The verifier rejects `AppData/`, `FailedData/`, `Reports/`, `Logs/`, private `project/`, Python caches and unsafe ZIP paths. Applying a delta to an existing working installation does **not** delete runtime `AppData`; the exclusion rule applies to distributable source baseline/release archives.
 
 ## Production scope freeze
 
@@ -105,6 +121,8 @@ The builder produces the `VibraPilot` PyInstaller ONEDIR application and release
 - Cumulative release history: `CHANGELOG.md`
 - Concise update log: `UPDATE_LOG.md`
 - Versioning discipline: `VERSIONING.md`
+- v1.0.6.7 verification/fix note: `docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md`
+- v1.0.6.7 forensic verification: `docs/verification/V1.0.6.7_VP_PROD_MT_LR_FORENSIC_VERIFICATION.md`
 - v1.0.6.5 production-hardening note: `docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md`
 - v1.0.6.5 production verification: `docs/verification/V1.0.6.5_PRODUCTION_RUNTIME_VERIFICATION.md`
 - v1.0.6.4 verification/fix note: `docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md`
