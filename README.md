@@ -1,4 +1,8 @@
-# VibraPilot v1.0.6.14 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.15 — Vib Tools Browser Automation Desktop
+
+## v1.0.6.15 Active workspace persistence
+
+VibraPilot now restores the user's normal active workspace after restart without automatically opening browsers or running automation. Active Task cards return with the same slot identity/order, latest Target URL and existing SQLite-backed recipient/progress state; the selected page and safe workspace geometry also persist. Deliberately Closed Tasks remain archived and continue to return only through **Open Closed Tasks**. Workspace metadata is stored atomically in the existing `AppData/state.json` path and contains no license secrets, browser cookies or duplicate recipient rows.
 
 **VibraPilot v1.0.6.14** is the scope-locked implementation candidate for `VP-MANAGED-PERSISTENT-BROWSER-001` plus the explicitly amended `VP-CLOSED-TASK-RECOVERY-001`, built from the verified v1.0.6.13 baseline commit `5f082df8d1226710c095d4a8e591fb153c02c1c3`.
 

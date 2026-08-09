@@ -1,3 +1,12 @@
+## v1.0.6.15 — Workspace persistence — 2026-08-09
+
+Implemented `VP-WORKSPACE-PERSISTENCE-001` against the verified v1.0.6.14 baseline. VibraPilot now stores lightweight active-workspace metadata atomically in the existing `APP_STATE_FILE`, restores visible Task slots/order and their existing SQLite runtime state, preserves selected-page and safe window geometry, and saves before clean exit/logout/license-invalid teardown. Restored Tasks always return with Browser Closed and Login Not Verified; automation never starts automatically.
+
+Closed Task recovery from v1.0.6.14 remains separate and unchanged. No TaskRuntimeStore schema, Browser Settings, profile architecture, licensing, workflow or dependency change is included.
+
+Detailed note: `docs/updates/v1.0.6.15-workspace-persistence.md`  
+Verification: `docs/verification/V1.0.6.15_WORKSPACE_PERSISTENCE_VERIFICATION.md`
+
 ## v1.0.6.14 — Managed persistent browser + Closed Task recovery — 2026-08-09
 
 Implemented the approved `VP-MANAGED-PERSISTENT-BROWSER-001` scope together with the explicitly amended `VP-CLOSED-TASK-RECOVERY-001`. The existing persistent-context browser path is now the managed default, blank profile roots use a durable per-user VibraPilot location on Windows, personal Chrome `User Data` paths are blocked, stable slot IDs own isolated browser profiles, and internal persistent-context recycling is synchronized with the verified Phase-01 lifecycle.

@@ -1,3 +1,7 @@
+## v1.0.6.15 workspace acceptance
+
+After applying the v1.0.6.15 candidate, verify that active Tasks survive app restart/logout-relogin with the same slot IDs/order, Target URLs and data/progress, while every restored browser remains Closed and Login Not Verified. Also verify selected-page and window geometry restoration, Closed Tasks staying archived, corrupt `state.json` fallback, and no automatic workflow/Send.
+
 ## v1.0.6.14 managed-profile acceptance
 
 For the v1.0.6.14 candidate, keep the verified Phase-01 browser lifecycle gate and additionally verify that a Task reopens the same VibraPilot-managed profile after browser/app restart, Task profiles remain isolated, personal Chrome `User Data` paths are blocked, and **Open Closed Tasks** restores deliberately closed Task data/progress without opening the browser or starting/sending automatically. Browser-history persistence must be checked with real Chrome on Windows before baseline freeze.

@@ -1,3 +1,7 @@
+## v1.0.6.15 — Workspace persistence
+
+Patch release for `VP-WORKSPACE-PERSISTENCE-001`. No TaskRuntimeStore schema, settings-key, browser-profile or dependency change. The version remains a candidate until Windows runtime and GitHub CI acceptance are green.
+
 ## v1.0.6.14 scope identity
 
 Version **1.0.6.14** is the scope-locked managed-persistent-browser and Closed Task recovery candidate based on verified v1.0.6.13 GitHub commit `5f082df8d1226710c095d4a8e591fb153c02c1c3`. Runtime changes are limited to `src/vibrapilot/backend.py`, `src/vibrapilot/qt_app.py`, `src/vibrapilot/task_runtime_store.py` and `config/settings.defaults.json`; SQLite schema version 1 is preserved.

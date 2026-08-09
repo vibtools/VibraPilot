@@ -82,6 +82,7 @@ from .app_config import ABOUT, APP, ENABLED_SOCIAL_LINKS, LICENSING, SUPPORT
 from .backend import (
     APP_AUTHOR,
     APP_DATA_DIR,
+    APP_STATE_FILE,
     APP_NAME,
     APP_VERSION,
     DEFAULT_SETTINGS,
@@ -111,6 +112,7 @@ from .data_io import (
 )
 from .task_runtime_store import TaskRuntimeStore
 from .workflow_inputs import WORKFLOW_INPUT_FIELDS, WORKFLOW_INPUT_KEYS
+from .workspace_state import WorkspaceStateStore
 
 
 NAV_SECTIONS = ["Dashboard", "Tasks", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]
@@ -1037,6 +1039,7 @@ class TaskSlotWidget(QFrame):
         self.url.setObjectName("TaskUrlInput")
         self.url.setMinimumHeight(36)
         self.url.setMaximumHeight(36)
+        self.url.editingFinished.connect(self.app.schedule_workspace_save)
         target_lay.addWidget(self.url, 3)
 
         data_cluster = QWidget()
@@ -1308,6 +1311,7 @@ class TaskSlotWidget(QFrame):
             self._set_metric("Status", self.state.status)
             self.update_counts()
             self.app.log_ui(f"Task {self.slot_id}: {reconciliation}")
+            self.app.schedule_workspace_save()
         except Exception as exc:
             logging.exception("Data load failed")
             _message(self, "Data load failed", str(exc), "error")
@@ -1647,9 +1651,13 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.license_manager = LicenseManager(self.settings)
         self.runtime_store = TaskRuntimeStore(TASK_RUNTIME_DB)
+        self.workspace_store = WorkspaceStateStore(APP_STATE_FILE)
         self.ui_queue: queue.Queue = queue.Queue(maxsize=UI_QUEUE_CAPACITY)
         self.tasks: dict[int, TaskSlotWidget] = {}
         self.next_slot_id = 1
+        self._selected_page_name = "Dashboard"
+        self._workspace_restore_in_progress = False
+        self._workspace_restored_run_ids: set[str] = set()
         self.report_rows: list[dict[str, Any]] = self.runtime_store.results(limit=REPORT_RECENT_LIMIT)
         self._report_dirty = False
         self.log_lines: list[dict[str, str]] = []
@@ -1684,6 +1692,11 @@ class MainWindow(QMainWindow):
         self.poll_timer = QTimer(self)
         self.poll_timer.timeout.connect(self.poll_queue)
         self.poll_timer.start(200)
+
+        self.workspace_save_timer = QTimer(self)
+        self.workspace_save_timer.setSingleShot(True)
+        self.workspace_save_timer.setInterval(350)
+        self.workspace_save_timer.timeout.connect(self.save_workspace_state)
 
         self.show_login_or_main()
         self.start_license_recheck()
@@ -1802,6 +1815,147 @@ class MainWindow(QMainWindow):
         top = max(available.top(), min(frame.top(), available.bottom() - frame.height() + 1))
         self.move(left, top)
 
+    def schedule_workspace_save(self) -> None:
+        """Debounce workspace metadata persistence while the live shell is active."""
+        if (
+            not self._workspace_active
+            or self._workspace_transitioning
+            or self._workspace_restore_in_progress
+        ):
+            return
+        self.workspace_save_timer.start()
+
+    def _workspace_snapshot(self) -> dict[str, Any]:
+        geometry = self.normalGeometry() if self.isMaximized() else self.geometry()
+        active_tasks = [
+            {
+                "slot_id": int(task.slot_id),
+                "run_id": str(task.state.run_id or ""),
+                "target_url": task.url.text().strip(),
+            }
+            for task in self.tasks.values()
+        ]
+        return {
+            "saved_at": now_str(),
+            "active_tasks": active_tasks,
+            "next_slot_id": max(1, int(self.next_slot_id)),
+            "selected_page": self._selected_page_name,
+            "window": {
+                "x": int(geometry.x()),
+                "y": int(geometry.y()),
+                "width": max(1, int(geometry.width())),
+                "height": max(1, int(geometry.height())),
+                "maximized": bool(self.isMaximized()),
+            },
+        }
+
+    def save_workspace_state(self) -> bool:
+        """Persist lightweight active-workspace metadata without duplicating Task data."""
+        if not self._workspace_active or self._workspace_restore_in_progress:
+            return False
+        if self.workspace_save_timer.isActive():
+            self.workspace_save_timer.stop()
+        try:
+            self.workspace_store.save(self._workspace_snapshot())
+            return True
+        except Exception as exc:
+            logging.exception("Workspace state save failed")
+            self.log_ui(f"Workspace state could not be saved: {exc}", "ERROR")
+            return False
+
+    def _restore_workspace_geometry(self, value: dict[str, Any] | None) -> None:
+        """Restore saved workspace geometry, clamped to currently available screens."""
+        if not isinstance(value, dict):
+            self._fit_workspace_to_screen()
+            return
+        try:
+            x = int(value.get("x", 0))
+            y = int(value.get("y", 0))
+            width = max(1, int(value.get("width", CONST.default_window_width)))
+            height = max(1, int(value.get("height", CONST.default_window_height)))
+        except (TypeError, ValueError):
+            self._fit_workspace_to_screen()
+            return
+        maximized = bool(value.get("maximized", False))
+        screens = list(QApplication.screens())
+        if not screens:
+            self._fit_workspace_to_screen()
+            return
+
+        def overlap_area(screen) -> int:
+            available = screen.availableGeometry()
+            left = max(x, available.left())
+            top = max(y, available.top())
+            right = min(x + width - 1, available.right())
+            bottom = min(y + height - 1, available.bottom())
+            return max(0, right - left + 1) * max(0, bottom - top + 1)
+
+        screen = max(screens, key=overlap_area)
+        if overlap_area(screen) <= 0:
+            screen = self.screen() or QApplication.primaryScreen() or screens[0]
+        available = screen.availableGeometry()
+
+        self.showNormal()
+        self.setMinimumSize(0, 0)
+        self.resize(min(width, available.width()), min(height, available.height()))
+        frame = self.frameGeometry()
+        left = max(available.left(), min(x, available.right() - frame.width() + 1))
+        top = max(available.top(), min(y, available.bottom() - frame.height() + 1))
+        self.move(left, top)
+        self.setMinimumSize(
+            min(CONST.min_window_width, self.width()),
+            min(CONST.min_window_height, self.height()),
+        )
+        if maximized:
+            QTimer.singleShot(0, self.showMaximized)
+
+    def _restore_active_workspace_tasks(self, state: dict[str, Any]) -> None:
+        """Restore active Task cards only; deliberately Closed Tasks remain archived."""
+        self._workspace_restored_run_ids.clear()
+        closed_run_ids = {
+            str(row.get("run_id", ""))
+            for row in self.runtime_store.closed_runs()
+            if row.get("run_id")
+        }
+        for entry in state.get("active_tasks", []):
+            try:
+                slot_id = int(entry.get("slot_id", 0))
+            except (TypeError, ValueError, AttributeError):
+                continue
+            if slot_id <= 0:
+                continue
+            run_id = str(entry.get("run_id", "") or "")
+            target_url = str(entry.get("target_url", "") or "")
+            if run_id and run_id in closed_run_ids:
+                self.log_ui(
+                    f"Task {slot_id}: workspace restore skipped because it is deliberately Closed."
+                )
+                continue
+            slot = self._add_task_with_id(slot_id)
+            if slot is None:
+                continue
+            if run_id:
+                run = self.runtime_store.load_run(run_id)
+                if run is not None:
+                    slot.restore_runtime(run, preserve_task_status=True)
+                    self._workspace_restored_run_ids.add(run_id)
+                else:
+                    self.log_ui(
+                        f"Task {slot_id}: saved run {run_id} was unavailable; restored the Task shell only.",
+                        "WARNING",
+                    )
+            if target_url:
+                slot.url.setText(target_url)
+                slot.state.target_url = target_url
+            slot._render_browser_status("Closed")
+            slot._set_metric("Login", "Not Verified")
+
+        try:
+            saved_next = max(1, int(state.get("next_slot_id", 1)))
+        except (TypeError, ValueError):
+            saved_next = 1
+        self.next_slot_id = max(self.next_slot_id, saved_next)
+
     def show_workspace(self) -> None:
         # A successful activation may only enter the workspace once. Repeated queued
         # callbacks are ignored instead of rebuilding/deleting the same Qt widgets.
@@ -1809,6 +1963,7 @@ class MainWindow(QMainWindow):
             return
 
         self._workspace_transitioning = True
+        self._workspace_restore_in_progress = True
         try:
             # setFixedSize() locked both minimum and maximum dimensions on the login
             # screen. Unlock without forcing the large workspace minimum first; the
@@ -1822,22 +1977,42 @@ class MainWindow(QMainWindow):
             self._build_shell()
             self.activation_page = None
             self._build_status_bar()
-            self._fit_workspace_to_screen()
-            self.navigate("Dashboard")
-            self._workspace_active = True
-            if not self.tasks:
+
+            workspace_state = self.workspace_store.load()
+            if workspace_state is None:
+                self._fit_workspace_to_screen()
+            else:
+                self._restore_workspace_geometry(workspace_state.get("window"))
+                self._restore_active_workspace_tasks(workspace_state)
+
+            if workspace_state is None and not self.tasks:
                 initial_slots = max(1, int(self.settings.get(
                     "browser_slot_default", DEFAULT_SETTINGS["browser_slot_default"]
                 )))
                 for _ in range(initial_slots):
                     self.add_task()
+
+            selected_page = (
+                str(workspace_state.get("selected_page", "Dashboard"))
+                if workspace_state is not None
+                else "Dashboard"
+            )
+            if selected_page not in self.pages:
+                selected_page = "Dashboard"
+            self.navigate(selected_page)
+            self._workspace_active = True
             self.log_ui("License validated. Main workspace loaded.")
+            if self.workspace_store.warning:
+                self.log_ui(self.workspace_store.warning, "WARNING")
+                self.workspace_store.warning = ""
             if self.runtime_store.recovery_warning:
                 self.log_ui(self.runtime_store.recovery_warning, "ERROR")
                 self.runtime_store.recovery_warning = ""
             QTimer.singleShot(0, self.offer_task_recovery)
         finally:
+            self._workspace_restore_in_progress = False
             self._workspace_transitioning = False
+        self.schedule_workspace_save()
 
     def _build_menu_bar(self) -> None:
         self.menuBar().clear()
@@ -1988,6 +2163,7 @@ class MainWindow(QMainWindow):
     def navigate(self, name: str) -> None:
         if name not in self.pages:
             return
+        self._selected_page_name = name
         self.stack.setCurrentIndex(self.pages[name])
         self.breadcrumb.setText(f"Home / {name}")
         for section, btn in self.nav_buttons.items():
@@ -2008,6 +2184,7 @@ class MainWindow(QMainWindow):
             # advanced page is opened; this prevents stale UI if a value changed
             # through migration, reset, or another application code path.
             self.refresh_browser_settings_widgets()
+        self.schedule_workspace_save()
 
     # ---------- pages ----------
 
@@ -2716,11 +2893,13 @@ class MainWindow(QMainWindow):
         while candidate in self.tasks or candidate in closed_slots:
             candidate += 1
         self._add_task_with_id(candidate)
+        self.schedule_workspace_save()
 
     def remove_task(self, slot_id: int) -> None:
         self.tasks.pop(slot_id, None)
         self._refresh_report_task_filter()
         self.update_dashboard()
+        self.schedule_workspace_save()
 
     def open_closed_tasks(self) -> None:
         closed = sorted(
@@ -2793,6 +2972,7 @@ class MainWindow(QMainWindow):
                 "No closed Task could be reopened because its original slot is currently in use.",
                 "warning",
             )
+        self.schedule_workspace_save()
 
     def _persistent_profile_claim(self, slot: TaskSlotWidget) -> str | None:
         if not bool(self.settings.get("use_persistent_context", DEFAULT_SETTINGS["use_persistent_context"])):
@@ -2842,6 +3022,8 @@ class MainWindow(QMainWindow):
         recoverable = self.runtime_store.recoverable_runs()
         for summary in recoverable:
             run_id = str(summary.get("run_id", ""))
+            if run_id in self._workspace_restored_run_ids:
+                continue
             run = self.runtime_store.load_run(run_id)
             if not run:
                 continue
@@ -2889,6 +3071,7 @@ class MainWindow(QMainWindow):
         self.report_rows = self.runtime_store.results(limit=REPORT_RECENT_LIMIT)
         self._refresh_report_task_filter()
         self.refresh_report_table()
+        self.schedule_workspace_save()
 
     def resolve_manual_review(self, slot: TaskSlotWidget) -> bool:
         if not slot.state.manual_review_required:
@@ -3597,6 +3780,7 @@ class MainWindow(QMainWindow):
             return
         message = self._pending_license_invalid_message
         self._pending_license_invalid_message = None
+        self.save_workspace_state()
         self.tasks.clear()
         _message(self, "License invalid", message, "error")
         self.show_login()
@@ -3763,6 +3947,7 @@ class MainWindow(QMainWindow):
                 "warning",
             )
             return
+        self.save_workspace_state()
         self.tasks.clear()
         self.license_manager.logout()
         self.show_login()
@@ -3852,6 +4037,11 @@ class MainWindow(QMainWindow):
         if self._workspace_active or self._workspace_transitioning:
             self._apply_responsive_mode()
         super().resizeEvent(event)
+        self.schedule_workspace_save()
+
+    def moveEvent(self, event) -> None:  # type: ignore[override]
+        super().moveEvent(event)
+        self.schedule_workspace_save()
 
     def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
         running = [t for t in self.tasks.values() if t.is_running()]
@@ -3882,6 +4072,7 @@ class MainWindow(QMainWindow):
             )
             event.ignore()
             return
+        self.save_workspace_state()
         self.license_stop.set()
         self.runtime_store.close()
         self.log_ui("App closing. All task workers and browser sessions stopped cleanly.")

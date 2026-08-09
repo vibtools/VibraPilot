@@ -1,3 +1,11 @@
+## Phase-03 implementation candidate — v1.0.6.15
+
+v1.0.6.14 `VP-MANAGED-PERSISTENT-BROWSER-001` plus `VP-CLOSED-TASK-RECOVERY-001` is treated as the verified baseline after the supplied Windows/manual gate and green GitHub Actions run `31337925846`.
+
+The v1.0.6.15 candidate implements the remaining `VP-WORKSPACE-PERSISTENCE-001` scope: automatic restoration of normal active Task cards, stable slot/order/Target URL references, existing SQLite-backed Task data/progress, selected application page and safe workspace geometry. Browsers, login, workflows and Send remain explicit user actions. Deliberately Closed Tasks remain closed and continue to use **Open Closed Tasks**.
+
+**Next after v1.0.6.15 verification:** `VP-BROWSER-CAPABILITIES-001`.
+
 ## Phase-02 implementation candidate — v1.0.6.14
 
 Phase-01 `VP-BROWSER-UI-LIFECYCLE-001` is **VERIFIED** by the supplied Windows/manual browser lifecycle gate and green GitHub Actions run for v1.0.6.13.

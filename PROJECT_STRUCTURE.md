@@ -1,3 +1,10 @@
+## v1.0.6.15 workspace persistence addition
+
+- `src/vibrapilot/workspace_state.py` — atomic lightweight workspace metadata store.
+- `AppData/state.json` — runtime workspace metadata path already reserved by the baseline; no recipient rows, browser profile data or licensing secrets are stored here.
+- `config/verification/v1.0.6.15_workspace_persistence_scope.json` — scope lock.
+- `tests/test_v10615_workspace_persistence.py` — workspace persistence regression contract.
+
 ## v1.0.6.14 current implementation surface
 
 ```text

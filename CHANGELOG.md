@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.0.6.15 — Active workspace persistence — 2026-08-09
+
+### Added
+
+- Added atomic `AppData/state.json` workspace metadata persistence through the dedicated `WorkspaceStateStore` module.
+- Restores normal active Task cards with stable slot IDs/order, latest Target URL, run identity and existing SQLite-backed progress/data after restart, logout/re-login or license-invalid workspace teardown.
+- Persists the selected application page and safe workspace window geometry/maximized state with multi-monitor clamping.
+
+### Safety / compatibility
+
+- Browsers, login verification, workflows and Send never auto-start during workspace restoration.
+- Deliberately Closed Tasks remain archived and are still restored only through **Open Closed Tasks**.
+- Existing `TaskRuntimeStore` schema version 1, managed browser profiles, licensing, selectors, Browser Settings and Phase-01 lifecycle remain unchanged.
+- Corrupt or unsupported workspace JSON is quarantined and startup falls back to the existing first-run/crash-recovery path.
+
+
 ## v1.0.6.14 — Managed persistent browser + Closed Task recovery — 2026-08-09
 
 ### Added

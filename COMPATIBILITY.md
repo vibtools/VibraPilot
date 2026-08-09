@@ -1,3 +1,7 @@
+## v1.0.6.15 workspace-state compatibility
+
+Workspace metadata uses schema version 1 in `AppData/state.json`. Missing/corrupt/unsupported state safely falls back to the existing v1.0.6.14 startup/recovery behavior. Active Task data continues to come from the unchanged TaskRuntimeStore schema version 1, and managed browser profiles remain keyed by the restored slot ID.
+
 ## v1.0.6.14 managed-profile / Closed Task compatibility
 
 - Windows default blank persistent-profile root is application-managed and durable; explicit `VIB_TOOLS_DATA_DIR` remains supported.
