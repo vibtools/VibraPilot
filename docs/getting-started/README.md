@@ -11,3 +11,7 @@
 9. Launch with `python run.py`.
 
 On first successful Secure API v2 activation, VibraPilot creates and persistently protects a P-256 device key through Windows DPAPI. Existing protected pre-v2 license caches are restored through the existing activation shell and migrated only after successful API v2 server validation.
+
+## Production task recovery
+
+Long-running task progress and authoritative recipient outcomes are stored locally in `AppData/task_runtime.sqlite3`. Recovery never automatically opens a browser or sends a recipient; the operator must restore the task, open/login/verify the browser session and explicitly resume. Ambiguous post-Send outcomes remain manual-review-only and are never automatically retried.

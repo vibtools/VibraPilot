@@ -47,6 +47,7 @@
   "delay_between_items_min": 0.5,
   "delay_between_items_max": 1.5,
   "auto_save_interval": 10,
+  "max_concurrent_tasks": 4,
   "save_failed_data": true,
   "save_unprocessed_data_on_close": true,
   "request_timeout": 30,

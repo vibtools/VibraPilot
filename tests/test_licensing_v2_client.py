@@ -223,7 +223,7 @@ class FakeLicoraSession:
 class LicensingV2ClientTest(unittest.TestCase):
     def test_complete_protocol_lifecycle(self):
         fake = FakeLicoraSession()
-        client = LicoraV2Client(app_version="1.0.6.4", timeout=12, session=fake)
+        client = LicoraV2Client(app_version="1.0.6.5", timeout=12, session=fake)
         client.server_public_key = fake.server_private.public_key()
         material = generate_device_key_material()
         device_id = "device-0123456789abcdef"
@@ -284,7 +284,7 @@ class LicensingV2ClientTest(unittest.TestCase):
         for code, http_status in cases:
             with self.subTest(code=code):
                 client = LicoraV2Client(
-                    app_version="1.0.6.4",
+                    app_version="1.0.6.5",
                     session=StaticSession(
                         status_code=http_status, body=error_body(code)
                     ),
@@ -332,7 +332,7 @@ class LicensingV2ClientTest(unittest.TestCase):
         ]
         for name, session, expected in scenarios:
             with self.subTest(name=name):
-                client = LicoraV2Client(app_version="1.0.6.4", session=session)
+                client = LicoraV2Client(app_version="1.0.6.5", session=session)
                 with self.assertRaises(LicoraV2Error) as raised:
                     client.activate(
                         license_key=license_key,

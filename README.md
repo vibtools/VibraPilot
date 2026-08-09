@@ -1,6 +1,6 @@
-# VibraPilot v1.0.6.4 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.5 — Vib Tools Browser Automation Desktop
 
-**VibraPilot v1.0.6.4** is the Phase-02-Step-002 verification/fix release built from the user-frozen **v1.0.6.3 Official Baseline**. It retains the Secure Licora API v2 architecture introduced in v1.0.6.3 while correcting verified session-continuity, refresh-recovery, startup-restore and release-packaging defects found during the forensic audit. The validated browser workflow, selectors, Playwright/browser behavior, task/report contract, safety controls and frozen Vib Tools UI foundation remain unchanged.
+**VibraPilot v1.0.6.5** is the approved `VP-PROD-MT-LR-001` production-hardening release built from the exact user-frozen **VibraPilot_v1.0.6.4_Latest_Updated_Baseline.zip** (SHA-256 `ea65bd89d908c5db8edfcf01e6b7c5e11410ffe57a98044f9e8913477f9e89e6`). It hardens Multiple Task execution, long-running worker lifecycle, recipient/result integrity and crash recovery while preserving the existing Razorpay Share Invite workflow, selectors, Licora Secure API v2, Browser Settings contract, ActivationPage and Vib Tools visual foundation.
 
 ## Application areas
 
@@ -34,18 +34,30 @@ VibraPilot signs API v2 requests with the locally generated P-256 device private
 
 The active source contains **no Licora API v1 master/shared API key** and no `/api/verify.php` desktop authentication flow. See `docs/guides/LICENSING.md`.
 
-## Phase-02 scope freeze
+## Production runtime hardening
 
-Phase-02-Step-002 is explicitly scope-locked. The original v1.0.6.2 semantic freeze remains active, and `config/verification/phase02_step002_v1.0.6.4_fix_scope.json` additionally byte-locks operational files outside the approved v1.0.6.3 verification/fix surface. Canonical AST hashes in `config/verification/phase02_step002_scope.json` prove that these baseline areas remain unchanged:
+`VP-PROD-MT-LR-001` adds a local SQLite-backed task runtime store (`AppData/task_runtime.sqlite3`) and keeps each task identified by its own `run_id`, recipient set and result ledger. Processing remains sequential inside each task; `batch_size` defines checkpoint boundaries and does **not** introduce parallel recipient sending. `auto_save_interval` is now interpreted in seconds, with `0` disabling timed autosave while finalized recipient outcomes are still persisted immediately.
 
-- `AutomationWorker`
-- `SELECTORS`
-- `TaskItem`
-- `TaskState`
-- `ActivationPage`
-- `BROWSER_SETTING_GROUPS`
+Production behavior now includes:
 
-The existing site-specific authorized workflow is still the built-in workflow. No selector redesign, browser-engine refactor, UI redesign, task/report redesign or general workflow-framework extraction is included in this release.
+- input reconciliation for source/valid/invalid/duplicate/accepted rows;
+- atomic task/checkpoint persistence and restart recovery without automatic sending;
+- explicit manual-review handling for ambiguous post-Send outcomes;
+- correct item/time Browser Context recycling after successful or failed finalized recipients;
+- deterministic worker shutdown that retains live worker references until cleanup finishes;
+- a bounded 4096-event UI queue and a maximum 250 events processed per UI timer tick;
+- one authoritative current outcome per `run_id + item_index`, with full export backed by the runtime ledger;
+- Reports filtering by Task;
+- a default maximum of 4 simultaneously active task workers; and
+- a persistent-profile collision guard when multiple tasks would claim the same shared profile.
+
+No new permanent top-level UI page was added. Recovery uses the existing Tasks workspace plus transient confirmation dialogs.
+
+## Production scope freeze
+
+The approved production boundary is machine-checked by `config/verification/production_mt_lr_v1.0.6.5_scope.json`. It identifies the exact v1.0.6.4 baseline archive, approved runtime surface and parameters, and freezes out-of-scope files/settings plus canonical AST contracts for `LicenseManager`, `SELECTORS`, `ActivationPage` and `BROWSER_SETTING_GROUPS`. The Phase-02 licensing scope manifests remain historical evidence.
+
+The existing site-specific authorized Share Invite workflow is unchanged: no selector redesign, Send-flow redesign, stealth/anti-bot implementation, licensing-protocol change or browser-engine replacement is included in this release.
 
 ## AppConfig architecture
 
@@ -93,6 +105,8 @@ The builder produces the `VibraPilot` PyInstaller ONEDIR application and release
 - Cumulative release history: `CHANGELOG.md`
 - Concise update log: `UPDATE_LOG.md`
 - Versioning discipline: `VERSIONING.md`
+- v1.0.6.5 production-hardening note: `docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md`
+- v1.0.6.5 production verification: `docs/verification/V1.0.6.5_PRODUCTION_RUNTIME_VERIFICATION.md`
 - v1.0.6.4 verification/fix note: `docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md`
 - v1.0.6.4 forensic verification: `docs/verification/PHASE02_STEP002_V1.0.6.4_FORENSIC_VERIFICATION.md`
 - Historical v1.0.6.3 Phase-02 note: `docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md`
@@ -113,7 +127,7 @@ python -m unittest discover -s tests -p "test_*.py" -v
 
 `pyproject.toml` configures pytest to import from `src`. The unittest modules now bootstrap the repository `src` layout themselves, so the same direct unittest command works in Command Prompt and PowerShell without shell-specific `PYTHONPATH` syntax.
 
-The verifier checks the frozen Vib Tools design source, backend parity contract, Phase-02 scope hashes, AppConfig/static metadata consistency, Secure API v2 public-key/endpoint invariants, secret hygiene, safety behavior, branding/icons and repository structure.
+The verifier checks the frozen Vib Tools design source, backend parity contract, production scope hashes/settings, AppConfig/static metadata consistency, Secure API v2 public-key/endpoint invariants, secret hygiene, safety behavior, branding/icons and repository structure.
 
 Public documentation belongs under `docs/`. The local `project/` tree and runtime `AppData/`, `Logs/`, `Reports/` and `FailedData/` trees are private/gitignored and are not release-source inputs.
 

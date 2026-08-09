@@ -2,11 +2,11 @@
 
 VibraPilot uses a four-segment production release version for hardening/configuration/security maintenance on top of the validated v1.0.6 automation baseline.
 
-Current release: **1.0.6.4**
+Current release: **1.0.6.5**
 
-The user-supplied **v1.0.6.3** archive is the Official Baseline Freeze for this verification cycle. **v1.0.6.4** is the scope-locked Phase-02-Step-002 verification/fix promotion. It retains the Secure Licora API v2 design from v1.0.6.3 and corrects only verified licensing/session continuity, refresh ambiguity recovery, startup restore/recheck behavior, verification coverage and release-package hygiene.
+The exact user-supplied **`VibraPilot_v1.0.6.4_Latest_Updated_Baseline.zip`** (SHA-256 `ea65bd89d908c5db8edfcf01e6b7c5e11410ffe57a98044f9e8913477f9e89e6`) is the Official Baseline Freeze for `VP-PROD-MT-LR-001`. Version **1.0.6.5** is the approved production runtime hardening promotion for Multiple Task, long-run worker stability and data integrity/recovery.
 
-The original Phase-02 semantic freeze remains machine-checked through `config/verification/phase02_step002_scope.json`. `AutomationWorker`, `SELECTORS`, `TaskItem`, `TaskState`, `ActivationPage` and `BROWSER_SETTING_GROUPS` must keep their v1.0.6.2 canonical AST hashes. The v1.0.6.4 fix boundary is additionally locked by `config/verification/phase02_step002_v1.0.6.4_fix_scope.json`, which records the exact SHA-256 of the user-frozen v1.0.6.3 archive and byte-locks operational files outside the approved fix surface.
+The current production scope is machine-checked through `config/verification/production_mt_lr_v1.0.6.5_scope.json`. The approved runtime surface is limited to `backend.py`, `qt_app.py`, `data_io.py`, the new `task_runtime_store.py` and `config/settings.defaults.json`, plus required tests/verifier/version/documentation records. Licora API v2, selectors, ActivationPage, Browser Settings and out-of-scope files/settings remain frozen by hash/AST contracts. Historical Phase-02 scope manifests remain retained as prior-release evidence.
 
 ## Release documentation policy
 

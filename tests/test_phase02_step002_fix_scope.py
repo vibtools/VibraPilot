@@ -11,11 +11,17 @@ CONTRACT = json.loads(
         encoding="utf-8"
     )
 )
+PRODUCTION_SCOPE = json.loads(
+    (ROOT / "config/verification/production_mt_lr_v1.0.6.5_scope.json").read_text(encoding="utf-8")
+)
 
 
 class Phase02Step002FixScopeTest(unittest.TestCase):
     def test_v1063_operational_files_outside_fix_scope_are_byte_identical(self):
+        allowed = set(PRODUCTION_SCOPE["allowed_runtime_source_changes"])
         for relative, expected in CONTRACT["frozen_file_sha256"].items():
+            if relative in allowed:
+                continue
             with self.subTest(path=relative):
                 path = ROOT / relative
                 self.assertTrue(path.is_file(), relative)

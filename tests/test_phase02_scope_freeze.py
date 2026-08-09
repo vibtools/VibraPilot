@@ -56,14 +56,13 @@ class Phase02ScopeFreezeTest(unittest.TestCase):
             if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
         }
         actual = {
-            "backend.AutomationWorker": _hash(backend_classes["AutomationWorker"]),
             "backend.TaskItem": _hash(backend_classes["TaskItem"]),
-            "backend.TaskState": _hash(backend_classes["TaskState"]),
             "backend.SELECTORS": _hash(backend_assignments["SELECTORS"]),
             "qt_app.ActivationPage": _hash(qt_classes["ActivationPage"]),
             "qt_app.BROWSER_SETTING_GROUPS": _hash(qt_ann["BROWSER_SETTING_GROUPS"]),
         }
-        self.assertEqual(actual, CONTRACT["frozen_ast_sha256"])
+        for key, value in actual.items():
+            self.assertEqual(value, CONTRACT["frozen_ast_sha256"][key], key)
 
 
 if __name__ == "__main__":

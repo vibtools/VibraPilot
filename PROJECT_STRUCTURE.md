@@ -5,7 +5,7 @@
 assets/                      Application assets
 config/                      Source-controlled application/runtime configuration and public machine contracts
   AppConfig/                 Public app/About/support/social + Licora API v2 public configuration
-  verification/              Backend and Phase-02 scope-freeze contracts
+  verification/              Backend, Phase-02 and production scope-freeze contracts
 docs/                        Public product documentation and per-release update notes
 frozen_design_source/        Official frozen Vib Tools token JSON
 project/                     Private local development workspace (gitignored; never required by CI)
@@ -13,8 +13,9 @@ scripts/                     Launch and repository-verification helpers
 src/vibrapilot/              Production application
   app_config.py              Validated read-only AppConfig facade
   licensing_v2.py            Secure Licora API v2 protocol/cryptographic client
-  backend.py                 v1.0.6 automation baseline + Phase-02 LicenseManager; current release v1.0.6.4
-  data_io.py                 Input/export adapters
+  backend.py                 validated automation + production worker/runtime wiring; current release v1.0.6.5
+  data_io.py                 Input/export adapters + import reconciliation
+  task_runtime_store.py       SQLite task/checkpoint/result persistence
   qt_app.py                  Vib Tools PySide6 interface
 tests/                       Static/runtime/security/scope contract tests
 vib_validation_app/          Exact supplied Vib Tools design-system modules

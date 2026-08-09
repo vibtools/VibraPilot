@@ -1,5 +1,36 @@
 # Changelog
 
+## v1.0.6.5 — VP-PROD-MT-LR-001 production runtime hardening — 2026-08-08
+
+### Added
+
+- Added SQLite-backed per-task runtime/checkpoint/result persistence with unique run IDs, atomic state updates and restart recovery discovery.
+- Added import reconciliation counters for source, valid, invalid, duplicate and accepted rows.
+- Added Task filtering to Reports and disk-backed full result export while keeping the visible table bounded to recent outcomes.
+- Added a configurable `max_concurrent_tasks` production guard with approved default `4`.
+- Added shared-persistent-profile collision protection for concurrent task launches.
+- Added production scope/soak/recovery/report/worker/queue regression tests.
+
+### Fixed
+
+- Made `batch_size` a real sequential checkpoint boundary without introducing parallel Send operations.
+- Made `auto_save_interval` a real seconds-based periodic persistence setting; finalized recipient outcomes remain immediately durable.
+- Fixed Browser Context item/time recycle accounting so successful finalized recipients contribute to recycling thresholds.
+- Made worker shutdown deterministic; UI/task references are retained when browser cleanup exceeds the wait window.
+- Bounded the shared UI event queue to 4096 entries and limited each UI timer drain to 250 events.
+- Replaced unbounded duplicate report-event accumulation with one authoritative latest outcome per recipient/run item.
+- Preserved ambiguous post-Send outcomes as manual-review recovery state; automatic retry remains forbidden.
+
+### Preserved
+
+- Licora API v2, P-256/RS256 behavior, `LicenseManager`, Razorpay Share Invite selectors/Send sequence, Test Mode/security rules, `ActivationPage`, Browser Settings contract, branding and Vib Tools design foundation remain outside the approved runtime surface.
+
+### Documentation
+
+- Added `docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md`.
+- Added `docs/verification/V1.0.6.5_PRODUCTION_RUNTIME_VERIFICATION.md`.
+- Synchronized README, UPDATE_LOG, VERSIONING, PROJECT_STRUCTURE, COMPATIBILITY, ROADMAP and documentation index.
+
 ## v1.0.6.4 — Phase-02-Step-002 forensic verification/fix — 2026-08-08
 
 ### Fixed

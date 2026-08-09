@@ -22,6 +22,7 @@ SRC = ROOT / "src" / "vibrapilot"
 PRIVATE_BASELINE = ROOT / "project" / "research" / "source_baseline" / "VibraPilot_v1.0.6_original_app.py"
 BACKEND_CONTRACT = ROOT / "config" / "verification" / "backend_v1.0.6_contract.json"
 FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "phase02_step002_v1.0.6.4_fix_scope.json"
+PRODUCTION_SCOPE_CONTRACT = ROOT / "config" / "verification" / "production_mt_lr_v1.0.6.5_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -89,6 +90,24 @@ def function_nodes(path: Path) -> dict[str, ast.FunctionDef]:
 def class_nodes(path: Path) -> dict[str, ast.ClassDef]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     return {n.name: n for n in tree.body if isinstance(n, ast.ClassDef)}
+
+def assignment_nodes(path: Path) -> dict[str, ast.Assign]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    out: dict[str, ast.Assign] = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    out[target.id] = node
+    return out
+
+def annotated_assignment_nodes(path: Path) -> dict[str, ast.AnnAssign]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    return {
+        node.target.id: node
+        for node in tree.body
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+    }
 
 def literal_assignment(path: Path, name: str):
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -188,26 +207,23 @@ if backend_contract.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
     )
 
 expected_methods = backend_contract.get("core_method_inventory", {})
+production_intentional_classes = {"TaskState", "AutomationWorker"}
 for cls in CORE_CLASSES:
     if cls not in production:
         fail(f"missing core class {cls}")
     if cls not in expected_methods:
         fail(f"backend contract missing core class {cls}")
+    if cls in production_intentional_classes:
+        continue
     if production[cls] != expected_methods[cls]:
         fail(
             f"backend method drift in {cls}: "
             f"contract={expected_methods[cls]} production={production[cls]}"
         )
 
-expected_worker_count = int(backend_contract.get("automation_worker_method_count", 0))
-if len(production.get("AutomationWorker", [])) != expected_worker_count:
-    fail(
-        "AutomationWorker method count drift: "
-        f"{len(production.get('AutomationWorker', []))} != {expected_worker_count}"
-    )
-
-
 for cls, expected_sha in backend_contract.get("frozen_class_ast_sha256", {}).items():
+    if cls in production_intentional_classes:
+        continue
     node = production_nodes.get(cls)
     if node is None:
         fail(f"missing frozen backend class {cls}")
@@ -231,22 +247,63 @@ for name, expected_sha in backend_contract.get("frozen_helper_ast_sha256", {}).i
     if ast_contract_sha(node) != expected_sha:
         fail(f"backend helper implementation drift in {name}")
 
-# Phase-02-Step-002 verification-fix scope lock: operational files outside the
-# explicitly approved licensing/session fix surface must remain byte-identical to
-# the uploaded official v1.0.6.3 baseline.
-if not FIX_SCOPE_CONTRACT.is_file():
-    fail("Phase-02-Step-002 v1.0.6.4 fix-scope contract is missing")
+# VP-PROD-MT-LR-001 production scope lock. The v1.0.6.4 Phase-02 manifest remains
+# historical evidence while the current verifier enforces the approved v1.0.6.5 scope.
+if not PRODUCTION_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.5 production scope contract is missing")
 try:
-    fix_scope = json.loads(FIX_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+    production_scope = json.loads(PRODUCTION_SCOPE_CONTRACT.read_text(encoding="utf-8"))
 except Exception as exc:
-    fail(f"Phase-02-Step-002 fix-scope contract is invalid: {exc}")
-for relative, expected_sha in fix_scope.get("frozen_file_sha256", {}).items():
+    fail(f"v1.0.6.5 production scope contract is invalid: {exc}")
+if production_scope.get("official_baseline_archive_sha256") != "ea65bd89d908c5db8edfcf01e6b7c5e11410ffe57a98044f9e8913477f9e89e6":
+    fail("production scope contract does not identify the approved v1.0.6.4 baseline")
+if production_scope.get("target_version") != "1.0.6.5":
+    fail("production scope target version must be 1.0.6.5")
+settings_defaults_for_scope = json.loads((ROOT / "config" / "settings.defaults.json").read_text(encoding="utf-8"))
+for approved_key in production_scope.get("approved_new_setting_keys", []):
+    settings_defaults_for_scope.pop(approved_key, None)
+settings_scope_payload = json.dumps(
+    settings_defaults_for_scope, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+).encode("utf-8")
+if hashlib.sha256(settings_scope_payload).hexdigest() != production_scope.get("baseline_settings_canonical_sha256"):
+    fail("production scope changed an existing settings default outside the approved new setting")
+for relative, expected_sha in production_scope.get("frozen_file_sha256", {}).items():
     path = ROOT / relative
     if not path.is_file():
-        fail(f"fix-scope frozen file is missing: {relative}")
+        fail(f"production-scope frozen file is missing: {relative}")
     actual_sha = hashlib.sha256(path.read_bytes()).hexdigest()
     if actual_sha != expected_sha:
-        fail(f"out-of-scope file drift detected: {relative}")
+        fail(f"production out-of-scope file drift detected: {relative}")
+
+production_ast = production_scope.get("frozen_ast_sha256", {})
+if production_scope.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
+    fail("production scope AST hash algorithm mismatch")
+qt_nodes = class_nodes(ROOT / "src" / "vibrapilot" / "qt_app.py")
+backend_assignment_nodes = assignment_nodes(SRC / "backend.py")
+qt_ann_nodes = annotated_assignment_nodes(ROOT / "src" / "vibrapilot" / "qt_app.py")
+checks = {
+    "backend.LicenseManager": production_nodes.get("LicenseManager"),
+    "backend.SELECTORS": backend_assignment_nodes.get("SELECTORS"),
+    "qt_app.ActivationPage": qt_nodes.get("ActivationPage"),
+    "qt_app.BROWSER_SETTING_GROUPS": qt_ann_nodes.get("BROWSER_SETTING_GROUPS"),
+}
+for name, node in checks.items():
+    expected_sha = production_ast.get(name)
+    if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
+        fail(f"production out-of-scope AST drift detected: {name}")
+
+automation_worker_node = production_nodes.get("AutomationWorker")
+if automation_worker_node is None:
+    fail("production AutomationWorker class is missing")
+automation_worker_methods = {
+    node.name: node
+    for node in automation_worker_node.body
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+}
+for method_name, expected_sha in production_scope.get("frozen_automationworker_method_ast_sha256", {}).items():
+    node = automation_worker_methods.get(method_name)
+    if node is None or ast_contract_sha(node) != expected_sha:
+        fail(f"production out-of-scope AutomationWorker method drift detected: {method_name}")
 
 # Local developer check: when the private project workspace is present, prove that
 # the published machine contract still describes the private v1.0.6 baseline.
@@ -281,8 +338,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.4":
-    fail("AppConfig VERSION must be 1.0.6.4 for the Phase-02-Step-002 verification fix")
+if app_version != "1.0.6.5":
+    fail("AppConfig VERSION must be 1.0.6.5 for VP-PROD-MT-LR-001")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -396,8 +453,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.4-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.4 release path")
+if "VibraPilot-1.0.6.5-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.5 release path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})
@@ -437,6 +494,35 @@ if docs_manifest["documentation"]["version"] != app_version:
 settings_defaults = json.loads((ROOT / "config" / "settings.defaults.json").read_text(encoding="utf-8"))
 if settings_defaults.get("max_test_send_limit") != 50:
     fail("source-controlled default Test Send Limit must remain 50")
+if settings_defaults.get("max_concurrent_tasks") != 4:
+    fail("VP-PROD-MT-LR-001 max_concurrent_tasks default must be 4")
+if settings_defaults.get("batch_size") != 1:
+    fail("existing batch_size default must remain 1")
+if settings_defaults.get("auto_save_interval") != 10:
+    fail("existing auto_save_interval default must remain 10 seconds")
+production_runtime_store = SRC / "task_runtime_store.py"
+if not production_runtime_store.is_file():
+    fail("VP-PROD-MT-LR-001 task runtime store module is missing")
+production_runtime_text = production_runtime_store.read_text(encoding="utf-8")
+for marker in (
+    "class TaskRuntimeStore", "PRAGMA journal_mode=WAL", "PRAGMA foreign_keys=ON",
+    "def recoverable_runs", "def skip_current_manual_review", "def upsert_result",
+):
+    if marker not in production_runtime_text:
+        fail(f"production runtime-store invariant missing: {marker}")
+for marker in (
+    "UI_QUEUE_CAPACITY = 4096", "UI_QUEUE_MAX_EVENTS_PER_TICK = 250",
+    "queue.Queue(maxsize=UI_QUEUE_CAPACITY)", "max_concurrent_tasks",
+    "offer_task_recovery", "can_open_task_browser",
+):
+    if marker not in qt_text:
+        fail(f"production UI/runtime invariant missing: {marker}")
+for marker in (
+    "TASK_RUNTIME_DB", "stopped_event", "auto_save_interval", "batch_size",
+    "maybe_recycle_context", "manual_review_required",
+):
+    if marker not in backend_text:
+        fail(f"production worker/runtime invariant missing: {marker}")
 licensing_client_path = SRC / "licensing_v2.py"
 if not licensing_client_path.is_file():
     fail("Phase-02 Licora API v2 client module is missing")
@@ -738,7 +824,8 @@ required = [
     "run.py", "build.py", "config/settings.defaults.json", "config/__init__.py", "config/AppConfig/__init__.py",
     "config/AppConfig/app.py", "config/AppConfig/about.py", "config/AppConfig/support.py", "config/AppConfig/social.py",
     "config/AppConfig/licensing_public.py", "config/verification/phase02_step002_scope.json", "config/verification/phase02_step002_v1.0.6.4_fix_scope.json",
-    "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py",
+    "config/verification/production_mt_lr_v1.0.6.5_scope.json",
+    "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
     "src/vibrapilot/qt_app.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
     "docs/updates/v1.0.6.1-vibrapilot-branding.md", "docs/updates/v1.0.6.1-github-ci-repository-hygiene-fix.md",
@@ -747,8 +834,14 @@ required = [
     "docs/updates/v1.0.6.2-phase-01-verification-fix.md",
     "docs/verification/PHASE01_V1.0.6.2_VERIFICATION.md", "docs/verification/PHASE02_STEP002_V1.0.6.3_VERIFICATION.md",
     "docs/verification/PHASE02_STEP002_V1.0.6.4_FORENSIC_VERIFICATION.md",
-    "docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md", "docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md", "tests/test_app_config_validation.py",
+    "docs/verification/V1.0.6.5_PRODUCTION_RUNTIME_VERIFICATION.md",
+    "docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md", "docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md",
+    "docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md", "tests/test_app_config_validation.py",
     "tests/test_licensing_v2_crypto.py", "tests/test_licensing_v2_client.py", "tests/test_license_manager_v2.py", "tests/test_phase02_scope_freeze.py", "tests/test_phase02_step002_fix_scope.py",
+    "tests/test_production_scope_freeze.py", "tests/test_task_runtime_store.py", "tests/test_task_recovery.py",
+    "tests/test_multi_task_isolation.py", "tests/test_long_run_worker_stability.py", "tests/test_report_integrity.py",
+    "tests/test_input_reconciliation.py", "tests/test_context_recycling.py", "tests/test_worker_shutdown.py",
+    "tests/test_ui_queue_backpressure.py",
     "scripts/maintenance/Apply-v1.0.6.2-Phase01-Fix.cmd",
     "scripts/maintenance/PHASE01_V1.0.6.2_DELETE_PATHS.txt",
     "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",

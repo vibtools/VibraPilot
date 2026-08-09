@@ -1,6 +1,6 @@
 # Licora Secure API v2 Integration
 
-VibraPilot v1.0.6.4 uses Licora Secure API v2 for desktop licensing. The client does **not** embed or send a Licora API v1 shared/master API key.
+VibraPilot v1.0.6.5 uses Licora Secure API v2 for desktop licensing. The client does **not** embed or send a Licora API v1 shared/master API key.
 
 ## Public client configuration
 
@@ -64,4 +64,4 @@ Logout immediately removes the protected license key, access token and refresh t
 
 ## Release-package boundary
 
-`AppData/`, `Logs/`, `Reports/`, `FailedData/`, `project/`, `__pycache__/` and `.pytest_cache/` are private/runtime/development paths and are not valid release-source inputs. The v1.0.6.4 scope verifier and packaging audit enforce this boundary for the official clean baseline.
+`AppData/`, `Logs/`, `Reports/`, `FailedData/`, `project/`, `__pycache__/` and `.pytest_cache/` are private/runtime/development paths and are not valid release-source inputs. The current production scope verifier and packaging audit enforce this boundary for the official clean baseline.

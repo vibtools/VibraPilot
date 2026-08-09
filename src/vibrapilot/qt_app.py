@@ -81,6 +81,7 @@ from .app_config import ABOUT, APP, ENABLED_SOCIAL_LINKS, LICENSING, SUPPORT
 
 from .backend import (
     APP_AUTHOR,
+    APP_DATA_DIR,
     APP_NAME,
     APP_VERSION,
     DEFAULT_SETTINGS,
@@ -91,6 +92,7 @@ from .backend import (
     REPORTS_DIR,
     ROOT_DIR,
     SETTINGS_FILE,
+    TASK_RUNTIME_DB,
     AutomationWorker,
     LicenseManager,
     SettingsManager,
@@ -101,14 +103,18 @@ from .backend import (
     validate_test_send_limit,
 )
 from .data_io import (
-    deduplicate_items,
     export_report_csv,
     export_report_excel,
     parse_data,
+    parse_data_with_audit,
 )
+from .task_runtime_store import TaskRuntimeStore
 
 
 NAV_SECTIONS = ["Dashboard", "Tasks", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]
+UI_QUEUE_CAPACITY = 4096
+UI_QUEUE_MAX_EVENTS_PER_TICK = 250
+REPORT_RECENT_LIMIT = 1000
 
 
 APP_ICON_PATH = ROOT_DIR / "assets" / "icons" / "app.ico"
@@ -788,6 +794,7 @@ class TaskSlotWidget(QFrame):
             target_url=str(app.settings.get("default_target_url", DEFAULT_SETTINGS["default_target_url"])),
         )
         self.loaded_path: Path | None = None
+        self.import_audit = None
         # Task-page-only responsive spacing state.  The values are derived from
         # the containing Tasks viewport so the approved percentage contract
         # scales with the application window without touching task behavior.
@@ -1174,6 +1181,10 @@ class TaskSlotWidget(QFrame):
             self.worker.request_focus()
             self.app.log_ui(f"Task {self.slot_id}: browser focus requested")
             return
+        allowed, reason = self.app.can_open_task_browser(self)
+        if not allowed:
+            _message(self, "Browser launch blocked", reason, "warning")
+            return
 
         self.stop_event.clear()
         self.pause_event.clear()
@@ -1187,6 +1198,7 @@ class TaskSlotWidget(QFrame):
             self.stop_event,
             self.pause_event,
             initial_url=url,
+            runtime_store=self.app.runtime_store,
         )
         self.worker.start()
         self.app.log_ui(f"Task {self.slot_id}: opening a fresh browser session")
@@ -1205,29 +1217,99 @@ class TaskSlotWidget(QFrame):
             return
         try:
             path = Path(filename)
-            items = parse_data(path)
-            if self.app.settings.get("remove_duplicate_rows", DEFAULT_SETTINGS["remove_duplicate_rows"]):
-                items = deduplicate_items(items)
+            audit = parse_data_with_audit(
+                path,
+                remove_duplicates=bool(
+                    self.app.settings.get(
+                        "remove_duplicate_rows", DEFAULT_SETTINGS["remove_duplicate_rows"]
+                    )
+                ),
+            )
+            items = audit.items
             self.state.items = items
             self.state.current_index = 0
             self.state.success_count = 0
             self.state.failed_count = 0
+            self.state.manual_review_required = False
+            self.state.send_limit_used = 0
+            self.state.source_file = str(path)
+            self.state.source_fingerprint = audit.source_fingerprint
             self.state.status = (
                 "Login Verified"
                 if self.is_login_verified()
                 else ("Login Required" if self.is_browser_open() else "Ready")
             )
+            self.state.created_at = now_str()
+            self.state.run_id = self.app.runtime_store.start_run(
+                slot_id=self.slot_id,
+                target_url=self.url.text().strip(),
+                source_file=str(path),
+                source_fingerprint=audit.source_fingerprint,
+                items=items,
+                created_at=self.state.created_at,
+            )
             self.loaded_path = path
-            self.path_label.setText(f"Loaded ({len(items)})")
-            self.path_label.setToolTip(f"{path.name} • {len(items)} items")
+            self.import_audit = audit
+            self.path_label.setText(f"Loaded ({audit.accepted_rows})")
+            reconciliation = (
+                f"{path.name} • Source {audit.source_rows} • Valid {audit.valid_rows} • "
+                f"Invalid {audit.invalid_rows} • Duplicate rows {audit.duplicate_rows} • "
+                f"Accepted {audit.accepted_rows}"
+            )
+            self.path_label.setToolTip(reconciliation)
             self._set_metric("Status", self.state.status)
             self.update_counts()
-            self.app.log_ui(f"Task {self.slot_id}: loaded {len(items)} items from {path.name}")
+            self.app.log_ui(f"Task {self.slot_id}: {reconciliation}")
         except Exception as exc:
             logging.exception("Data load failed")
             _message(self, "Data load failed", str(exc), "error")
 
+    def restore_runtime(self, run: dict[str, Any]) -> None:
+        """Restore persisted task state only; browser/login/Send never auto-start."""
+        self.state.run_id = str(run.get("run_id", ""))
+        self.state.target_url = str(run.get("target_url", ""))
+        self.state.source_file = str(run.get("source_file", ""))
+        self.state.source_fingerprint = str(run.get("source_fingerprint", ""))
+        self.state.current_index = max(0, int(run.get("current_index", 0)))
+        self.state.success_count = max(0, int(run.get("success_count", 0)))
+        self.state.failed_count = max(0, int(run.get("failed_count", 0)))
+        self.state.manual_review_required = bool(run.get("manual_review_required", 0))
+        self.state.send_limit_used = max(0, int(run.get("send_limit_used", 0)))
+        self.state.created_at = str(run.get("created_at", now_str()))
+        self.state.items = [
+            TaskItem(
+                email=str(row.get("email", "")),
+                name=str(row.get("name", "")),
+                status=str(row.get("status", "pending")),
+                attempts=int(row.get("attempts", 0)),
+                message=str(row.get("message", "")),
+                result=str(row.get("result", "")),
+            )
+            for row in run.get("items", [])
+        ]
+        self.state.status = (
+            "Manual Review Required" if self.state.manual_review_required else "Recovered"
+        )
+        if self.state.target_url:
+            self.url.setText(self.state.target_url)
+        source = Path(self.state.source_file) if self.state.source_file else None
+        self.loaded_path = source if source and source.exists() else None
+        self.path_label.setText(f"Recovered ({self.state.total})")
+        self.path_label.setToolTip(
+            f"Recovered run {self.state.run_id} • Next index {self.state.current_index} • "
+            f"Source {self.state.source_file or 'stored runtime data'}"
+        )
+        self._set_metric("Status", self.state.status)
+        limit = safe_test_send_limit(
+            self.app.settings.get("max_test_send_limit", DEFAULT_SETTINGS["max_test_send_limit"])
+        )
+        self._set_metric("Send Limit", f"{self.state.send_limit_used}/{limit}")
+        self.update_counts()
+
     def start(self) -> None:
+        if self.state.manual_review_required:
+            if not self.app.resolve_manual_review(self):
+                return
         if self.worker and self.worker.is_processing():
             _message(self, "Already running", "This task is already processing.")
             return
@@ -1275,7 +1357,7 @@ class TaskSlotWidget(QFrame):
             )
             self._set_metric("Send Limit", "0/0")
             return
-        self._set_metric("Send Limit", f"0/{max_limit}")
+        self._set_metric("Send Limit", f"{self.state.send_limit_used}/{max_limit}")
         self.state.target_url = url
         self.stop_event.clear()
         self.pause_event.clear()
@@ -1313,15 +1395,28 @@ class TaskSlotWidget(QFrame):
         self._set_metric("Status", "Running")
         self.app.log_ui(f"Task {self.slot_id}: resumed")
 
-    def close_browser(self, wait: bool = True) -> None:
-        if not self.worker:
-            return
-        self.worker.request_close()
-        if wait and self.worker.is_alive():
-            self.worker.join(timeout=8.0)
+    def close_browser(self, wait: bool = True) -> bool:
+        worker = self.worker
+        if not worker:
+            return True
+        worker.request_close()
+        self._set_metric("Status", "Closing")
+        if wait and worker.is_alive():
+            if not worker.stopped_event.wait(timeout=8.0):
+                self._set_metric("Status", "Closing / Worker Busy")
+                self.app.log_ui(
+                    f"Task {self.slot_id}: worker did not finish cleanup within 8 seconds; "
+                    "the live worker reference was retained.",
+                    "WARNING",
+                )
+                return False
+            worker.join(timeout=1.0)
+        if worker.is_alive():
+            return False
         self.worker = None
         self._render_browser_status("Closed")
         self._set_metric("Login", "Not Verified")
+        return True
 
     def close(self) -> None:
         if self.worker and self.worker.is_processing():
@@ -1331,13 +1426,22 @@ class TaskSlotWidget(QFrame):
                 "Task is running. Stop it, save unprocessed data, and close its browser session?",
             ):
                 return
-        self.close_browser(wait=True)
+        if not self.close_browser(wait=True):
+            _message(
+                self,
+                "Worker still closing",
+                "The browser worker is still completing cleanup. The task was kept open; try again after it closes.",
+                "warning",
+            )
+            return
         self.app.remove_task(self.slot_id)
         self.setParent(None)
         self.deleteLater()
 
     def set_browser_status(self, status: str) -> None:
         self._render_browser_status(status)
+        if status == "Closed" and self.worker and not self.worker.is_alive():
+            self.worker = None
         if status == "Open" and not self.is_running():
             self._set_metric("Status", "Login Verified" if self.is_login_verified() else "Login Required")
         elif status == "Closed" and not self.is_running() and self.state.status not in {
@@ -1393,10 +1497,12 @@ class MainWindow(QMainWindow):
         self.settings = SettingsManager(SETTINGS_FILE)
         super().__init__()
         self.license_manager = LicenseManager(self.settings)
-        self.ui_queue: queue.Queue = queue.Queue()
+        self.runtime_store = TaskRuntimeStore(TASK_RUNTIME_DB)
+        self.ui_queue: queue.Queue = queue.Queue(maxsize=UI_QUEUE_CAPACITY)
         self.tasks: dict[int, TaskSlotWidget] = {}
         self.next_slot_id = 1
-        self.report_rows: list[dict[str, Any]] = []
+        self.report_rows: list[dict[str, Any]] = self.runtime_store.results(limit=REPORT_RECENT_LIMIT)
+        self._report_dirty = False
         self.log_lines: list[dict[str, str]] = []
         self.license_stop = threading.Event()
         self.nav_buttons: dict[str, QPushButton] = {}
@@ -1406,6 +1512,7 @@ class MainWindow(QMainWindow):
         self._workspace_active = False
         self._workspace_transitioning = False
         self.activation_page: ActivationPage | None = None
+        self._pending_license_invalid_message: str | None = None
         self.breadcrumb = None
         self.window_title_label = None
         self.license_badge = None
@@ -1541,6 +1648,10 @@ class MainWindow(QMainWindow):
                 for _ in range(initial_slots):
                     self.add_task()
             self.log_ui("License validated. Main workspace loaded.")
+            if self.runtime_store.recovery_warning:
+                self.log_ui(self.runtime_store.recovery_warning, "ERROR")
+                self.runtime_store.recovery_warning = ""
+            QTimer.singleShot(0, self.offer_task_recovery)
         finally:
             self._workspace_transitioning = False
 
@@ -1925,6 +2036,9 @@ class MainWindow(QMainWindow):
         self.report_search.setMinimumWidth(CONST.table_search_min_width)
         self.report_search.textChanged.connect(self.refresh_report_table)
         tl.addWidget(self.report_search, 1)
+        self.report_task = combo_box(["All Tasks"])
+        self.report_task.currentTextChanged.connect(self.refresh_report_table)
+        tl.addWidget(self.report_task)
         self.report_status = combo_box(
             ["All", "processing", "success", "failed", "interrupted", "unprocessed", "blocked", "limit_reached"]
         )
@@ -2220,7 +2334,7 @@ class MainWindow(QMainWindow):
             ],
             "Test Safety Settings": ["authorized_testing_only", "max_test_send_limit"],
             "Task Processing Settings": [
-                "batch_size", "auto_save_interval", "save_failed_data",
+                "batch_size", "auto_save_interval", "max_concurrent_tasks", "save_failed_data",
                 "save_unprocessed_data_on_close", "remove_duplicate_rows",
             ],
             "App Settings": [
@@ -2256,6 +2370,18 @@ class MainWindow(QMainWindow):
                 if key == "default_target_url":
                     w.setToolTip(
                         "Initial URL for newly created tasks only. Editing a task URL remains independent and is not overwritten by this setting."
+                    )
+                elif key == "batch_size":
+                    w.setToolTip(
+                        "Sequential batch boundary size. Processing remains one recipient at a time; a durable checkpoint boundary is committed after each batch."
+                    )
+                elif key == "auto_save_interval":
+                    w.setToolTip(
+                        "Periodic task-state autosave interval in seconds. 0 disables time-based autosave; finalized recipients are still persisted safely."
+                    )
+                elif key == "max_concurrent_tasks":
+                    w.setToolTip(
+                        "Maximum number of task browser workers that may be open at the same time. Additional task cards may still be created."
                     )
                 elif key == "request_timeout":
                     w.setToolTip(
@@ -2324,20 +2450,145 @@ class MainWindow(QMainWindow):
 
     # ---------- task collection ----------
 
-    def add_task(self) -> None:
+    def _add_task_with_id(self, slot_id: int) -> TaskSlotWidget | None:
         task_layout = self.task_layout
         if task_layout is None:
-            return
-        slot = TaskSlotWidget(self, self.next_slot_id)
+            return None
+        if slot_id in self.tasks:
+            return self.tasks[slot_id]
+        slot = TaskSlotWidget(self, slot_id)
         insert_at = max(0, task_layout.count() - 1)
         task_layout.insertWidget(insert_at, slot)
-        self.tasks[self.next_slot_id] = slot
-        self.next_slot_id += 1
+        self.tasks[slot_id] = slot
+        self.next_slot_id = max(self.next_slot_id, slot_id + 1)
+        self._refresh_report_task_filter()
         self.update_dashboard()
+        return slot
+
+    def add_task(self) -> None:
+        self._add_task_with_id(self.next_slot_id)
 
     def remove_task(self, slot_id: int) -> None:
         self.tasks.pop(slot_id, None)
+        self._refresh_report_task_filter()
         self.update_dashboard()
+
+    def _persistent_profile_claim(self, slot: TaskSlotWidget) -> str | None:
+        if not bool(self.settings.get("use_persistent_context", DEFAULT_SETTINGS["use_persistent_context"])):
+            return None
+        if not bool(self.settings.get("persist_profile_between_runs", DEFAULT_SETTINGS["persist_profile_between_runs"])):
+            return None
+        if bool(self.settings.get("dedicated_profile_per_task", DEFAULT_SETTINGS["dedicated_profile_per_task"])):
+            return None
+        raw = str(self.settings.get("persistent_user_data_dir", DEFAULT_SETTINGS["persistent_user_data_dir"])).strip()
+        base = Path(raw).expanduser() if raw else (APP_DATA_DIR / "BrowserProfiles")
+        if raw and not base.is_absolute():
+            base = APP_DATA_DIR / base
+        profile = str(self.settings.get("persistent_profile_directory", DEFAULT_SETTINGS["persistent_profile_directory"])).strip()
+        return str((base / (profile or "Default")).resolve())
+
+    def can_open_task_browser(self, slot: TaskSlotWidget) -> tuple[bool, str]:
+        limit = max(1, int(self.settings.get("max_concurrent_tasks", DEFAULT_SETTINGS["max_concurrent_tasks"])))
+        active = [
+            task for task in self.tasks.values()
+            if task.slot_id != slot.slot_id and task.worker and task.worker.is_alive()
+        ]
+        if len(active) >= limit:
+            return False, f"Maximum Concurrent Tasks is {limit}. Close an active task browser before opening another."
+        claim = self._persistent_profile_claim(slot)
+        if claim:
+            for other in active:
+                if self._persistent_profile_claim(other) == claim:
+                    return False, (
+                        "Another running task already owns the same persistent browser profile. "
+                        "Enable Dedicated Profile Per Task or close the other browser first."
+                    )
+        return True, ""
+
+    def _refresh_report_task_filter(self) -> None:
+        if not hasattr(self, "report_task"):
+            return
+        current = self.report_task.currentText()
+        slot_ids = sorted(set(self.tasks) | set(self.runtime_store.result_slot_ids()))
+        values = ["All Tasks"] + [f"Task {slot_id}" for slot_id in slot_ids]
+        self.report_task.blockSignals(True)
+        self.report_task.clear()
+        self.report_task.addItems(values)
+        self.report_task.setCurrentText(current if current in values else "All Tasks")
+        self.report_task.blockSignals(False)
+
+    def offer_task_recovery(self) -> None:
+        recoverable = self.runtime_store.recoverable_runs()
+        for summary in recoverable:
+            run_id = str(summary.get("run_id", ""))
+            run = self.runtime_store.load_run(run_id)
+            if not run:
+                continue
+            slot_id = int(run.get("slot_id", 0))
+            manual = bool(run.get("manual_review_required", 0))
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Warning if manual else QMessageBox.Question)
+            box.setWindowTitle("Task Recovery")
+            if manual:
+                box.setText(
+                    f"Task {slot_id} has an ambiguous Send outcome. Automatic retry is blocked. "
+                    "Choose how to preserve or review this recovery state."
+                )
+                keep = box.addButton("Keep for Manual Review", QMessageBox.AcceptRole)
+                skip = box.addButton("Mark Reviewed / Skip Current", QMessageBox.ActionRole)
+                discard = box.addButton("Discard Recovery", QMessageBox.DestructiveRole)
+                box.exec()
+                clicked = box.clickedButton()
+                if clicked is discard:
+                    self.runtime_store.discard_run(run_id, now_str())
+                    continue
+                if clicked is skip:
+                    self.runtime_store.skip_current_manual_review(run_id, now_str())
+                    run = self.runtime_store.load_run(run_id) or run
+                elif clicked is not keep:
+                    continue
+            else:
+                box.setText(
+                    f"Recover unfinished Task {slot_id}? Recovery restores data/progress only; "
+                    "it will not open a browser or send automatically."
+                )
+                restore = box.addButton("Recover Task", QMessageBox.AcceptRole)
+                discard = box.addButton("Discard Recovery", QMessageBox.DestructiveRole)
+                box.exec()
+                clicked = box.clickedButton()
+                if clicked is discard:
+                    self.runtime_store.discard_run(run_id, now_str())
+                    continue
+                if clicked is not restore:
+                    continue
+            slot = self._add_task_with_id(slot_id)
+            if slot is not None:
+                slot.restore_runtime(run)
+                self.log_ui(f"Task {slot_id}: recovered runtime state; browser remains closed until explicitly opened.")
+        self.report_rows = self.runtime_store.results(limit=REPORT_RECENT_LIMIT)
+        self._refresh_report_task_filter()
+        self.refresh_report_table()
+
+    def resolve_manual_review(self, slot: TaskSlotWidget) -> bool:
+        if not slot.state.manual_review_required:
+            return True
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Warning)
+        box.setWindowTitle("Manual Review Required")
+        box.setText(
+            "The current recipient has an ambiguous prior Send outcome. Automatic retry is blocked. "
+            "After reviewing the target manually, you may skip this recipient and continue."
+        )
+        skip = box.addButton("Mark Reviewed / Skip Current", QMessageBox.AcceptRole)
+        keep = box.addButton("Keep for Manual Review", QMessageBox.RejectRole)
+        box.exec()
+        if box.clickedButton() is not skip:
+            return False
+        self.runtime_store.skip_current_manual_review(slot.state.run_id, now_str())
+        run = self.runtime_store.load_run(slot.state.run_id)
+        if run:
+            slot.restore_runtime(run)
+        return True
 
     # ---------- settings ----------
 
@@ -2385,6 +2636,7 @@ class MainWindow(QMainWindow):
                 "max_selector_retry": 0,
                 "batch_size": 1,
                 "auto_save_interval": 0,
+                "max_concurrent_tasks": 1,
                 "connection_retry_count": 0,
                 "network_error_retry_delay": 0,
                 "license_recheck_minutes": 1,
@@ -2759,23 +3011,38 @@ class MainWindow(QMainWindow):
 
     # ---------- report ----------
 
+    def _selected_report_slot(self) -> int | None:
+        if not hasattr(self, "report_task"):
+            return None
+        text = self.report_task.currentText()
+        if text.startswith("Task "):
+            try:
+                return int(text.split(" ", 1)[1])
+            except ValueError:
+                return None
+        return None
+
     def add_report_row(self, row: dict[str, Any]) -> None:
-        self.report_rows.append(row)
-        self.refresh_report_table()
+        # Worker-side runtime storage is authoritative. Processing-start events stay
+        # in Live Logs; Reports expose one latest outcome per recipient/run item.
+        # Multiple worker results received in one UI tick are coalesced into one
+        # bounded table refresh instead of rebuilding up to 1000 rows per event.
+        if str(row.get("status", "")) == "processing":
+            return
+        self._report_dirty = True
 
     def refresh_report_table(self) -> None:
         if not hasattr(self, "report_table"):
             return
         status_filter = self.report_status.currentText() if hasattr(self, "report_status") else "All"
         search = self.report_search.text().lower() if hasattr(self, "report_search") else ""
-        filtered: list[dict[str, Any]] = []
-        for row in self.report_rows[-1000:]:
-            if status_filter != "All" and row.get("status") != status_filter:
-                continue
-            if search and search not in " ".join(str(v).lower() for v in row.values()):
-                continue
-            filtered.append(row)
-
+        filtered = self.runtime_store.results(
+            slot_id=self._selected_report_slot(),
+            status=status_filter,
+            search=search,
+            limit=REPORT_RECENT_LIMIT,
+        )
+        self.report_rows = filtered
         self.report_table.setRowCount(len(filtered))
         for r, row in enumerate(filtered):
             for c, key in enumerate(self.report_columns):
@@ -2784,28 +3051,41 @@ class MainWindow(QMainWindow):
                 self.report_table.setItem(r, c, item)
         self.report_table.resizeRowsToContents()
 
+    def _report_export_rows(self) -> list[dict[str, Any]]:
+        status_filter = self.report_status.currentText() if hasattr(self, "report_status") else "All"
+        search = self.report_search.text().lower() if hasattr(self, "report_search") else ""
+        return self.runtime_store.results(
+            slot_id=self._selected_report_slot(),
+            status=status_filter,
+            search=search,
+            limit=None,
+        )
+
     def export_report_csv(self) -> None:
-        if not self.report_rows:
+        rows = self._report_export_rows()
+        if not rows:
             _message(self, "Report", "No report rows to export.")
             return
         path = REPORTS_DIR / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        export_report_csv(self.report_rows, path)
+        export_report_csv(rows, path)
         self.log_ui(f"Report exported: {path.name}")
         if self.settings.get("auto_open_report_after_export", DEFAULT_SETTINGS["auto_open_report_after_export"]):
             self.open_path(path)
 
     def export_report_excel(self) -> None:
-        if not self.report_rows:
+        rows = self._report_export_rows()
+        if not rows:
             _message(self, "Report", "No report rows to export.")
             return
         path = REPORTS_DIR / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-        export_report_excel(self.report_rows, path)
+        export_report_excel(rows, path)
         self.log_ui(f"Excel report exported: {path.name}")
         if self.settings.get("auto_open_report_after_export", DEFAULT_SETTINGS["auto_open_report_after_export"]):
             self.open_path(path)
 
     def clear_report(self) -> None:
-        if _confirm(self, "Clear report", "Clear live report table?"):
+        if _confirm(self, "Clear report", "Clear live report data?"):
+            self.runtime_store.clear_results()
             self.report_rows.clear()
             self.refresh_report_table()
             self.log_ui("Live report cleared.")
@@ -2842,47 +3122,77 @@ class MainWindow(QMainWindow):
     # ---------- worker event bridge ----------
 
     def poll_queue(self) -> None:
-        try:
-            while True:
+        processed = 0
+        while processed < UI_QUEUE_MAX_EVENTS_PER_TICK:
+            try:
                 kind, payload = self.ui_queue.get_nowait()
-                slot_id = int(payload.get("slot_id", 0))
-                slot = self.tasks.get(slot_id)
+            except queue.Empty:
+                break
+            processed += 1
+            slot_id = int(payload.get("slot_id", 0))
+            slot = self.tasks.get(slot_id)
 
-                if kind == "activation_result":
-                    activation_page = self.activation_page
-                    if activation_page is not None and not self._workspace_active:
-                        activation_page.finish(bool(payload.get("ok")), str(payload.get("message", "")))
-                elif kind == "log":
-                    self.log_ui(
-                        f"Task {slot_id}: {payload.get('message')}",
-                        str(payload.get("level", "INFO")),
-                    )
-                elif kind == "progress" and slot:
-                    slot.update_counts(payload)
-                elif kind == "status" and slot:
-                    slot.set_status(str(payload.get("status", "")))
-                elif kind == "item":
-                    self.add_report_row(payload)
-                elif kind == "security":
-                    _message(self, "Security challenge", str(payload.get("message", "Security challenge detected.")), "warning")
-                elif kind == "browser" and slot:
-                    slot.set_browser_status(str(payload.get("status", "Closed")))
-                elif kind == "login" and slot:
-                    slot.set_login_status(bool(payload.get("verified", False)), str(payload.get("message", "")))
-                elif kind == "send_limit" and slot:
-                    slot.update_send_limit(int(payload.get("used", 0)), int(payload.get("limit", 1)))
-                elif kind == "done":
-                    self.update_dashboard()
-                elif kind == "license_invalid":
-                    for task in list(self.tasks.values()):
-                        task.close_browser(wait=False)
-                    self.tasks.clear()
-                    _message(self, "License invalid", str(payload.get("message", "License validation failed.")), "error")
-                    self.show_login()
+            if kind == "activation_result":
+                activation_page = self.activation_page
+                if activation_page is not None and not self._workspace_active:
+                    activation_page.finish(bool(payload.get("ok")), str(payload.get("message", "")))
+            elif kind == "log":
+                self.log_ui(
+                    f"Task {slot_id}: {payload.get('message')}",
+                    str(payload.get("level", "INFO")),
+                )
+            elif kind == "progress" and slot:
+                slot.update_counts(payload)
+            elif kind == "status" and slot:
+                slot.set_status(str(payload.get("status", "")))
+            elif kind == "item":
+                self.add_report_row(payload)
+            elif kind == "security":
+                _message(self, "Security challenge", str(payload.get("message", "Security challenge detected.")), "warning")
+            elif kind == "browser" and slot:
+                slot.set_browser_status(str(payload.get("status", "Closed")))
+            elif kind == "login" and slot:
+                slot.set_login_status(bool(payload.get("verified", False)), str(payload.get("message", "")))
+            elif kind == "send_limit" and slot:
+                slot.update_send_limit(int(payload.get("used", 0)), int(payload.get("limit", 1)))
+            elif kind == "done":
+                pass
+            elif kind == "license_invalid":
+                self._pending_license_invalid_message = str(
+                    payload.get("message", "License validation failed.")
+                )
+                for task in list(self.tasks.values()):
+                    task.close_browser(wait=False)
+                # Do not discard Task/Worker references while browser cleanup is still
+                # running. The login transition is finalized asynchronously after every
+                # worker thread has actually exited.
+                QTimer.singleShot(0, self._finalize_license_invalid_transition)
+        if self._report_dirty:
+            self._report_dirty = False
+            self.refresh_report_table()
+        if processed:
+            self.update_dashboard()
 
-                self.update_dashboard()
-        except queue.Empty:
-            pass
+    def _finalize_license_invalid_transition(self) -> None:
+        if self._pending_license_invalid_message is None:
+            return
+        waiting = False
+        for task in list(self.tasks.values()):
+            worker = task.worker
+            if worker is None:
+                continue
+            if worker.is_alive():
+                waiting = True
+                continue
+            task.close_browser(wait=False)
+        if waiting:
+            QTimer.singleShot(200, self._finalize_license_invalid_transition)
+            return
+        message = self._pending_license_invalid_message
+        self._pending_license_invalid_message = None
+        self.tasks.clear()
+        _message(self, "License invalid", message, "error")
+        self.show_login()
 
     def update_dashboard(self) -> None:
         tasks = [self.tasks[key] for key in sorted(self.tasks)]
@@ -2938,7 +3248,7 @@ class MainWindow(QMainWindow):
                 worker_used = max(0, int(getattr(worker, "run_send_count", 0)))
             else:
                 worker_limit = task_limit
-                worker_used = 0
+                worker_used = max(0, int(task.state.send_limit_used))
             usage_capacity += worker_limit
             usage_used += min(worker_used, worker_limit)
         usage_available = max(0, usage_capacity - usage_used)
@@ -3032,8 +3342,20 @@ class MainWindow(QMainWindow):
         if any(t.is_running() for t in self.tasks.values()):
             _message(self, "Running tasks", "Stop running tasks before logging out.", "warning")
             return
+        blocked: list[int] = []
         for task in list(self.tasks.values()):
-            task.close_browser(wait=True)
+            if not task.close_browser(wait=True):
+                blocked.append(task.slot_id)
+        if blocked:
+            _message(
+                self,
+                "Workers still closing",
+                "These task workers are still completing browser cleanup: "
+                + ", ".join(str(value) for value in blocked)
+                + ". Logout was cancelled to avoid orphaning live workers.",
+                "warning",
+            )
+            return
         self.tasks.clear()
         self.license_manager.logout()
         self.show_login()
@@ -3117,10 +3439,27 @@ class MainWindow(QMainWindow):
             ):
                 event.ignore()
                 return
+        blocked: list[int] = []
         for task in list(self.tasks.values()):
-            task.close_browser(wait=True)
+            if task.worker and task.worker.is_processing():
+                task.stop_event.set()
+                task.pause_event.clear()
+            if not task.close_browser(wait=True):
+                blocked.append(task.slot_id)
+        if blocked:
+            _message(
+                self,
+                "Workers still closing",
+                "These task workers are still completing browser cleanup: "
+                + ", ".join(str(value) for value in blocked)
+                + ". The app was kept open to avoid orphaning live workers.",
+                "warning",
+            )
+            event.ignore()
+            return
         self.license_stop.set()
-        self.log_ui("App closing. All task workers and browser sessions were requested to stop.")
+        self.runtime_store.close()
+        self.log_ui("App closing. All task workers and browser sessions stopped cleanly.")
         event.accept()
 
 

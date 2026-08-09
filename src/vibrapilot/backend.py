@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VibraPilot - Authorized Browser Automation
-Version: 1.0.6.4
+Version: 1.0.6.5
 Author: Vib.tools
 
 Feature-preserving backend carried forward from the validated v1.0.6 baseline.
@@ -44,6 +44,7 @@ from .licensing_v2 import (
     generate_device_key_material,
     load_device_key_material,
 )
+from .task_runtime_store import TaskRuntimeStore
 
 DISPLAY_APP_NAME = APP.display_name
 APP_NAME = APP.app_name
@@ -71,6 +72,7 @@ for folder in (APP_DATA_DIR, FAILED_DATA_DIR, REPORTS_DIR, LOGS_DIR):
 SETTINGS_FILE = APP_DATA_DIR / "settings.json"
 LICENSE_FILE = APP_DATA_DIR / "license.json"
 APP_STATE_FILE = APP_DATA_DIR / "state.json"
+TASK_RUNTIME_DB = APP_DATA_DIR / "task_runtime.sqlite3"
 LOG_FILE = LOGS_DIR / f"app_{datetime.now().strftime('%Y%m%d')}.log"
 
 # Packaged Playwright browser location. The Windows builder places Chromium next
@@ -476,6 +478,11 @@ class SettingsManager:
         self.data["max_test_send_limit"] = safe_test_send_limit(
             self.data.get("max_test_send_limit", DEFAULT_TEST_SEND_LIMIT)
         )
+        for key, minimum in (("batch_size", 1), ("auto_save_interval", 0), ("max_concurrent_tasks", 1)):
+            try:
+                self.data[key] = max(minimum, int(self.data.get(key, DEFAULT_SETTINGS[key])))
+            except (TypeError, ValueError):
+                self.data[key] = int(DEFAULT_SETTINGS[key])
         self.data["authorized_testing_only"] = _strict_local_boolean(
             self.data.get("authorized_testing_only"), default=False
         )
@@ -1255,6 +1262,11 @@ class TaskState:
     failed_count: int = 0
     status: str = "Ready"
     created_at: str = field(default_factory=now_str)
+    run_id: str = ""
+    source_file: str = ""
+    source_fingerprint: str = ""
+    manual_review_required: bool = False
+    send_limit_used: int = 0
 
     @property
     def total(self) -> int:
@@ -1285,6 +1297,7 @@ class AutomationWorker(threading.Thread):
         stop_event: threading.Event,
         pause_event: threading.Event,
         initial_url: str,
+        runtime_store: TaskRuntimeStore | None = None,
     ):
         super().__init__(daemon=True, name=f"slot-{state.slot_id}-browser-worker")
         self.state = state
@@ -1293,6 +1306,7 @@ class AutomationWorker(threading.Thread):
         self.stop_event = stop_event
         self.pause_event = pause_event
         self.initial_url = initial_url
+        self.runtime_store = runtime_store
         self.browser = None
         self.context = None
         self.active_page = None
@@ -1304,8 +1318,10 @@ class AutomationWorker(threading.Thread):
         self.login_verified_event = threading.Event()
         self.processing_event = threading.Event()
         self.close_event = threading.Event()
+        self.stopped_event = threading.Event()
         self.last_login_probe_at = 0.0
-        self.run_send_count = 0
+        self.last_autosave_at = time.monotonic()
+        self.run_send_count = max(0, int(self.state.send_limit_used))
         self.run_send_limit = safe_test_send_limit(
             self.settings.get("max_test_send_limit", DEFAULT_SETTINGS["max_test_send_limit"])
         )
@@ -1317,7 +1333,21 @@ class AutomationWorker(threading.Thread):
 
     def emit(self, kind: str, payload: dict[str, Any]) -> None:
         payload["slot_id"] = self.state.slot_id
-        self.ui_queue.put((kind, payload))
+        event = (kind, payload)
+        critical = {"item", "security", "browser", "login", "done", "license_invalid"}
+        if kind not in critical:
+            try:
+                self.ui_queue.put_nowait(event)
+            except queue.Full:
+                logging.warning("Slot %s: coalescible UI event dropped under backpressure: %s", self.state.slot_id, kind)
+            return
+        # Critical lifecycle/result events apply backpressure instead of being silently lost.
+        while True:
+            try:
+                self.ui_queue.put(event, timeout=0.5)
+                return
+            except queue.Full:
+                logging.warning("Slot %s: waiting for UI queue capacity for critical event: %s", self.state.slot_id, kind)
 
     def log(self, message: str, level: str = "INFO") -> None:
         logging.log(
@@ -1327,6 +1357,37 @@ class AutomationWorker(threading.Thread):
             message,
         )
         self.emit("log", {"message": message, "level": level, "timestamp": now_str()})
+
+    def _save_runtime_progress(self, *, force: bool = False) -> None:
+        if self.runtime_store is None or not self.state.run_id:
+            return
+        interval = max(0.0, float(self.settings.get("auto_save_interval", DEFAULT_SETTINGS["auto_save_interval"])))
+        now = time.monotonic()
+        if not force and interval > 0 and (now - self.last_autosave_at) < interval:
+            return
+        if not force and interval == 0:
+            return
+        self.runtime_store.save_progress(
+            run_id=self.state.run_id,
+            current_index=self.state.current_index,
+            total=self.state.total,
+            success_count=self.state.success_count,
+            failed_count=self.state.failed_count,
+            send_limit_used=self.run_send_count,
+            task_status=self.state.status,
+            manual_review_required=self.state.manual_review_required,
+            updated_at=now_str(),
+            target_url=self.state.target_url,
+        )
+        self.last_autosave_at = now
+
+    def _save_runtime_item(self, index: int, item: TaskItem, message: str) -> None:
+        if self.runtime_store is not None and self.state.run_id:
+            self.runtime_store.save_item(self.state.run_id, index, item)
+            if item.status != "processing":
+                row = self.report_row(item, message, item_index=index)
+                self.runtime_store.upsert_result(self.state.run_id, index, row)
+        self._save_runtime_progress(force=True)
 
     def request_start(self, settings: dict[str, Any], target_url: str) -> None:
         self.control_queue.put(
@@ -1636,16 +1697,18 @@ class AutomationWorker(threading.Thread):
                     ).strip()
                     self.stop_event.clear()
                     self.pause_event.clear()
-                    self.run_send_count = 0
+                    self.run_send_count = max(0, int(self.state.send_limit_used))
                     self.run_send_limit = safe_test_send_limit(
                         self.settings.get(
                             "max_test_send_limit", DEFAULT_TEST_SEND_LIMIT
                         )
                     )
+                    self.last_autosave_at = time.monotonic()
+                    self._save_runtime_progress(force=True)
                     try:
                         self.ensure_authenticated_test_session()
                         self.emit(
-                            "send_limit", {"used": 0, "limit": self.run_send_limit}
+                            "send_limit", {"used": self.run_send_count, "limit": self.run_send_limit}
                         )
                         self.process_batch()
                     except SessionVerificationError as exc:
@@ -1663,6 +1726,7 @@ class AutomationWorker(threading.Thread):
             self.browser_ready_event.clear()
             self.login_verified_event.clear()
             self.cleanup()
+            self.stopped_event.set()
             self.emit("browser", {"status": "Closed"})
             self.emit("done", {"status": self.state.status})
 
@@ -1794,13 +1858,19 @@ class AutomationWorker(threading.Thread):
         self.state.status = "Running"
         self.emit("status", {"status": "Running"})
         self.emit_progress()
+        self._save_runtime_progress(force=True)
         limit_reached = False
         session_blocked = False
         processing_interrupted = False
+        batch_size = max(1, int(self.settings.get("batch_size", DEFAULT_SETTINGS["batch_size"])))
+        finalized_in_batch = 0
         try:
             if self.state.current_index >= self.state.total:
                 self.state.status = "Completed"
                 self.log("No remaining email records to process.", "WARNING")
+                self._save_runtime_progress(force=True)
+                if self.runtime_store is not None and self.state.run_id:
+                    self.runtime_store.mark_completed(self.state.run_id, "Completed", now_str())
                 self.emit("status", {"status": "Completed"})
                 return
 
@@ -1809,13 +1879,19 @@ class AutomationWorker(threading.Thread):
                     self.log("Stop requested; saving unprocessed data.")
                     break
                 self.wait_if_paused()
+                self._save_runtime_progress()
                 if self.stop_event.is_set() or self.close_event.is_set():
                     break
 
                 item = self.state.items[index]
                 self.process_item(index, item)
+                self._save_runtime_item(index, item, item.message)
+                if item.status != "processing":
+                    self.emit("item", self.report_row(item, item.message, item_index=index))
                 if item.status in {"success", "failed"}:
                     self.state.current_index = index + 1
+                    finalized_in_batch += 1
+                    self._save_runtime_progress(force=True)
                 else:
                     self.state.current_index = index
                     self.emit_progress(item)
@@ -1830,18 +1906,23 @@ class AutomationWorker(threading.Thread):
                         break
 
                 self.emit_progress(item)
-                # Preserve the default same-page workflow. The existing Settings
-                # switch may explicitly request a fresh page after each confirmed success.
-                if item.status == "success":
-                    if bool(
-                        self.settings.get(
-                            "re_open_after_success_per_order",
-                            DEFAULT_SETTINGS["re_open_after_success_per_order"],
-                        )
-                    ):
-                        self.reopen_active_page()
-                else:
+                # Preserve same-page behavior while fixing production recycle accounting:
+                # every safely finalized item contributes to item/time recycle thresholds.
+                if item.status == "success" and bool(
+                    self.settings.get(
+                        "re_open_after_success_per_order",
+                        DEFAULT_SETTINGS["re_open_after_success_per_order"],
+                    )
+                ):
+                    self.reopen_active_page()
+                if item.status in {"success", "failed"}:
                     self.maybe_recycle_context()
+
+                if finalized_in_batch >= batch_size:
+                    self._save_runtime_progress(force=True)
+                    if self.runtime_store is not None:
+                        self.runtime_store.checkpoint()
+                    finalized_in_batch = 0
 
                 delay_min = max(
                     0.0, float(self.settings.get("delay_between_items_min", DEFAULT_SETTINGS["delay_between_items_min"]))
@@ -1866,15 +1947,20 @@ class AutomationWorker(threading.Thread):
                     self.save_unprocessed()
             else:
                 self.state.status = "Completed"
+            self._save_runtime_progress(force=True)
+            if self.runtime_store is not None and self.state.run_id:
+                self.runtime_store.mark_completed(self.state.run_id, self.state.status, now_str())
             self.emit("status", {"status": self.state.status})
         except Exception as exc:
             self.state.status = "Failed"
             self.log(f"Task failed: {exc}", "ERROR")
+            self._save_runtime_progress(force=True)
             self.emit("status", {"status": "Failed"})
             self.save_unprocessed()
         finally:
             self.save_failed()
             self.processing_event.clear()
+            self._save_runtime_progress(force=True)
             self.emit_progress()
             self.emit("done", {"status": self.state.status})
 
@@ -1884,16 +1970,23 @@ class AutomationWorker(threading.Thread):
             if self.stop_event.is_set() or self.close_event.is_set():
                 return
             self.wait_if_paused()
+            self._save_runtime_progress()
             time.sleep(0.1)
 
     def wait_if_paused(self) -> None:
+        pause_announced = self.state.status == "Paused"
         while (
             self.pause_event.is_set()
             and not self.stop_event.is_set()
             and not self.close_event.is_set()
         ):
-            self.state.status = "Paused"
-            self.emit("status", {"status": "Paused"})
+            if not pause_announced:
+                self.state.status = "Paused"
+                self.emit("status", {"status": "Paused"})
+                self._save_runtime_progress(force=True)
+                pause_announced = True
+            else:
+                self._save_runtime_progress()
             time.sleep(0.2)
         if (
             not self.stop_event.is_set()
@@ -3180,7 +3273,8 @@ class AutomationWorker(threading.Thread):
     def process_item(self, index: int, item: TaskItem) -> None:
         max_retry = max(0, int(self.settings.get("max_retry_per_item", DEFAULT_SETTINGS["max_retry_per_item"])))
         item.status = "processing"
-        self.emit("item", self.report_row(item, "Share invite processing started"))
+        self.log(f"Share invite processing started: {item.email}")
+        self._save_runtime_item(index, item, "Share invite processing started")
         attempt = 1
         while attempt <= max_retry + 1:
             if self.stop_event.is_set() or self.close_event.is_set():
@@ -3198,15 +3292,14 @@ class AutomationWorker(threading.Thread):
                 item.status = "success"
                 item.result = result
                 item.message = "Share invite confirmed"
+                self.state.manual_review_required = False
                 self.state.success_count += 1
                 self.log(f"Invite success: {item.email} -> {result}")
-                self.emit("item", self.report_row(item, item.message))
                 return
             except TestSendLimitReached as exc:
                 item.status = "limit_reached"
                 item.message = str(exc)
                 self.log(str(exc), "WARNING")
-                self.emit("item", self.report_row(item, item.message))
                 return
             except (TestModeRequired, SessionVerificationError) as exc:
                 item.status = "blocked"
@@ -3214,11 +3307,11 @@ class AutomationWorker(threading.Thread):
                 self.login_verified_event.clear()
                 self.log(str(exc), "ERROR")
                 self.emit("login", {"verified": False, "message": str(exc)})
-                self.emit("item", self.report_row(item, item.message))
                 return
             except SecurityChallenge as exc:
                 item.status = "interrupted"
                 if self.run_send_count > send_count_before:
+                    self.state.manual_review_required = True
                     item.message = (
                         "A security challenge appeared after a Send click attempt. "
                         "Automatic retry was blocked to prevent a duplicate invite. "
@@ -3227,7 +3320,6 @@ class AutomationWorker(threading.Thread):
                     self.save_checkpoint()
                     self.log(item.message, "ERROR")
                     self.emit("security", {"message": item.message})
-                    self.emit("item", self.report_row(item, item.message))
                     return
 
                 item.message = str(exc)
@@ -3245,7 +3337,14 @@ class AutomationWorker(threading.Thread):
                 )
                 continue
             except InviteRejected as exc:
+                # A visible rejection is a definitive Send outcome, so a prior
+                # pre-click crash marker can be cleared before a controlled retry.
+                self.state.manual_review_required = False
+                item.status = "processing"
                 item.message = str(exc)
+                if self.runtime_store is not None and self.state.run_id:
+                    self.runtime_store.save_item(self.state.run_id, index, item)
+                self._save_runtime_progress(force=True)
                 self.log(
                     f"Confirmed invite rejection on attempt {attempt} for {item.email}: {exc}",
                     "WARNING",
@@ -3254,6 +3353,7 @@ class AutomationWorker(threading.Thread):
                 item.message = str(exc)
                 if self.run_send_count > send_count_before:
                     item.status = "interrupted"
+                    self.state.manual_review_required = True
                     item.message = (
                         "Send was clicked, but a definitive success or rejection was not "
                         "confirmed. Automatic retry was blocked to prevent a duplicate invite. "
@@ -3261,7 +3361,6 @@ class AutomationWorker(threading.Thread):
                     )
                     self.save_checkpoint()
                     self.log(item.message, "ERROR")
-                    self.emit("item", self.report_row(item, item.message))
                     return
                 self.log(
                     f"Invite attempt {attempt} failed before Send for {item.email}: {exc}",
@@ -3287,8 +3386,8 @@ class AutomationWorker(threading.Thread):
                 continue
 
             item.status = "failed"
+            self.state.manual_review_required = False
             self.state.failed_count += 1
-            self.emit("item", self.report_row(item, item.message))
             return
 
     def execute_flow(self, item: TaskItem) -> str:
@@ -3533,6 +3632,21 @@ class AutomationWorker(threading.Thread):
                 f"Maximum Test Mode send limit reached ({self.run_send_limit} Send clicks for this run)."
             )
         self.run_send_count += 1
+        self.state.send_limit_used = self.run_send_count
+        # This callback runs immediately before Playwright invokes click().  Persist a
+        # conservative manual-review marker first so a hard process crash after this
+        # point can never resume by automatically retrying a possibly-sent recipient.
+        self.state.manual_review_required = True
+        index = max(0, int(self.state.current_index))
+        if self.runtime_store is not None and self.state.run_id and index < self.state.total:
+            current = self.state.items[index]
+            current.status = "interrupted"
+            current.message = (
+                "Send click attempt started; a definitive success/rejection is not yet "
+                "persisted. Manual review is required after an unexpected process stop."
+            )
+            self.runtime_store.save_item(self.state.run_id, index, current)
+        self._save_runtime_progress(force=True)
         self.emit(
             "send_limit", {"used": self.run_send_count, "limit": self.run_send_limit}
         )
@@ -3822,7 +3936,7 @@ class AutomationWorker(threading.Thread):
         )
         return f"{first} {domain}" if force_two_parts else first
 
-    def report_row(self, item: TaskItem, message: str) -> dict[str, Any]:
+    def report_row(self, item: TaskItem, message: str, item_index: int | None = None) -> dict[str, Any]:
         return {
             "timestamp": now_str(),
             "slot_id": self.state.slot_id,
@@ -3832,6 +3946,8 @@ class AutomationWorker(threading.Thread):
             "attempts": item.attempts,
             "target_url": self.state.target_url,
             "result": item.result,
+            "run_id": self.state.run_id,
+            "item_index": self.state.current_index if item_index is None else int(item_index),
         }
 
     def emit_progress(self, item: TaskItem | None = None) -> None:
@@ -3848,16 +3964,33 @@ class AutomationWorker(threading.Thread):
         )
 
     def save_checkpoint(self) -> None:
+        """Persist crash-safe task state; SQLite is authoritative, JSON is compatibility output."""
+        self._save_runtime_progress(force=True)
+        if self.runtime_store is not None and self.state.run_id:
+            for index, item in enumerate(self.state.items):
+                self.runtime_store.save_item(self.state.run_id, index, item)
         data = {
+            "schema_version": 2,
+            "run_id": self.state.run_id,
             "slot_id": self.state.slot_id,
             "target_url": self.state.target_url,
+            "source_file": self.state.source_file,
+            "source_fingerprint": self.state.source_fingerprint,
             "current_index": self.state.current_index,
+            "success_count": self.state.success_count,
+            "failed_count": self.state.failed_count,
+            "send_limit_used": self.run_send_count,
+            "manual_review_required": self.state.manual_review_required,
             "items": [item.__dict__ for item in self.state.items],
             "saved_at": now_str(),
         }
-        (APP_DATA_DIR / f"slot_{self.state.slot_id}_checkpoint.json").write_text(
-            json.dumps(data, indent=2), encoding="utf-8"
-        )
+        path = APP_DATA_DIR / f"slot_{self.state.slot_id}_checkpoint.json"
+        temp = path.with_suffix(path.suffix + ".tmp")
+        with temp.open("w", encoding="utf-8") as handle:
+            json.dump(data, handle, indent=2)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp, path)
 
     def save_failed(self, items: list[TaskItem] | None = None) -> None:
         if not bool(self.settings.get("save_failed_data", DEFAULT_SETTINGS["save_failed_data"])):

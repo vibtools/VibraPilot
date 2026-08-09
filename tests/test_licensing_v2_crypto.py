@@ -62,7 +62,7 @@ class LicensingV2CryptoTest(unittest.TestCase):
 
     def test_request_proof_is_ecdsa_sha256_over_exact_canonical_body(self):
         material = generate_device_key_material()
-        client = LicoraV2Client(app_version="1.0.6.4")
+        client = LicoraV2Client(app_version="1.0.6.5")
         url = "https://mxflow.shop/api/v2/status.php"
         raw = "{}"
         headers = client._proof_headers(
@@ -90,7 +90,7 @@ class LicensingV2CryptoTest(unittest.TestCase):
     def test_rs256_token_verification_checks_app_device_and_expiry(self):
         server_private = rsa.generate_private_key(public_exponent=65537, key_size=3072)
         material = generate_device_key_material()
-        client = LicoraV2Client(app_version="1.0.6.4")
+        client = LicoraV2Client(app_version="1.0.6.5")
         client.server_public_key = server_private.public_key()
         now = int(time.time())
         payload = {

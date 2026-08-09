@@ -1,5 +1,12 @@
 # Update Log
 
+## v1.0.6.5 — VP-PROD-MT-LR-001 production runtime hardening — 2026-08-08
+
+Hardened Multiple Task and long-running processing with per-task crash-safe runtime persistence/recovery, input reconciliation, functional seconds-based autosave and sequential batch boundaries, corrected Browser Context recycling, deterministic worker shutdown, bounded UI event processing, scalable one-recipient-one-outcome reporting, Task-scoped Reports filtering, concurrent-worker limits and shared-profile collision protection. Licora API v2, selectors, Send workflow, Browser Settings contract and visual foundation remain frozen.
+
+Detailed note: `docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md`
+Verification report: `docs/verification/V1.0.6.5_PRODUCTION_RUNTIME_VERIFICATION.md`
+
 ## v1.0.6.4 — Phase-02-Step-002 forensic verification/fix — 2026-08-08
 
 Audited the user-frozen v1.0.6.3 archive and corrected only verified Phase-02-Step-002 defects: persistent device-key continuity, pre-request device-key durability, one-shot refresh ambiguity persistence, non-blocking license validation state access, startup secure-session restore, expired-token periodic recheck, cached local token verification and release-package privacy/hygiene. Expanded crypto/protocol/persistence/scope tests and synchronized version/documentation metadata. The validated automation/browser/task/report/safety/UI foundation remains frozen. A follow-up verification-only portability correction makes direct standard-library unittest discovery import the `src` layout without requiring shell-specific `PYTHONPATH` syntax; runtime application files remain untouched.
