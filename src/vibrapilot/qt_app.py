@@ -3024,6 +3024,9 @@ class MainWindow(QMainWindow):
                 widget.setText(str(value))
 
     def save_workflow_inputs(self) -> None:
+        previous_values = {
+            key: self.settings.get(key, DEFAULT_SETTINGS[key]) for key in WORKFLOW_INPUT_KEYS
+        }
         try:
             parsed_settings: dict[str, Any] = {}
             for key in WORKFLOW_INPUT_KEYS:
@@ -3035,7 +3038,16 @@ class MainWindow(QMainWindow):
                 )
 
             self.settings.data.update(parsed_settings)
-            self.settings.save()
+            try:
+                self.settings.save()
+            except Exception:
+                # A failed settings write must not make unsaved Workflow Inputs
+                # authoritative in memory. Restore the exact pre-save values so
+                # this page remains consistent with the persisted settings state.
+                self.settings.data.update(previous_values)
+                self.refresh_workflow_input_widgets()
+                raise
+
             self.refresh_workflow_input_widgets()
             self.log_ui("Workflow Inputs saved.")
             _message(
@@ -3053,16 +3065,31 @@ class MainWindow(QMainWindow):
             "Reset only Workflow Inputs to source defaults? App Settings and Browser Settings will be preserved.",
         ):
             return
-        for key in WORKFLOW_INPUT_KEYS:
-            self.settings.data[key] = DEFAULT_SETTINGS[key]
-        self.settings.save()
-        self.refresh_workflow_input_widgets()
-        self.log_ui("Workflow Inputs reset to source defaults.")
-        _message(
-            self,
-            "Workflow Inputs",
-            "Workflow Inputs reset to defaults. App Settings and Browser Settings were preserved.",
-        )
+        previous_values = {
+            key: self.settings.get(key, DEFAULT_SETTINGS[key]) for key in WORKFLOW_INPUT_KEYS
+        }
+        try:
+            for key in WORKFLOW_INPUT_KEYS:
+                self.settings.data[key] = DEFAULT_SETTINGS[key]
+            try:
+                self.settings.save()
+            except Exception:
+                # Reset is transactional at the UI ownership boundary: if the
+                # existing SettingsManager cannot persist, keep the prior values
+                # in memory and surface the error instead of leaking it to Qt.
+                self.settings.data.update(previous_values)
+                self.refresh_workflow_input_widgets()
+                raise
+
+            self.refresh_workflow_input_widgets()
+            self.log_ui("Workflow Inputs reset to source defaults.")
+            _message(
+                self,
+                "Workflow Inputs",
+                "Workflow Inputs reset to defaults. App Settings and Browser Settings were preserved.",
+            )
+        except Exception as exc:
+            _message(self, "Workflow Inputs error", str(exc), "error")
 
     def save_settings(self) -> None:
         try:

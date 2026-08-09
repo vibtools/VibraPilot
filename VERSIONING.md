@@ -2,11 +2,13 @@
 
 VibraPilot uses a four-segment production release version for hardening/configuration/security maintenance on top of the validated v1.0.6 automation baseline.
 
-Current release: **1.0.6.8**
+Current release: **1.0.6.9**
 
-Version **1.0.6.8** is the approved `VP-WORKFLOW-INPUTS-001` release. Its baseline is the final v1.0.6.7 tree after the Windows SQLite concurrency correction, canonical tree fingerprint `84d22fd2c1fef38cbf49024f7d3b2c9ec250e3389dd2b479192735fb2419bb89`.
+Version **1.0.6.9** is the scope-locked forensic verification/fix promotion of GitHub v1.0.6.8 commit `82fc678fe4d3e8aab9c11ff3e54cf4455e0d3203`. The v1.0.6.8 source tree is the Official Baseline Freeze for this cycle; the canonical normalized source-tree fingerprint is `8358ffdca13bedd491ee319aae299fdf9ff636e6cb74caf7dbb53c389d94f6b7`.
 
-The v1.0.6.8 runtime scope is limited to `qt_app.py` plus the new form-metadata-only `workflow_inputs.py`; existing workflow settings keys/values, backend behavior, Browser Settings, task workflow and API v2 remain preserved.
+The v1.0.6.9 runtime change surface is limited to the two `MainWindow` methods `save_workflow_inputs` and `reset_workflow_inputs` in `qt_app.py`. All other v1.0.6.8 runtime files and MainWindow methods are frozen. The fix adds rollback/exception containment only; settings keys, values on successful persistence, Workflow Inputs ownership, backend behavior, Browser Settings, task workflow and API v2 remain preserved.
+
+Version **1.0.6.8** remains the historical approved `VP-WORKFLOW-INPUTS-001` UI-ownership separation release.
 
 The exact user-supplied **`VibraPilot v1.0.6.5.zip`** (SHA-256 `f391099de9d0d117d190b2898b96d5e90b3f102541cf8efa217f9e9fbfbed118`) is the Official Baseline Freeze for the v1.0.6.7 verification/fix cycle. Version **1.0.6.7** preserves the approved `VP-PROD-MT-LR-001` architecture and corrects only verified startup, worker-shutdown backpressure, crash-result-ledger and source-package hygiene defects plus synchronized wording/version records.
 

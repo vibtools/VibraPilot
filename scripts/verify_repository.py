@@ -26,6 +26,7 @@ PRODUCTION_SCOPE_CONTRACT = ROOT / "config" / "verification" / "production_mt_lr
 CURRENT_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.7_vp_prod_mt_lr_verification_fix_scope.json"
 WINDOWS_SQLITE_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.7_windows_sqlite_concurrency_fix_scope.json"
 WORKFLOW_INPUTS_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.8_workflow_inputs_scope.json"
+WORKFLOW_INPUTS_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.9_workflow_inputs_verification_fix_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -462,6 +463,38 @@ for method_name, expected_sha in workflow_inputs_scope.get("frozen_taskslotwidge
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.8 Workflow Inputs TaskSlotWidget drift detected: {method_name}")
 
+# v1.0.6.9 verifies the promoted v1.0.6.8 Workflow Inputs release and permits
+# only the two page-local persistence error handlers to change.
+if not WORKFLOW_INPUTS_FIX_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.9 Workflow Inputs verification/fix scope contract is missing")
+try:
+    workflow_fix_scope = json.loads(WORKFLOW_INPUTS_FIX_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.9 Workflow Inputs verification/fix scope contract is invalid: {exc}")
+if workflow_fix_scope.get("official_baseline_github_commit") != "82fc678fe4d3e8aab9c11ff3e54cf4455e0d3203":
+    fail("v1.0.6.9 fix scope does not identify the exact GitHub v1.0.6.8 baseline commit")
+if workflow_fix_scope.get("official_baseline_tree_fingerprint") != "8358ffdca13bedd491ee319aae299fdf9ff636e6cb74caf7dbb53c389d94f6b7":
+    fail("v1.0.6.9 Workflow Inputs baseline tree fingerprint mismatch")
+if workflow_fix_scope.get("target_version") != "1.0.6.9":
+    fail("v1.0.6.9 Workflow Inputs fix scope target version mismatch")
+if workflow_fix_scope.get("allowed_runtime_source_changes") != ["src/vibrapilot/qt_app.py"]:
+    fail("v1.0.6.9 Workflow Inputs fix runtime surface mismatch")
+workflow_fix_approved_methods = set(workflow_fix_scope.get("approved_mainwindow_method_changes", []))
+if workflow_fix_approved_methods != {"save_workflow_inputs", "reset_workflow_inputs"}:
+    fail("v1.0.6.9 approved MainWindow method surface mismatch")
+for relative, expected_sha in workflow_fix_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or sha256(path) != expected_sha:
+        fail(f"v1.0.6.9 Workflow Inputs out-of-scope file drift detected: {relative}")
+if workflow_fix_scope.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
+    fail("v1.0.6.9 Workflow Inputs fix AST hash algorithm mismatch")
+for method_name, expected_sha in workflow_fix_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
+    if method_name in workflow_fix_approved_methods:
+        fail(f"v1.0.6.9 fix scope incorrectly freezes approved MainWindow method: {method_name}")
+    node = main_window_methods.get(method_name)
+    if node is None or ast_contract_sha(node) != expected_sha:
+        fail(f"v1.0.6.9 Workflow Inputs out-of-scope MainWindow drift detected: {method_name}")
+
 # Local developer check: when the private project workspace is present, prove that
 # the published machine contract still describes the private v1.0.6 baseline.
 if PRIVATE_BASELINE.is_file():
@@ -495,8 +528,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.8":
-    fail("AppConfig VERSION must be 1.0.6.8 for VP-WORKFLOW-INPUTS-001")
+if app_version != "1.0.6.9":
+    fail("AppConfig VERSION must be 1.0.6.9 for the Workflow Inputs forensic verification/fix")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -610,8 +643,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.8-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.8 release path")
+if "VibraPilot-1.0.6.9-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.9 release path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})
@@ -792,6 +825,14 @@ if 'combo_box(' in workflow_page_source or 'Workflow:' in workflow_page_source:
     fail("Workflow Inputs must not add a fake/single-option workflow selector")
 if 'Legacy Contact Settings (Preserved)' in qt_text:
     fail("legacy workflow/contact fields must no longer be owned by App Settings UI")
+
+save_workflow_source = ast.get_source_segment(qt_text, main_window_methods["save_workflow_inputs"]) or ""
+reset_workflow_source = ast.get_source_segment(qt_text, main_window_methods["reset_workflow_inputs"]) or ""
+for method_name, source in (("save_workflow_inputs", save_workflow_source), ("reset_workflow_inputs", reset_workflow_source)):
+    if "previous_values" not in source or "self.settings.data.update(previous_values)" not in source:
+        fail(f"v1.0.6.9 {method_name} must restore exact pre-operation values on persistence failure")
+    if "except Exception" not in source or '"Workflow Inputs error"' not in source:
+        fail(f"v1.0.6.9 {method_name} must contain and report persistence errors")
 
 # Dedicated Browser Settings scope.
 qt_tree_for_browser_settings = ast.parse(qt_text)
@@ -1060,6 +1101,7 @@ required = [
     "config/verification/v1.0.6.7_vp_prod_mt_lr_verification_fix_scope.json",
     "config/verification/v1.0.6.7_windows_sqlite_concurrency_fix_scope.json",
     "config/verification/v1.0.6.8_workflow_inputs_scope.json",
+    "config/verification/v1.0.6.9_workflow_inputs_verification_fix_scope.json",
     "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
     "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
@@ -1073,11 +1115,13 @@ required = [
     "docs/verification/V1.0.6.7_VP_PROD_MT_LR_FORENSIC_VERIFICATION.md",
     "docs/verification/V1.0.6.7_WINDOWS_SQLITE_CONCURRENCY_VERIFICATION.md",
     "docs/verification/V1.0.6.8_WORKFLOW_INPUTS_VERIFICATION.md",
+    "docs/verification/V1.0.6.9_WORKFLOW_INPUTS_FORENSIC_VERIFICATION.md",
     "docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md", "docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md",
     "docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md",
     "docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md",
     "docs/updates/v1.0.6.7-windows-sqlite-concurrency-fix.md",
     "docs/updates/v1.0.6.8-workflow-inputs-separation.md",
+    "docs/updates/v1.0.6.9-workflow-inputs-verification-fix.md",
     "scripts/verify_source_archive.py", "tests/test_v1067_verification_fix.py", "tests/test_app_config_validation.py",
     "tests/test_licensing_v2_crypto.py", "tests/test_licensing_v2_client.py", "tests/test_license_manager_v2.py", "tests/test_phase02_scope_freeze.py", "tests/test_phase02_step002_fix_scope.py",
     "tests/test_production_scope_freeze.py", "tests/test_task_runtime_store.py", "tests/test_task_recovery.py",
@@ -1085,6 +1129,7 @@ required = [
     "tests/test_input_reconciliation.py", "tests/test_context_recycling.py", "tests/test_worker_shutdown.py",
     "tests/test_ui_queue_backpressure.py",
     "tests/test_workflow_inputs.py", "tests/test_workflow_inputs_ui.py", "tests/test_workflow_inputs_scope.py",
+    "tests/test_v1069_workflow_inputs_verification_fix.py",
     "scripts/maintenance/Apply-v1.0.6.2-Phase01-Fix.cmd",
     "scripts/maintenance/PHASE01_V1.0.6.2_DELETE_PATHS.txt",
     "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",

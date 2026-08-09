@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.0.6.9 — VP-WORKFLOW-INPUTS-001 forensic verification/fix — 2026-08-09
+
+### Fixed
+
+- Fixed Workflow Inputs Save failure handling so a failed settings write restores the exact pre-save in-memory values instead of leaving unsaved values authoritative.
+- Fixed Workflow Inputs Reset failure handling so persistence errors are contained, the exact pre-reset values are restored, the page is refreshed, and the exception does not escape into the Qt event path.
+
+### Verified / Preserved
+
+- Verified GitHub v1.0.6.8 commit `82fc678fe4d3e8aab9c11ff3e54cf4455e0d3203` against the approved `VP-WORKFLOW-INPUTS-001` scope.
+- Preserved the same four setting keys and successful saved-value behavior; `default_target_url` remains in App Settings and no fake workflow selector exists.
+- Preserved `workflow_inputs.py`, backend worker, selectors, Browser Settings, task/recovery/runtime store and Licora Secure API v2 unchanged.
+
+### Documentation / Verification
+
+- Added the v1.0.6.9 Workflow Inputs verification-fix scope contract, regression tests, update note and forensic verification report.
+
 ## v1.0.6.8 — VP-WORKFLOW-INPUTS-001 — 2026-08-09
 
 ### Added

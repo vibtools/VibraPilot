@@ -19,4 +19,4 @@ Long-running task progress and authoritative recipient outcomes are stored local
 
 ## Workflow Inputs
 
-Workflow/form values are configured from the dedicated **Workflow Inputs** page. Existing values saved under `default_full_name`, `default_number`, `fallback_name` and `update_click_count` are preserved. **Default Target URL** remains in App Settings, while browser/runtime controls remain in Browser Settings.
+Workflow/form values are configured from the dedicated **Workflow Inputs** page. Existing values saved under `default_full_name`, `default_number`, `fallback_name` and `update_click_count` are preserved. **Default Target URL** remains in App Settings, while browser/runtime controls remain in Browser Settings. A failed Workflow Inputs Save/Reset operation is contained at the page boundary and restores the prior in-memory values. The current Share Invite backend remains unchanged; moving these values does not itself add a new browser consumer for them.

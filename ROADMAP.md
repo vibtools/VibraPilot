@@ -1,5 +1,9 @@
 # VibraPilot Roadmap
 
+## Verified Workflow Inputs baseline — v1.0.6.9
+
+Forensic verification of `VP-WORKFLOW-INPUTS-001` against GitHub v1.0.6.8. The page separation, keys, values, `default_target_url` ownership and frozen backend/browser/API-v2 boundaries remain intact. Save/Reset persistence failures are now contained and rolled back at the Workflow Inputs page boundary.
+
 ## Completed UI ownership milestone — v1.0.6.8
 
 `VP-WORKFLOW-INPUTS-001`: moved the four existing workflow/form settings into a dedicated Workflow Inputs page while preserving keys, saved values and backend behavior. No fake workflow selector was added; `default_target_url` remains in App Settings.

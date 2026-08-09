@@ -1,5 +1,12 @@
 # Update Log
 
+## v1.0.6.9 — Workflow Inputs forensic verification/fix — 2026-08-09
+
+Verified the full v1.0.6.8 `VP-WORKFLOW-INPUTS-001` separation and corrected only two page-local persistence-error paths: failed Save and Reset operations now restore the exact prior in-memory values, and Reset write failures no longer propagate into the Qt event path. Backend/browser/task/API-v2 behavior remains frozen.
+
+Detailed note: `docs/updates/v1.0.6.9-workflow-inputs-verification-fix.md`
+Verification: `docs/verification/V1.0.6.9_WORKFLOW_INPUTS_FORENSIC_VERIFICATION.md`
+
 ## v1.0.6.8 — VP-WORKFLOW-INPUTS-001 — 2026-08-09
 
 Separated workflow/form values from App Settings into a dedicated Workflow Inputs page while retaining the same setting keys and saved values. `default_target_url`, backend/task/browser behavior and Licora API v2 remain unchanged, and no fake single-option workflow selector was added.

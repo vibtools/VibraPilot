@@ -33,3 +33,8 @@ The v1.0.6.7 correction keeps Python 3.12, Windows x64, PySide6, Playwright, Lic
 ## v1.0.6.8 Workflow Inputs compatibility
 
 No runtime dependency, browser engine, SQLite schema, licensing protocol or settings-key migration is introduced. Existing `settings.json` values for `default_full_name`, `default_number`, `fallback_name` and `update_click_count` load unchanged through `SettingsManager`; only their UI ownership moves to Workflow Inputs.
+
+
+## v1.0.6.9 Workflow Inputs verification/fix compatibility
+
+No dependency, settings-key, browser engine, SQLite schema, licensing protocol, selector or task-workflow change is introduced. The only runtime correction is page-local Save/Reset failure containment in `qt_app.py`; successful persistence behavior and the v1.0.6.8 Workflow Inputs ownership model are unchanged.

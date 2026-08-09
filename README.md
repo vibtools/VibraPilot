@@ -1,7 +1,13 @@
-# VibraPilot v1.0.6.8 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.9 — Vib Tools Browser Automation Desktop
 
-**VibraPilot v1.0.6.8** is the approved `VP-WORKFLOW-INPUTS-001` UI-ownership separation release built from the final v1.0.6.7 baseline. It moves the four existing workflow/form values out of App Settings into a dedicated **Workflow Inputs** page while preserving the same settings keys, saved values, backend behavior, Browser Settings, task workflow and Licora Secure API v2.
+**VibraPilot v1.0.6.9** is the forensic verification/fix promotion of the approved v1.0.6.8 `VP-WORKFLOW-INPUTS-001` release. It preserves the dedicated **Workflow Inputs** page, existing setting keys/values and all frozen backend/browser/API-v2 behavior while correcting only verified Workflow Inputs persistence-error handling: failed Save/Reset operations now restore the pre-operation in-memory values and surface an error instead of leaving unsaved state authoritative or propagating a reset exception into the Qt event path.
 
+
+## v1.0.6.9 Workflow Inputs verification/fix
+
+The v1.0.6.9 verification pass found no selector, browser, task, licensing or workflow-engine drift in v1.0.6.8. The four Workflow Inputs remain settings-backed values only; because backend behavior was explicitly frozen in `VP-WORKFLOW-INPUTS-001`, this release does not add a new browser consumer for `default_full_name`, `default_number`, `fallback_name` or `update_click_count`.
+
+Two page-local error paths were corrected: a failed **Save Workflow Inputs** write no longer leaves unsaved values in `SettingsManager.data`, and a failed **Reset Workflow Inputs** write is caught, rolls the four keys back to their exact pre-reset values, refreshes the page, and reports the error. `default_target_url` remains in App Settings and no workflow selector is added.
 
 ## Workflow Inputs separation
 
@@ -127,6 +133,8 @@ The builder produces the `VibraPilot` PyInstaller ONEDIR application and release
 - Cumulative release history: `CHANGELOG.md`
 - Concise update log: `UPDATE_LOG.md`
 - Versioning discipline: `VERSIONING.md`
+- v1.0.6.9 Workflow Inputs verification/fix note: `docs/updates/v1.0.6.9-workflow-inputs-verification-fix.md`
+- v1.0.6.9 Workflow Inputs forensic verification: `docs/verification/V1.0.6.9_WORKFLOW_INPUTS_FORENSIC_VERIFICATION.md`
 - v1.0.6.8 Workflow Inputs note: `docs/updates/v1.0.6.8-workflow-inputs-separation.md`
 - v1.0.6.8 Workflow Inputs verification: `docs/verification/V1.0.6.8_WORKFLOW_INPUTS_VERIFICATION.md`
 - v1.0.6.7 verification/fix note: `docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md`
