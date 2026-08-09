@@ -43,3 +43,8 @@ No dependency, settings-key, browser engine, SQLite schema, licensing protocol, 
 ## v1.0.6.10 license-state compatibility
 
 On Windows without an explicit `VIB_TOOLS_DATA_DIR`, licensing state is stored under `%LOCALAPPDATA%\Vib Tools\VibraPilot`. Existing install-relative `AppData/license.json` is copied once when the durable cache does not yet exist. Sensitive license, P-256 private-key and token values remain Windows-DPAPI protected. No new Python/runtime dependency or Licora API endpoint is introduced.
+
+
+## v1.0.6.11 Qt focus lifecycle compatibility
+
+No Python dependency, PySide6 version range, UI visual token, application page, settings key, browser engine, SQLite schema, licensing protocol, selector or task/workflow behavior changes. The only runtime change is deleted-QObject lifetime guarding in `vib_validation_app/focus_manager.py`; Shiboken is already shipped as part of the existing PySide6 runtime.

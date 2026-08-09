@@ -1,6 +1,6 @@
 # AppConfig Architecture
 
-VibraPilot v1.0.6.10 keeps public application configuration under `config/AppConfig/` and validates it through the read-only `src/vibrapilot/app_config.py` facade.
+VibraPilot v1.0.6.11 keeps public application configuration under `config/AppConfig/` and validates it through the read-only `src/vibrapilot/app_config.py` facade.
 
 ## Source layout
 
@@ -18,7 +18,7 @@ Runtime consumers import validated facade objects (`APP`, `ABOUT`, `SUPPORT`, so
 
 ## `app.py`
 
-Authoritative public application identity/version/owner/license/platform metadata. Current release: **1.0.6.10**.
+Authoritative public application identity/version/owner/license/platform metadata. Current release: **1.0.6.11**.
 
 ## `about.py`, `support.py`, `social.py`
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.0.6.11 — Qt focus lifecycle verification/fix — 2026-08-09
+
+### Fixed
+
+- Guarded keyboard-focus property/style operations with Shiboken object-validity checks so deleted PySide6 QWidget wrappers are never dereferenced after page transitions.
+- Cleared stale focused-widget state when Qt begins `Destroy`/`DeferredDelete` processing.
+- Guarded delayed keyboard-focus tooltip callbacks against widgets deleted during the 180 ms timer window.
+- Preserved the exact `keyboardFocus` property values, repolish sequence, keyboard/mouse modality behavior, focus-ring visuals and frozen token values.
+
+### Preserved
+
+- `src/vibrapilot/backend.py`, `src/vibrapilot/qt_app.py`, licensing, ActivationPage, Browser Settings, Tasks, Workflow Inputs, Reports, browser automation and all dependencies remain unchanged.
+
+### Verification
+
+- Added the `VP-QT-FOCUS-LIFECYCLE-001` scope contract plus static and PySide6 runtime regression coverage for deleted-focused-widget transitions and delayed tooltips.
+
 ## v1.0.6.10 — License login durability/recovery forensic fix — 2026-08-09
 
 ### Fixed

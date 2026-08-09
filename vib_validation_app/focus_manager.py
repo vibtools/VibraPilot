@@ -17,6 +17,7 @@ from typing import Optional
 
 from PySide6.QtCore import QObject, QEvent, Qt, QTimer
 from PySide6.QtWidgets import QApplication, QWidget, QToolTip
+from shiboken6 import isValid
 
 
 _KEYBOARD_FOCUS_REASONS = {
@@ -85,8 +86,12 @@ class KeyboardFocusRingManager(QObject):
         elif event_type == QEvent.Type.FocusOut and isinstance(watched, QWidget):
             if watched is self._focused_widget:
                 self._set_keyboard_focus(watched, False)
+            QToolTip.hideText()
+        elif event_type in {QEvent.Type.Destroy, QEvent.Type.DeferredDelete}:
+            if watched is self._focused_widget:
+                # Never keep an actionable Python wrapper once Qt starts deleting
+                # the underlying focused object.
                 self._focused_widget = None
-            if isinstance(watched, QWidget):
                 QToolTip.hideText()
 
         return super().eventFilter(watched, event)
@@ -96,24 +101,69 @@ class KeyboardFocusRingManager(QObject):
         modifiers = getattr(event, "modifiers", lambda: Qt.KeyboardModifier.NoModifier)()
         return bool(modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.MetaModifier))
 
-    def _set_keyboard_focus(self, widget: QWidget, enabled: bool) -> None:
-        if self._focused_widget is not None and self._focused_widget is not widget:
-            self._apply_property(self._focused_widget, False)
+    @staticmethod
+    def _is_live_widget(widget: Optional[QWidget]) -> bool:
+        """Return whether a Python Qt wrapper still owns a live C++ QWidget."""
+        return widget is not None and isValid(widget)
 
-        self._focused_widget = widget if enabled else None
-        self._apply_property(widget, enabled)
+    def _set_keyboard_focus(self, widget: QWidget, enabled: bool) -> None:
+        previous = self._focused_widget
+        if previous is not None and previous is not widget:
+            if self._is_live_widget(previous):
+                self._apply_property(previous, False)
+            self._focused_widget = None
+
+        if not self._is_live_widget(widget):
+            if self._focused_widget is widget:
+                self._focused_widget = None
+            return
+
+        if enabled:
+            if self._apply_property(widget, True):
+                self._focused_widget = widget
+            else:
+                self._focused_widget = None
+        else:
+            self._apply_property(widget, False)
+            if self._focused_widget is widget:
+                self._focused_widget = None
 
     def _show_focus_tooltip(self, widget: QWidget) -> None:
-        if QApplication.focusWidget() is widget and widget.toolTip():
-            QToolTip.showText(widget.mapToGlobal(widget.rect().bottomLeft()), widget.toolTip(), widget)
+        if not self._is_live_widget(widget):
+            return
+        try:
+            if QApplication.focusWidget() is widget and widget.toolTip():
+                QToolTip.showText(
+                    widget.mapToGlobal(widget.rect().bottomLeft()),
+                    widget.toolTip(),
+                    widget,
+                )
+        except RuntimeError:
+            # A queued tooltip callback can run after deleteLater() destroys the
+            # C++ QWidget while the Python wrapper still exists. Only suppress
+            # that exact lifetime race; unrelated RuntimeError failures propagate.
+            if not self._is_live_widget(widget):
+                return
+            raise
 
-    @staticmethod
-    def _apply_property(widget: QWidget, enabled: bool) -> None:
-        widget.setProperty("keyboardFocus", "true" if enabled else "false")
-        style = widget.style()
-        style.unpolish(widget)
-        style.polish(widget)
-        widget.update()
+    @classmethod
+    def _apply_property(cls, widget: QWidget, enabled: bool) -> bool:
+        if not cls._is_live_widget(widget):
+            return False
+        try:
+            widget.setProperty("keyboardFocus", "true" if enabled else "false")
+            style = widget.style()
+            style.unpolish(widget)
+            style.polish(widget)
+            widget.update()
+            return True
+        except RuntimeError:
+            # The C++ object may be destroyed between the validity probe and the
+            # property/style calls during a page transition. Do not hide unrelated
+            # Qt errors on a still-live widget.
+            if not cls._is_live_widget(widget):
+                return False
+            raise
 
 
 def install_keyboard_focus_ring(app: QApplication) -> KeyboardFocusRingManager:

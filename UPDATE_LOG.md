@@ -1,5 +1,12 @@
 # Update Log
 
+## v1.0.6.11 — Qt focus lifecycle — 2026-08-09
+
+Corrected the Windows PySide6 focus-manager lifetime race that could dereference an already-deleted `QLineEdit`/`QWidget` wrapper during page transitions or delayed tooltip handling. The patch changes only `vib_validation_app/focus_manager.py` at runtime and preserves all visual focus behavior and application workflows.
+
+Detailed note: `docs/updates/v1.0.6.11-qt-focus-lifecycle-fix.md`
+Verification: `docs/verification/V1.0.6.11_QT_FOCUS_LIFECYCLE_VERIFICATION.md`
+
 ## v1.0.6.10 — License login durability/recovery — 2026-08-09
 
 Corrected production license-login persistence and recovery against the current Licora API v2 server: durable LocalAppData licensing state, independent DPAPI device identity, `DEVICE_KEY_MISMATCH`/`DEVICE_REVOKED` recovery, logout/re-login ordering and transient recheck handling. The API v2 wire protocol, browser/task/workflow behavior and ActivationPage visual design remain frozen.

@@ -19,6 +19,9 @@ PRODUCTION_SCOPE = json.loads(
 class Phase02Step002FixScopeTest(unittest.TestCase):
     def test_v1063_operational_files_outside_fix_scope_are_byte_identical(self):
         allowed = set(PRODUCTION_SCOPE["allowed_runtime_source_changes"])
+        current_focus_scope = ROOT / "config/verification/v1.0.6.11_qt_focus_lifecycle_fix_scope.json"
+        if current_focus_scope.is_file():
+            allowed.add("vib_validation_app/focus_manager.py")
         for relative, expected in CONTRACT["frozen_file_sha256"].items():
             if relative in allowed:
                 continue

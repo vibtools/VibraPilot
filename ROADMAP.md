@@ -1,5 +1,9 @@
 # VibraPilot Roadmap
 
+## Verified Qt lifecycle milestone — v1.0.6.11
+
+The shared keyboard-focus manager is hardened against deleted PySide6 wrappers and delayed-tooltip lifetime races without changing the frozen visual focus contract. Windows live runtime verification remains the final platform gate before treating this correction as production-accepted.
+
 ## Verified licensing milestone — v1.0.6.10
 
 License-login state is durable across clean Windows application/source folders, P-256 device identity survives session-cache loss, current Licora `DEVICE_KEY_MISMATCH`/`DEVICE_REVOKED` states have bounded recovery, and logout/recheck behavior is aligned with production server semantics.

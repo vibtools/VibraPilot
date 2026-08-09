@@ -9,7 +9,7 @@ EXPECTED={
 'vib_validation_app/styles.py':'83729e5b0e811e6b0cc4943dc729cbcf0cad92657eacbaebaacc0e0f56e3877b',
 'vib_validation_app/widgets.py':'5f13404bc98a053edb1ebd63760cd185632cbe84041594b7c4f5821043a3495d',
 'vib_validation_app/button_contract.py':'89bd33cbbfa00497a223e6ea5493e8aa4745d556e23447e28a0001c673381ce0',
-'vib_validation_app/focus_manager.py':'a47cf085635744f3bc7819a95f504e746a6cbe2be2143b8c8ef901bd4bb1a812',
+'vib_validation_app/focus_manager.py':'a073051b05cbd2442b0bdec0a1251cf8185b54cbb71e755cc25c2ee85ce7f86e',
 'frozen_design_source/CURRENT_FOUNDATION_TOKENS.json':'cbf1636b53a85c30dae839379653b6bbe0d0065e8f37cd919acaeb0c491e7616',
 }
 

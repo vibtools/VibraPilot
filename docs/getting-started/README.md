@@ -10,6 +10,7 @@
 8. Run `python -m unittest discover -s tests -p "test_*.py" -v`. The test modules bootstrap the repository `src` layout directly, so no shell-specific `PYTHONPATH` command is required in Command Prompt or PowerShell.
 9. For any source ZIP intended to become a release/baseline, run `python scripts/verify_source_archive.py path\to\VibraPilot-source.zip` and require a PASS before distribution or freezing.
 10. Launch with `python run.py`.
+11. For v1.0.6.11 production acceptance, navigate/focus across Activation, Workspace, Workflow Inputs, App Settings and Browser Settings and require zero `libshiboken`, `QObject::eventFilter` or `Internal C++ object ... already deleted` traceback output.
 
 On first Secure API v2 activation, VibraPilot creates and DPAPI-protects a persistent P-256 device identity. In v1.0.6.10 the default Windows license/device state lives under `%LOCALAPPDATA%\Vib Tools\VibraPilot` so clean source/application folders do not generate a different key for the same old device ID. Historical install-relative protected caches are migrated once when the durable cache is absent; an explicit `VIB_TOOLS_DATA_DIR` remains authoritative.
 

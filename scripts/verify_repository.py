@@ -28,6 +28,7 @@ WINDOWS_SQLITE_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.7
 WORKFLOW_INPUTS_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.8_workflow_inputs_scope.json"
 WORKFLOW_INPUTS_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.9_workflow_inputs_verification_fix_scope.json"
 LICENSE_LOGIN_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.10_license_login_fix_scope.json"
+QT_FOCUS_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.11_qt_focus_lifecycle_fix_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -36,7 +37,7 @@ EXPECTED_BRAND_HASHES = {
     "vib_validation_app/styles.py": "83729e5b0e811e6b0cc4943dc729cbcf0cad92657eacbaebaacc0e0f56e3877b",
     "vib_validation_app/widgets.py": "5f13404bc98a053edb1ebd63760cd185632cbe84041594b7c4f5821043a3495d",
     "vib_validation_app/button_contract.py": "89bd33cbbfa00497a223e6ea5493e8aa4745d556e23447e28a0001c673381ce0",
-    "vib_validation_app/focus_manager.py": "a47cf085635744f3bc7819a95f504e746a6cbe2be2143b8c8ef901bd4bb1a812",
+    "vib_validation_app/focus_manager.py": "a073051b05cbd2442b0bdec0a1251cf8185b54cbb71e755cc25c2ee85ce7f86e",
     "frozen_design_source/CURRENT_FOUNDATION_TOKENS.json": "cbf1636b53a85c30dae839379653b6bbe0d0065e8f37cd919acaeb0c491e7616",
     "vib_validation_app/assets/icons/check.svg": "4aea38b95354030a63723f7e7f975e4d6a5b8a4f132a4bcda9a1a71a26c692e8",
     "vib_validation_app/assets/icons/chevron-down.svg": "d1a1f4bb388efe49cd5eff9d69361bdbac45d520e34ca4d11ed39b4256de87f6",
@@ -273,6 +274,35 @@ license_allowed_mw_methods = set(license_fix_scope.get("approved_mainwindow_meth
 if license_allowed_files != {"src/vibrapilot/backend.py", "src/vibrapilot/qt_app.py"}:
     fail("v1.0.6.10 license runtime surface mismatch")
 
+# v1.0.6.11 VP-QT-FOCUS-LIFECYCLE-001 authorizes exactly one design-runtime
+# implementation file. Historical scope manifests remain immutable evidence;
+# this current scope supersedes their old focus_manager byte hash only.
+if not QT_FOCUS_FIX_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.11 Qt focus lifecycle scope contract is missing")
+try:
+    qt_focus_scope = json.loads(QT_FOCUS_FIX_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.11 Qt focus lifecycle scope contract is invalid: {exc}")
+if qt_focus_scope.get("plan_id") != "VP-QT-FOCUS-LIFECYCLE-001":
+    fail("v1.0.6.11 Qt focus scope plan identifier mismatch")
+if qt_focus_scope.get("official_baseline_github_commit") != "d712a9d04fa62e5e3a0df9c00a99c1315052bd05":
+    fail("v1.0.6.11 Qt focus scope does not identify the exact GitHub v1.0.6.10 baseline")
+if qt_focus_scope.get("official_baseline_archive_sha256") != "d818aa1d4ee3492df810fb29034999293b47c343444469b32ceebbbb92f5e044":
+    fail("v1.0.6.11 Qt focus scope baseline archive mismatch")
+if qt_focus_scope.get("official_baseline_tree_sha256") != "b136737c935a4d7c072f44b6df8f57e71bb396bb7c5f29bf2636f5027cee1f3d":
+    fail("v1.0.6.11 Qt focus scope baseline tree mismatch")
+if qt_focus_scope.get("target_version") != "1.0.6.11":
+    fail("v1.0.6.11 Qt focus scope target mismatch")
+qt_focus_allowed_files = set(qt_focus_scope.get("allowed_runtime_source_changes", []))
+if qt_focus_allowed_files != {"vib_validation_app/focus_manager.py"}:
+    fail("v1.0.6.11 Qt focus runtime surface mismatch")
+if qt_focus_scope.get("approved_focus_manager_sha256") != EXPECTED_BRAND_HASHES["vib_validation_app/focus_manager.py"]:
+    fail("v1.0.6.11 approved focus-manager hash does not match the current design contract")
+for relative, expected_sha in qt_focus_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.11 Qt focus out-of-scope file drift detected: {relative}")
+
 # VP-PROD-MT-LR-001 production scope lock. The v1.0.6.4 Phase-02 manifest remains
 # historical evidence while the current verifier enforces the approved v1.0.6.5 scope.
 if not PRODUCTION_SCOPE_CONTRACT.is_file():
@@ -294,6 +324,8 @@ settings_scope_payload = json.dumps(
 if hashlib.sha256(settings_scope_payload).hexdigest() != production_scope.get("baseline_settings_canonical_sha256"):
     fail("production scope changed an existing settings default outside the approved new setting")
 for relative, expected_sha in production_scope.get("frozen_file_sha256", {}).items():
+    if relative in qt_focus_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file():
         fail(f"production-scope frozen file is missing: {relative}")
@@ -383,7 +415,12 @@ if current_fix_scope.get("official_baseline_archive_sha256") != "f391099de9d0d11
 if current_fix_scope.get("target_version") != "1.0.6.7":
     fail("v1.0.6.7 fix scope target version mismatch")
 for relative, expected_sha in current_fix_scope.get("frozen_file_sha256", {}).items():
-    if relative in followup_allowed_files or relative in workflow_allowed_files or relative in workflow_release_files:
+    if (
+        relative in followup_allowed_files
+        or relative in workflow_allowed_files
+        or relative in workflow_release_files
+        or relative in qt_focus_allowed_files
+    ):
         continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
@@ -418,7 +455,7 @@ for method_name, expected_sha in current_fix_scope.get("frozen_automationworker_
 
 # Enforce the later Windows SQLite fix boundary against the clean v1.0.6.7 baseline.
 for relative, expected_sha in windows_sqlite_fix_scope.get("frozen_file_sha256", {}).items():
-    if relative in workflow_allowed_files or relative in workflow_release_files:
+    if relative in workflow_allowed_files or relative in workflow_release_files or relative in qt_focus_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
@@ -443,7 +480,7 @@ for method_name, expected_sha in windows_sqlite_fix_scope.get("frozen_automation
 
 # Enforce VP-WORKFLOW-INPUTS-001 against the final v1.0.6.7 baseline.
 for relative, expected_sha in workflow_inputs_scope.get("frozen_file_sha256", {}).items():
-    if relative in license_allowed_files:
+    if relative in license_allowed_files or relative in qt_focus_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
@@ -517,7 +554,7 @@ workflow_fix_approved_methods = set(workflow_fix_scope.get("approved_mainwindow_
 if workflow_fix_approved_methods != {"save_workflow_inputs", "reset_workflow_inputs"}:
     fail("v1.0.6.9 approved MainWindow method surface mismatch")
 for relative, expected_sha in workflow_fix_scope.get("frozen_file_sha256", {}).items():
-    if relative in license_allowed_files:
+    if relative in license_allowed_files or relative in qt_focus_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
@@ -535,6 +572,8 @@ for method_name, expected_sha in workflow_fix_scope.get("frozen_mainwindow_metho
 
 # v1.0.6.10 exact current scope verification.
 for relative, expected_sha in license_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in qt_focus_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
         fail(f"v1.0.6.10 license out-of-scope file drift detected: {relative}")
@@ -605,8 +644,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.10":
-    fail("AppConfig VERSION must be 1.0.6.10 for the license-login forensic verification/fix")
+if app_version != "1.0.6.11":
+    fail("AppConfig VERSION must be 1.0.6.11 for the Qt focus lifecycle verification/fix")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -720,8 +759,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.10-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.10 release path")
+if "VibraPilot-1.0.6.11-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.11 release path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})
@@ -1184,6 +1223,22 @@ for marker in [
     if marker not in (qt_text + backend_text):
         fail(f"VibraPilot branding/icon marker missing: {marker}")
 
+# v1.0.6.11 Qt focus-lifecycle invariants.
+focus_manager_text = (ROOT / "vib_validation_app" / "focus_manager.py").read_text(encoding="utf-8")
+for marker in (
+    "from shiboken6 import isValid",
+    "def _is_live_widget",
+    "QEvent.Type.Destroy",
+    "QEvent.Type.DeferredDelete",
+    "if not self._is_live_widget(widget):",
+    'widget.setProperty("keyboardFocus", "true" if enabled else "false")',
+    "QTimer.singleShot(180",
+):
+    if marker not in focus_manager_text:
+        fail(f"v1.0.6.11 Qt focus lifecycle marker missing: {marker}")
+if "except Exception:" in focus_manager_text:
+    fail("v1.0.6.11 focus manager must not hide unrelated exceptions with a broad handler")
+
 print("[8/8] Required project files")
 required = [
     "README.md", "CHANGELOG.md", "UPDATE_LOG.md", "VERSIONING.md", "LICENSE", "NOTICE", "pyproject.toml", "requirements.txt", "requirements-build.txt",
@@ -1196,6 +1251,7 @@ required = [
     "config/verification/v1.0.6.8_workflow_inputs_scope.json",
     "config/verification/v1.0.6.9_workflow_inputs_verification_fix_scope.json",
     "config/verification/v1.0.6.10_license_login_fix_scope.json",
+    "config/verification/v1.0.6.11_qt_focus_lifecycle_fix_scope.json",
     "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
     "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
@@ -1211,6 +1267,7 @@ required = [
     "docs/verification/V1.0.6.8_WORKFLOW_INPUTS_VERIFICATION.md",
     "docs/verification/V1.0.6.9_WORKFLOW_INPUTS_FORENSIC_VERIFICATION.md",
     "docs/verification/V1.0.6.10_LICENSE_LOGIN_FORENSIC_VERIFICATION.md",
+    "docs/verification/V1.0.6.11_QT_FOCUS_LIFECYCLE_VERIFICATION.md",
     "docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md", "docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md",
     "docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md",
     "docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md",
@@ -1218,6 +1275,7 @@ required = [
     "docs/updates/v1.0.6.8-workflow-inputs-separation.md",
     "docs/updates/v1.0.6.9-workflow-inputs-verification-fix.md",
     "docs/updates/v1.0.6.10-license-login-durability-recovery-fix.md",
+    "docs/updates/v1.0.6.11-qt-focus-lifecycle-fix.md",
     "scripts/verify_source_archive.py", "tests/test_v1067_verification_fix.py", "tests/test_app_config_validation.py",
     "tests/test_licensing_v2_crypto.py", "tests/test_licensing_v2_client.py", "tests/test_license_manager_v2.py", "tests/test_phase02_scope_freeze.py", "tests/test_phase02_step002_fix_scope.py",
     "tests/test_production_scope_freeze.py", "tests/test_task_runtime_store.py", "tests/test_task_recovery.py",
@@ -1227,6 +1285,7 @@ required = [
     "tests/test_workflow_inputs.py", "tests/test_workflow_inputs_ui.py", "tests/test_workflow_inputs_scope.py",
     "tests/test_v1069_workflow_inputs_verification_fix.py",
     "tests/test_v10610_license_login_fix.py",
+    "tests/test_v10611_qt_focus_lifecycle_fix.py",
     "scripts/maintenance/Apply-v1.0.6.2-Phase01-Fix.cmd",
     "scripts/maintenance/PHASE01_V1.0.6.2_DELETE_PATHS.txt",
     "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",

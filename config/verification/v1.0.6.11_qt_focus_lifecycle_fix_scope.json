@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "contract_name": "VibraPilot v1.0.6.11 VP-QT-FOCUS-LIFECYCLE-001 scope lock",
+  "official_baseline": "VibraPilot v1.0.6.10",
+  "official_baseline_archive_sha256": "d818aa1d4ee3492df810fb29034999293b47c343444469b32ceebbbb92f5e044",
+  "official_baseline_tree_sha256": "b136737c935a4d7c072f44b6df8f57e71bb396bb7c5f29bf2636f5027cee1f3d",
+  "official_baseline_github_commit": "d712a9d04fa62e5e3a0df9c00a99c1315052bd05",
+  "target_version": "1.0.6.11",
+  "plan_id": "VP-QT-FOCUS-LIFECYCLE-001",
+  "scope": "Deleted PySide6 QWidget/QLineEdit focus-reference safety only: stale focused-widget lifetime, delayed tooltip lifetime, and page-transition focus safety without changing visual focus behavior or any application workflow.",
+  "allowed_runtime_source_changes": [
+    "vib_validation_app/focus_manager.py"
+  ],
+  "baseline_focus_manager_sha256": "a47cf085635744f3bc7819a95f504e746a6cbe2be2143b8c8ef901bd4bb1a812",
+  "approved_focus_manager_sha256": "a073051b05cbd2442b0bdec0a1251cf8185b54cbb71e755cc25c2ee85ce7f86e",
+  "preserve_visual_focus_behavior": true,
+  "preserve_frozen_design_tokens": true,
+  "no_new_dependency": true,
+  "no_ui_redesign": true,
+  "frozen_file_sha256": {
+    ".github/workflows/ci.yml": "a722955f9860315f77abdeb8b75cd1bfc269db24e8d46d437dd678917ba258a3",
+    "build.py": "3bd9a4fe725de8b6dce7127fd7d3c7924fbc1bd431dc2068fd2c8544ecbe61b7",
+    "run.py": "2f508fe9b6596571dfa8258487d778e22ef99dc676c7f4f96460bbe30df938e9",
+    "requirements.txt": "92890827d0d19fe07168cf801d15c96cf48b846813d7f687a04531e40ed2b083",
+    "requirements-build.txt": "39d98aacb5781de72933397e6c431b83a4b62aa1177798600db1907c8def53eb",
+    "src/vibrapilot/backend.py": "4a0e7725d593b7b622b97a811f4dbe5ad89b3623e630b920389e08babd1f06c7",
+    "src/vibrapilot/qt_app.py": "aea6935e706fb28f8344a899017f96314fbab74fc66d8239fbcf18bb372d6d1a",
+    "src/vibrapilot/licensing_v2.py": "36435d05593785b7ec02310dcf2d031342524e95d5be6212591a09277699a91b",
+    "src/vibrapilot/task_runtime_store.py": "0cc44bd26b32de9c820ca5334d566257e651679577390df072c1ceb6170e74f5",
+    "src/vibrapilot/data_io.py": "ac8adddec1cfc2ba6784562c7f85e18ceb4da6d7906edac3296f79ed48af3c31",
+    "src/vibrapilot/workflow_inputs.py": "095e46558736ae9cf073bd4883a5bd43eefd1b2a1eb3de62156baa863f4a5ce9",
+    "src/vibrapilot/app_config.py": "2ae2e500037e640a2506fde0679d30907c020e3e97a561ba7c4f36c50961121e",
+    "config/settings.defaults.json": "cee3a7a688af488a22dc0f871f161a3e66ce454cd68c5a4ffa50824a13ef968d",
+    "config/AppConfig/licensing_public.py": "f1311c5e8cb18f31b322d65d30ed2ca074dbc1274911a2055f6a066b16c7c7ad",
+    "vib_validation_app/tokens.py": "cdae402dccdb8e916f274ea5fa0b8ec1a6505fab6043462d35af8a93e1468a02",
+    "vib_validation_app/styles.py": "83729e5b0e811e6b0cc4943dc729cbcf0cad92657eacbaebaacc0e0f56e3877b",
+    "vib_validation_app/widgets.py": "5f13404bc98a053edb1ebd63760cd185632cbe84041594b7c4f5821043a3495d",
+    "vib_validation_app/button_contract.py": "89bd33cbbfa00497a223e6ea5493e8aa4745d556e23447e28a0001c673381ce0",
+    "frozen_design_source/CURRENT_FOUNDATION_TOKENS.json": "cbf1636b53a85c30dae839379653b6bbe0d0065e8f37cd919acaeb0c491e7616"
+  }
+}

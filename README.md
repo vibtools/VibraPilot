@@ -1,6 +1,10 @@
-# VibraPilot v1.0.6.10 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.11 — Vib Tools Browser Automation Desktop
 
-**VibraPilot v1.0.6.10** is the scope-locked license-login durability/recovery correction built from GitHub v1.0.6.9 commit `cd6ec96736626256daeed1d36775d21e90abf7ee`. It preserves the Licora Secure API v2 wire protocol, pinned RSA public key, browser/task/workflow/report behavior and ActivationPage visual design while fixing persistent device identity, clean-upgrade activation, `DEVICE_KEY_MISMATCH`/`DEVICE_REVOKED` recovery, logout/re-login ordering and transient background recheck handling.
+**VibraPilot v1.0.6.11** is the scope-locked `VP-QT-FOCUS-LIFECYCLE-001` correction built from exact GitHub v1.0.6.10 commit `d712a9d04fa62e5e3a0df9c00a99c1315052bd05`. It changes only the shared Qt keyboard-focus lifecycle manager so deleted PySide6 widget wrappers are never dereferenced during page transitions or delayed tooltip callbacks. Visual focus behavior, design tokens, ActivationPage, backend, licensing, browser/task/workflow/report behavior and dependencies remain unchanged.
+
+## v1.0.6.11 Qt focus lifecycle correction
+
+The focus-ring manager now validates that a Python PySide6 wrapper still owns a live C++ QWidget before applying dynamic properties, repolishing styles or showing a delayed tooltip. Stale focused-widget references are cleared when Qt begins widget destruction, while valid keyboard and mouse focus behavior remains exactly the same. This directly addresses the Windows runtime `libshiboken: Internal C++ object ... already deleted` traceback seen during Activation-to-Workspace and other widget-lifecycle transitions.
 
 ## v1.0.6.10 License login durability and recovery
 
