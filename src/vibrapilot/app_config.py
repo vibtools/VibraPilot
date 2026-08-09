@@ -1,8 +1,9 @@
 """Validated read-only facade over ``config.AppConfig``.
 
 Application consumers import this module rather than reaching into individual
-configuration modules. Phase-01 intentionally exposes only non-secret product,
-About, support and social metadata; licensing configuration remains unchanged.
+configuration modules. Phase-02 adds validated *public* Licora API v2 transport
+and server-signing metadata; no shared API key or private signing material is
+allowed in AppConfig.
 """
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ from config.AppConfig import about as about_source
 from config.AppConfig import app as app_source
 from config.AppConfig import social as social_source
 from config.AppConfig import support as support_source
+from config.AppConfig import licensing_public as licensing_source
 
 
 _VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:\.\d+)?$")
@@ -78,6 +80,29 @@ def _date(name: str, value: object) -> str:
     except ValueError as exc:
         raise RuntimeError(f"AppConfig {name} must be a valid calendar date.") from exc
     return text
+
+
+def _api_path(name: str, value: object) -> str:
+    text = _required_text(name, value)
+    if not text.startswith("/api/v2/") or not text.endswith(".php"):
+        raise RuntimeError(f"AppConfig {name} must be an absolute Licora /api/v2/*.php path.")
+    return text
+
+
+def _sha256_hex(name: str, value: object) -> str:
+    text = _required_text(name, value).lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", text):
+        raise RuntimeError(f"AppConfig {name} must be a 64-character SHA-256 hex digest.")
+    return text
+
+
+def _public_pem(name: str, value: object) -> str:
+    text = _required_text(name, value)
+    if "-----BEGIN PUBLIC KEY-----" not in text or "-----END PUBLIC KEY-----" not in text:
+        raise RuntimeError(f"AppConfig {name} must contain a PEM public key.")
+    if "PRIVATE KEY" in text:
+        raise RuntimeError(f"AppConfig {name} must never contain private key material.")
+    return text + ("" if text.endswith("\n") else "\n")
 
 
 @dataclass(frozen=True)
@@ -167,6 +192,24 @@ class SupportInfo:
     about_support_links: tuple[tuple[str, str], ...]
 
 
+
+
+@dataclass(frozen=True)
+class LicensingPublicInfo:
+    api_base_url: str
+    api_version: int
+    protocol: str
+    app_id: str
+    activate_path: str
+    status_path: str
+    refresh_path: str
+    deactivate_path: str
+    signing_key_id: str
+    signing_public_key_pem: str
+    signing_public_key_sha256: str
+    clock_skew_seconds: int
+
+
 @dataclass(frozen=True)
 class SocialLink:
     platform: str
@@ -215,6 +258,32 @@ APP = AppIdentity(
         "AUTHORIZED_USE_NOTICE", app_source.AUTHORIZED_USE_NOTICE
     ),
 )
+
+
+LICENSING = LicensingPublicInfo(
+    api_base_url=_optional_url("LICORA_API_BASE_URL", licensing_source.LICORA_API_BASE_URL),
+    api_version=int(licensing_source.LICORA_API_VERSION),
+    protocol=_required_text("LICORA_PROTOCOL", licensing_source.LICORA_PROTOCOL),
+    app_id=_required_text("LICORA_APP_ID", licensing_source.LICORA_APP_ID),
+    activate_path=_api_path("LICORA_ACTIVATE_PATH", licensing_source.LICORA_ACTIVATE_PATH),
+    status_path=_api_path("LICORA_STATUS_PATH", licensing_source.LICORA_STATUS_PATH),
+    refresh_path=_api_path("LICORA_REFRESH_PATH", licensing_source.LICORA_REFRESH_PATH),
+    deactivate_path=_api_path("LICORA_DEACTIVATE_PATH", licensing_source.LICORA_DEACTIVATE_PATH),
+    signing_key_id=_required_text("LICORA_SIGNING_KEY_ID", licensing_source.LICORA_SIGNING_KEY_ID),
+    signing_public_key_pem=_public_pem(
+        "LICORA_SIGNING_PUBLIC_KEY_PEM", licensing_source.LICORA_SIGNING_PUBLIC_KEY_PEM
+    ),
+    signing_public_key_sha256=_sha256_hex(
+        "LICORA_SIGNING_PUBLIC_KEY_SHA256", licensing_source.LICORA_SIGNING_PUBLIC_KEY_SHA256
+    ),
+    clock_skew_seconds=int(licensing_source.LICORA_CLOCK_SKEW_SECONDS),
+)
+if LICENSING.api_version != 2 or LICENSING.protocol != "licora-api-v2":
+    raise RuntimeError("AppConfig Licora protocol must be Secure API v2.")
+if LICENSING.app_id != APP.app_id:
+    raise RuntimeError("AppConfig Licora APP_ID must match VibraPilot APP_ID.")
+if not (30 <= LICENSING.clock_skew_seconds <= 3600):
+    raise RuntimeError("AppConfig Licora clock skew must be between 30 and 3600 seconds.")
 
 ABOUT = AboutInfo(
     page_title=_required_text("ABOUT_PAGE_TITLE", about_source.ABOUT_PAGE_TITLE),

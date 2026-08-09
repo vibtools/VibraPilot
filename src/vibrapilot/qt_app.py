@@ -77,7 +77,7 @@ from vib_validation_app.widgets import (
     vbox,
 )
 
-from .app_config import ABOUT, APP, ENABLED_SOCIAL_LINKS, SUPPORT
+from .app_config import ABOUT, APP, ENABLED_SOCIAL_LINKS, LICENSING, SUPPORT
 
 from .backend import (
     APP_AUTHOR,
@@ -87,8 +87,6 @@ from .backend import (
     DEFAULT_TEST_SEND_LIMIT,
     DISPLAY_APP_NAME,
     EMAIL_RE,
-    LICENSE_API_BASE_URL,
-    LICENSE_API_KEY,
     LOGS_DIR,
     REPORTS_DIR,
     ROOT_DIR,
@@ -1439,8 +1437,34 @@ class MainWindow(QMainWindow):
     def show_login_or_main(self) -> None:
         if self.license_manager.is_activated():
             self.show_workspace()
-        else:
-            self.show_login()
+            return
+
+        self.show_login()
+        # Phase-02 secure restore: an expired access token, rotated-session cache,
+        # or legacy protected license cache must recover through the same API v2
+        # validate/refresh/activate path without requiring the user to retype a
+        # license that is already protected locally.  The locked ActivationPage
+        # design is preserved; only its existing status/button controls are used.
+        if self.license_manager.license_key:
+            activation_page = self.activation_page
+            if activation_page is not None:
+                activation_page.activate_button.setEnabled(False)
+                activation_page._set_status_state(
+                    "pending", "Restoring secure license session…"
+                )
+            license_key = self.license_manager.license_key
+            user_email = self.license_manager.user_email
+
+            def restore_session() -> None:
+                ok, msg = self.license_manager.validate(license_key, user_email)
+                self.ui_queue.put(
+                    (
+                        "activation_result",
+                        {"slot_id": 0, "ok": ok, "message": msg},
+                    )
+                )
+
+            threading.Thread(target=restore_session, daemon=True).start()
 
     def show_login(self) -> None:
         self._workspace_active = False
@@ -2241,11 +2265,12 @@ class MainWindow(QMainWindow):
                 grid.addWidget(w, row, 1)
             lay.addWidget(c)
 
-        notice = card("Private License Deployment")
+        notice = card("Secure Licora API v2")
         notice.layout().addWidget(
             label(
-                f"License endpoint is source-controlled: {LICENSE_API_BASE_URL.rstrip('/')}/api/verify.php. "
-                "The API key is intentionally not editable in App Settings.",
+                f"Secure licensing endpoint: {LICENSING.api_base_url}/api/v2/. "
+                f"Application ID: {LICENSING.app_id}. Device-bound P-256 proofs and "
+                "locally verified RS256 access tokens are used; no client master API key is embedded.",
                 "Description",
             )
         )
@@ -2284,7 +2309,7 @@ class MainWindow(QMainWindow):
 
         license_card = card(ABOUT.license_session_title)
         ll = license_card.layout()
-        ll.addWidget(label(f"License app ID: {APP.app_name}", "Description", False))
+        ll.addWidget(label(f"License app ID: {APP.app_id}", "Description", False))
         ll.addWidget(label(f"Activated until: {self.license_manager.activated_until or 'Server-managed'}", "Description", False))
         if SUPPORT.support_email:
             ll.addWidget(label(f"Support: {SUPPORT.support_email}", "Description", False))
@@ -3021,7 +3046,7 @@ class MainWindow(QMainWindow):
                     if self.license_stop.is_set():
                         return
                     time.sleep(1)
-                if self.license_manager.is_activated() and self.license_manager.license_key:
+                if self.license_manager.license_key:
                     ok, msg = self.license_manager.validate(
                         self.license_manager.license_key,
                         self.license_manager.user_email,

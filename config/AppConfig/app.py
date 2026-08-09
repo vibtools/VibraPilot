@@ -1,8 +1,7 @@
 """Authoritative VibraPilot application identity and product metadata.
 
-This module contains public/non-secret application metadata only. License API
-credentials and transport configuration do not belong here and remain outside
-Phase-01 scope.
+This module contains public/non-secret application metadata only. Secure licensing transport is defined separately in licensing_public.py;
+this identity module remains public/non-secret metadata only.
 """
 
 APP_ID = "vibrapilot"
@@ -13,7 +12,7 @@ SHORT_NAME = "VP"
 DESCRIPTION = "VibraPilot browser automation desktop application by Vib Tools."
 TAGLINE = "Authorized browser automation desktop application."
 
-VERSION = "1.0.6.2"
+VERSION = "1.0.6.4"
 CREATED_DATE = "2026-08-07"
 RELEASE_DATE = "2026-08-08"
 UPDATED_DATE = "2026-08-08"
@@ -55,7 +54,7 @@ TARGET_USERS = (
 PRIMARY_USE_CASE = "Authorized browser automation and data-driven task processing."
 PRODUCT_SCOPE = (
     "Desktop automation application preserving the validated v1.0.6 automation runtime "
-    "within the v1.0.6.2 configuration baseline while preparing a reusable "
-    "workflow-framework foundation."
+    "while using the Phase-02 Secure Licora API v2 device-bound licensing layer and "
+    "preserving the validated automation/workflow foundation."
 )
 AUTHORIZED_USE_NOTICE = "Use only for authorized testing and automation workflows."

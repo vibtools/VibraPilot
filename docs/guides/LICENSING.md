@@ -1,5 +1,67 @@
-# License Integration
+# Licora Secure API v2 Integration
 
-The application uses Licora through the fixed verification endpoint derived from `LICENSE_API_BASE_URL`. The API key is a source-controlled build constant by request; no PowerShell/environment API-key setup is used.
+VibraPilot v1.0.6.4 uses Licora Secure API v2 for desktop licensing. The client does **not** embed or send a Licora API v1 shared/master API key.
 
-A real API key must remain private during development and should be scoped/rate-limited/revocable server-side because secrets embedded in desktop binaries cannot be considered non-extractable.
+## Public client configuration
+
+`config/AppConfig/licensing_public.py` contains only non-secret deployment metadata:
+
+- HTTPS Licora base URL
+- App ID `vibrapilot`
+- `/api/v2/activate.php`, `/status.php`, `/refresh.php`, `/deactivate.php`
+- pinned Licora RSA public signing key and SHA-256 fingerprint
+- expected signing key ID and clock-skew policy
+
+The matching Licora RSA private signing key remains server-side and must never be packaged with VibraPilot.
+
+## Persistent device-bound activation
+
+VibraPilot uses one persistent P-256 (`secp256r1`) device key identity for the local installation. The key is generated if absent and is DPAPI-protected and atomically persisted **before** any first activation request is sent. This prevents a response-loss/restart from leaving Licora bound to a device public key that the client did not save.
+
+The same protected device key is retained across logout and license switching. The public key is sent to Licora during activation; the private key never leaves the client.
+
+Signed requests use the exact Licora canonical form:
+
+```text
+METHOD
+PATH
+TIMESTAMP
+NONCE
+SHA256(raw JSON body)
+CONTEXT
+```
+
+Activation uses `activate:vibrapilot`; refresh uses `refresh:<sha256(refresh_token)>`; status and deactivate use the current access-token JTI.
+
+## Tokens and local persistence
+
+Licora returns a short-lived RS256 access token and a rotating refresh token. VibraPilot validates the access token locally before using it, including `typ`, `alg`, `kid`, signature, issuer, audience/App ID, device ID, device-key fingerprint, timestamps, JTI and token version. Successfully verified access-token state is cached in memory until its verified expiry so dashboard polling does not repeatedly perform identical RSA verification.
+
+`AppData/license.json` schema version 2 stores only protected sensitive values. Windows DPAPI protects:
+
+- license key
+- P-256 device private key
+- access token
+- refresh token
+
+Writes use a temporary file, flush/fsync and atomic `os.replace()`. The persistent device key may remain in a device-only schema-v2 cache after logout; protected license and session tokens are cleared.
+
+Existing pre-v2 license caches are detected at startup. The existing activation shell displays the restore attempt while the protected license is revalidated against API v2. The migration is considered complete only after a server-authorized v2 session has been verified and persisted.
+
+## Refresh and recovery
+
+Refresh tokens rotate on every successful refresh. A refresh call is one-shot and is never blindly retried with the same token. If a refresh outcome is ambiguous, VibraPilot clears the old access/refresh state **and atomically persists that invalidation before** attempting fresh activation with the protected license key and persistent device key. A restart therefore cannot replay the old refresh credential.
+
+Periodic license recheck runs whenever a protected/current license exists, even if the short-lived access token has expired; `validate()` can then refresh or safely re-activate the session.
+
+## Concurrency and UI behavior
+
+Long-running Licora HTTP validation uses a dedicated validation lock rather than holding the short UI-facing state lock. Dashboard `is_activated()` reads therefore do not wait behind remote network I/O. A state-generation guard prevents a late background validation result from restoring a session after local logout or another session-changing action.
+
+## Logout
+
+Logout immediately removes the protected license key, access token and refresh token from local session state while retaining the persistent DPAPI-protected P-256 device key. When a still-valid access token is available, VibraPilot also performs a best-effort API v2 deactivation in the background so Licora can revoke the current device credential and refresh family. Local logout is not blocked by network failure.
+
+## Release-package boundary
+
+`AppData/`, `Logs/`, `Reports/`, `FailedData/`, `project/`, `__pycache__/` and `.pytest_cache/` are private/runtime/development paths and are not valid release-source inputs. The v1.0.6.4 scope verifier and packaging audit enforce this boundary for the official clean baseline.

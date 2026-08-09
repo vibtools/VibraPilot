@@ -5,12 +5,30 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 
 class FeatureParityTest(unittest.TestCase):
-    def test_license_configuration_is_source_controlled(self):
-        text=(ROOT/'src/vibrapilot/backend.py').read_text(encoding='utf-8')
-        self.assertIn('LICENSE_API_BASE_URL = "https://', text)
-        self.assertIn('LICENSE_API_KEY = "', text)
-        self.assertNotIn('VIB_TOOLS_LICENSE_API_KEY', text)
-        self.assertNotIn('VIB_TOOLS_LICENSE_API_KEY',text)
+    def test_secure_api_v2_license_configuration(self):
+        backend=(ROOT/'src/vibrapilot/backend.py').read_text(encoding='utf-8')
+        client=(ROOT/'src/vibrapilot/licensing_v2.py').read_text(encoding='utf-8')
+        public=(ROOT/'config/AppConfig/licensing_public.py').read_text(encoding='utf-8')
+        self.assertIn('LICORA_API_BASE_URL = "https://', public)
+        self.assertIn('LICORA_APP_ID = "vibrapilot"', public)
+        for path in ['/api/v2/activate.php','/api/v2/status.php','/api/v2/refresh.php','/api/v2/deactivate.php']:
+            self.assertIn(path, public)
+        combined=backend+client+public
+        self.assertNotIn('LICENSE_API_KEY =', combined)
+        self.assertNotIn('X-API-Key', combined)
+        self.assertNotIn('/api/verify.php', combined)
+        self.assertNotIn('VIB_TOOLS_LICENSE_API_KEY', combined)
+
+
+    def test_phase02_startup_restore_and_expired_token_recheck(self):
+        ui=(ROOT/'src/vibrapilot/qt_app.py').read_text(encoding='utf-8')
+        self.assertIn('"Restoring secure license session…"', ui)
+        self.assertIn('threading.Thread(target=restore_session, daemon=True).start()', ui)
+        self.assertIn('if self.license_manager.license_key:', ui)
+        self.assertNotIn(
+            'if self.license_manager.is_activated() and self.license_manager.license_key:',
+            ui,
+        )
 
     def test_primary_pages_exist(self):
         text=(ROOT/'src/vibrapilot/qt_app.py').read_text(encoding='utf-8')

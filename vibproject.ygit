@@ -8,8 +8,8 @@
     "slug": "vibrapilot",
     "displayName": "VibraPilot",
     "description": "VibraPilot browser automation desktop application by Vib Tools.",
-    "summary": "VibraPilot v1.0.6.2 configuration baseline preserving the validated v1.0.6 automation runtime.",
-    "version": "1.0.6.2",
+    "summary": "VibraPilot v1.0.6.4 Phase-02-Step-002 verification fix preserving the validated automation runtime.",
+    "version": "1.0.6.4",
     "status": "development",
     "visibility": "private",
     "category": "desktop-application",
@@ -67,6 +67,7 @@
     "libraries": [
       "pandas",
       "requests",
+      "cryptography",
       "openpyxl",
       "xlrd",
       "defusedxml"

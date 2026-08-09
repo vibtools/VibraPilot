@@ -1,5 +1,67 @@
 # Changelog
 
+## v1.0.6.4 — Phase-02-Step-002 forensic verification/fix — 2026-08-08
+
+### Fixed
+
+- Persist the P-256 device private key before the first activation request and retain the same device key across logout, license switching and restart, preventing server/client public-key drift after ambiguous activation/deactivation outcomes.
+- Persistently invalidate ambiguous one-shot refresh credentials before fresh activation recovery so a restart cannot replay an old refresh token.
+- Separate long-running API validation from the short UI-facing license state lock; dashboard license reads no longer wait behind remote HTTP I/O.
+- Restore protected legacy/v2 license sessions through the existing activation shell at startup and allow periodic recheck to refresh an expired access token instead of stopping when the local token expires.
+- Cache successfully verified access-token state so frequent dashboard polling does not repeatedly parse the pinned RSA key and verify the same RS256 token.
+- Add crash-safer license-cache writes using flush/fsync before atomic `os.replace()`.
+- Correct release-source hygiene after the supplied v1.0.6.3 archive was found to contain gitignored runtime/private/cache paths.
+- Configure pytest source imports so the documented plain `python -m pytest -q` invocation matches repository behavior.
+
+### Verification
+
+- Added a v1.0.6.4 fix-scope contract anchored to the exact SHA-256 of the user-frozen v1.0.6.3 archive.
+- Expanded LicenseManager tests for pre-request key durability, key continuity, ambiguous refresh persistence, state-lock non-blocking behavior, corrupt-cache fail-closed behavior and atomic-save cleanup.
+- Expanded API v2 protocol/crypto tests for stable server error propagation, network/redirect/non-JSON/protocol failure, token header/claim/time/device mismatches and invalid signatures.
+- Added release-path checks that reject `AppData`, `Logs`, `Reports`, `FailedData`, `project`, `__pycache__` and `.pytest_cache` from the clean public baseline.
+
+### Preserved
+
+- `AutomationWorker`, selectors, `TaskItem`, `TaskState`, `ActivationPage`, Browser Settings contract, data/report behavior, safety/retry controls, Playwright workflow and the public `licensing_v2.py` protocol implementation remain outside the approved fix surface.
+
+### Documentation
+
+- Added `docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md`.
+- Added `docs/verification/PHASE02_STEP002_V1.0.6.4_FORENSIC_VERIFICATION.md`.
+- Synchronized README, licensing/getting-started guidance, versioning, documentation index and release metadata.
+
+## v1.0.6.3 — Phase-02-Step-002 Secure Licora API v2 client — 2026-08-08
+
+### Added
+
+- Added `config/AppConfig/licensing_public.py` with the production HTTPS Licora base URL, `vibrapilot` App ID, API v2 endpoint paths and pinned RSA public signing key/fingerprint.
+- Added `src/vibrapilot/licensing_v2.py` implementing P-256 device proof, exact canonical request signing, RS256 access-token verification and activate/status/refresh/deactivate flows.
+- Added schema-v2 protected licensing persistence, rotating refresh credentials, atomic writes and legacy-cache migration.
+- Added Phase-02 crypto/protocol/persistence tests and a canonical AST scope-freeze contract.
+
+### Changed
+
+- Replaced the active desktop API v1 shared/master-key licensing flow with Licora Secure API v2.
+- Promoted the verified Phase-02-Step-002 source version to **1.0.6.3**.
+- App Settings now describes the Secure API v2 trust model instead of a private embedded API-key deployment.
+
+### Security
+
+- Removed active client dependence on `X-API-Key`, API v1 Bearer/shared credentials and `/api/verify.php`.
+- Pinned only the Licora server **public** signing key; no server private key is present in the project.
+- Windows DPAPI protects the license key, P-256 device private key, access token and refresh token before persistence.
+- Refresh tokens are one-time rotating credentials and are not blindly replayed after ambiguous failures.
+
+### Preserved
+
+- `AutomationWorker`, selectors, `TaskItem`, `TaskState`, ActivationPage, Browser Settings contract and validated task/report/safety/browser behavior are unchanged from v1.0.6.2.
+
+### Documentation
+
+- Added `docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md`.
+- Added `docs/verification/PHASE02_STEP002_V1.0.6.3_VERIFICATION.md`.
+- Updated README, licensing guide, AppConfig documentation, versioning and release metadata.
+
 ## v1.0.6.2 — Phase-01 forensic verification and completion — 2026-08-08
 
 ### Fixed

@@ -1,0 +1,22 @@
+{
+  "phase": "Phase-02-Step-002",
+  "baseline_version": "1.0.6.2",
+  "baseline_archive_sha256": "32b99f5dd566ccc3d38e96ba90d481d1b887463426466d253506c3cf0443953d",
+  "ast_hash_algorithm": "canonical-semantic-ast-v2",
+  "intentional_change_scope": [
+    "config/AppConfig/licensing_public.py",
+    "src/vibrapilot/licensing_v2.py",
+    "src/vibrapilot/app_config.py",
+    "src/vibrapilot/backend.py:LicenseManager",
+    "src/vibrapilot/qt_app.py:licensing display only",
+    "licensing tests/verifier/docs/version metadata"
+  ],
+  "frozen_ast_sha256": {
+    "backend.AutomationWorker": "48dfdb353fc0b1ba658932bd96a19ac8920ab3d5016e1d687c1a83fad383499b",
+    "backend.TaskItem": "d957d032ca071270512822e25965eff78f52f970c89dfe43d3be5040e1e73453",
+    "backend.TaskState": "8fec81cf772ef910883697198028fb1a189743792bd5459f9de1e8873228c635",
+    "backend.SELECTORS": "a0ad30439ca2e935740aa836aa048d529e8528db410e2e4005f01e3f7102754b",
+    "qt_app.ActivationPage": "c80de65eca7728bfbf9f72d2df7a688a28666df08c82e397b383bf7c9c51e73c",
+    "qt_app.BROWSER_SETTING_GROUPS": "b593ce8ae2d718fa37747a68038994a5f9d43c717b9e04f6461e1024e30eb43c"
+  }
+}

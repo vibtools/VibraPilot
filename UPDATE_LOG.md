@@ -1,5 +1,18 @@
 # Update Log
 
+## v1.0.6.4 — Phase-02-Step-002 forensic verification/fix — 2026-08-08
+
+Audited the user-frozen v1.0.6.3 archive and corrected only verified Phase-02-Step-002 defects: persistent device-key continuity, pre-request device-key durability, one-shot refresh ambiguity persistence, non-blocking license validation state access, startup secure-session restore, expired-token periodic recheck, cached local token verification and release-package privacy/hygiene. Expanded crypto/protocol/persistence/scope tests and synchronized version/documentation metadata. The validated automation/browser/task/report/safety/UI foundation remains frozen.
+
+Detailed note: `docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md`
+Forensic report: `docs/verification/PHASE02_STEP002_V1.0.6.4_FORENSIC_VERIFICATION.md`
+
+## v1.0.6.3 — Phase-02-Step-002 Secure Licora API v2 client — 2026-08-08
+
+Migrated VibraPilot licensing from the embedded Licora API v1 shared/master-key flow to device-bound Secure API v2 with P-256 request proof, pinned RS256 server-token verification, rotating refresh tokens, DPAPI-protected schema-v2 persistence and legacy-cache migration. The validated automation/browser/task/report/UI foundation remains scope-frozen.
+
+Detailed note: `docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md`
+
 ## v1.0.6.2 — Phase-01 forensic verification and completion — 2026-08-08
 
 Phase-01 verification/fix scope only. Removed stale pre-rebrand active paths that broke the repository contract, completed confirmed About/support/social configuration, strengthened AppConfig validation, synchronized release metadata and promoted the verified baseline to **1.0.6.2**. Automation, licensing, browser/task and UI-design behavior remain unchanged.

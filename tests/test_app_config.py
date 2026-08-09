@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from urllib.parse import urlparse
 
-from vibrapilot.app_config import APP, ABOUT, ENABLED_SOCIAL_LINKS, SOCIAL_LINKS, SUPPORT
+from vibrapilot.app_config import APP, ABOUT, ENABLED_SOCIAL_LINKS, LICENSING, SOCIAL_LINKS, SUPPORT
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -14,7 +14,7 @@ class AppConfigTest(unittest.TestCase):
         self.assertEqual(APP.app_id, "vibrapilot")
         self.assertEqual(APP.app_name, "VibraPilot")
         self.assertEqual(APP.display_name, "VibraPilot")
-        self.assertEqual(APP.version, "1.0.6.2")
+        self.assertEqual(APP.version, "1.0.6.4")
         self.assertEqual(APP.owner_name, "Vib Tools")
         self.assertEqual(APP.license_identifier, "GPL-3.0-only")
         self.assertEqual(APP.updated_date, "2026-08-08")
@@ -54,12 +54,18 @@ class AppConfigTest(unittest.TestCase):
         self.assertTrue(ENABLED_SOCIAL_LINKS)
         self.assertEqual(ENABLED_SOCIAL_LINKS[0].platform, "GitHub")
 
-    def test_phase01_config_contains_no_license_transport_secret(self):
+    def test_phase02_public_licensing_config_contains_no_secret(self):
+        self.assertEqual(LICENSING.app_id, "vibrapilot")
+        self.assertEqual(LICENSING.api_version, 2)
+        self.assertEqual(LICENSING.protocol, "licora-api-v2")
+        self.assertTrue(LICENSING.api_base_url.startswith("https://"))
+        self.assertIn("BEGIN PUBLIC KEY", LICENSING.signing_public_key_pem)
+        self.assertNotIn("PRIVATE KEY", LICENSING.signing_public_key_pem)
         for path in sorted((ROOT / "config/AppConfig").glob("*.py")):
             text = path.read_text(encoding="utf-8")
             self.assertNotIn("LICENSE_API_KEY", text, path)
-            self.assertNotIn("LICENSE_API_BASE_URL", text, path)
             self.assertNotIn("LICENSE_VERIFY_URL", text, path)
+            self.assertNotIn("BEGIN PRIVATE KEY", text, path)
 
 
 if __name__ == "__main__":

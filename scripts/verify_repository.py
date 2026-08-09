@@ -3,8 +3,8 @@
 
 This verifier deliberately avoids importing PySide6 so it can run in lightweight
 CI environments. It verifies the frozen Vib Tools design contract, backend API
-parity against the preserved v1.0.6 source baseline, source-controlled licensing,
-and key safety invariants.
+parity against the preserved v1.0.6 source baseline, Phase-02 Secure Licora API v2
+client integration, and key safety invariants.
 """
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src" / "vibrapilot"
 PRIVATE_BASELINE = ROOT / "project" / "research" / "source_baseline" / "VibraPilot_v1.0.6_original_app.py"
 BACKEND_CONTRACT = ROOT / "config" / "verification" / "backend_v1.0.6_contract.json"
+FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "phase02_step002_v1.0.6.4_fix_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -230,6 +231,23 @@ for name, expected_sha in backend_contract.get("frozen_helper_ast_sha256", {}).i
     if ast_contract_sha(node) != expected_sha:
         fail(f"backend helper implementation drift in {name}")
 
+# Phase-02-Step-002 verification-fix scope lock: operational files outside the
+# explicitly approved licensing/session fix surface must remain byte-identical to
+# the uploaded official v1.0.6.3 baseline.
+if not FIX_SCOPE_CONTRACT.is_file():
+    fail("Phase-02-Step-002 v1.0.6.4 fix-scope contract is missing")
+try:
+    fix_scope = json.loads(FIX_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"Phase-02-Step-002 fix-scope contract is invalid: {exc}")
+for relative, expected_sha in fix_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file():
+        fail(f"fix-scope frozen file is missing: {relative}")
+    actual_sha = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual_sha != expected_sha:
+        fail(f"out-of-scope file drift detected: {relative}")
+
 # Local developer check: when the private project workspace is present, prove that
 # the published machine contract still describes the private v1.0.6 baseline.
 if PRIVATE_BASELINE.is_file():
@@ -263,8 +281,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.2":
-    fail("AppConfig VERSION must be 1.0.6.2 for the verified Phase-01 baseline")
+if app_version != "1.0.6.4":
+    fail("AppConfig VERSION must be 1.0.6.4 for the Phase-02-Step-002 verification fix")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -315,14 +333,41 @@ for field in (
 
 for app_config_path in APP_CONFIG_ROOT.glob("*.py"):
     app_config_text = app_config_path.read_text(encoding="utf-8")
-    for forbidden_secret_name in ("LICENSE_API_KEY", "LICENSE_API_BASE_URL", "LICENSE_VERIFY_URL"):
+    for forbidden_secret_name in ("LICENSE_API_KEY", "LICENSE_VERIFY_URL", "BEGIN PRIVATE KEY"):
         if forbidden_secret_name in app_config_text:
             fail(
-                f"Phase-01 AppConfig must not contain licensing transport secret/config: "
+                f"Phase-02 AppConfig contains forbidden licensing secret/legacy marker: "
                 f"{app_config_path.name}:{forbidden_secret_name}"
             )
-if (APP_CONFIG_ROOT / "licensing_public.py").exists():
-    fail("licensing_public.py is reserved for Phase-02 and must not be introduced in Phase-01")
+licensing_public = APP_CONFIG_ROOT / "licensing_public.py"
+if not licensing_public.is_file():
+    fail("Phase-02 public Licora API v2 configuration is missing")
+licora_base = literal_assignment(licensing_public, "LICORA_API_BASE_URL")
+licora_version = literal_assignment(licensing_public, "LICORA_API_VERSION")
+licora_protocol = literal_assignment(licensing_public, "LICORA_PROTOCOL")
+licora_app_id = literal_assignment(licensing_public, "LICORA_APP_ID")
+licora_key_id = literal_assignment(licensing_public, "LICORA_SIGNING_KEY_ID")
+licora_public_pem = literal_assignment(licensing_public, "LICORA_SIGNING_PUBLIC_KEY_PEM")
+licora_public_sha = literal_assignment(licensing_public, "LICORA_SIGNING_PUBLIC_KEY_SHA256")
+if not isinstance(licora_base, str) or not licora_base.startswith("https://"):
+    fail("Licora API v2 base URL must be source-controlled HTTPS public configuration")
+if licora_version != 2 or licora_protocol != "licora-api-v2":
+    fail("Licora public protocol must be Secure API v2")
+if licora_app_id != app_id or licora_app_id != "vibrapilot":
+    fail("Licora App ID must match authoritative VibraPilot APP_ID")
+if not isinstance(licora_key_id, str) or not licora_key_id.strip():
+    fail("Licora signing key ID is missing")
+if not isinstance(licora_public_pem, str) or "BEGIN PUBLIC KEY" not in licora_public_pem or "PRIVATE KEY" in licora_public_pem:
+    fail("Licora pinned signing material must contain only the public key")
+if not isinstance(licora_public_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", licora_public_sha):
+    fail("Licora public-key SHA-256 must be a 64-character lowercase hex digest")
+normalized_public = licora_public_pem if licora_public_pem.endswith("\n") else licora_public_pem + "\n"
+if hashlib.sha256(normalized_public.encode("ascii")).hexdigest() != licora_public_sha:
+    fail("Licora pinned public-key SHA-256 does not match the configured PEM")
+for endpoint_name in ("LICORA_ACTIVATE_PATH", "LICORA_STATUS_PATH", "LICORA_REFRESH_PATH", "LICORA_DEACTIVATE_PATH"):
+    endpoint = literal_assignment(licensing_public, endpoint_name)
+    if not isinstance(endpoint, str) or not endpoint.startswith("/api/v2/") or not endpoint.endswith(".php"):
+        fail(f"invalid Licora API v2 endpoint path: {endpoint_name}")
 
 for marker in [
     "DISPLAY_APP_NAME = APP.display_name",
@@ -345,12 +390,14 @@ for marker in (
     '_optional_email("SUPPORT_EMAIL"',
     "if not isinstance(enabled, bool):",
     '_required_text_tuple("TARGET_FEATURES"',
+    "class LicensingPublicInfo:",
+    "LICENSING = LicensingPublicInfo(",
 ):
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.2-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.2 release path")
+if "VibraPilot-1.0.6.4-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.4 release path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})
@@ -390,23 +437,34 @@ if docs_manifest["documentation"]["version"] != app_version:
 settings_defaults = json.loads((ROOT / "config" / "settings.defaults.json").read_text(encoding="utf-8"))
 if settings_defaults.get("max_test_send_limit") != 50:
     fail("source-controlled default Test Send Limit must remain 50")
-license_base = literal_assignment(SRC / "backend.py", "LICENSE_API_BASE_URL")
-license_key = literal_assignment(SRC / "backend.py", "LICENSE_API_KEY")
-if not isinstance(license_base, str) or not license_base.startswith("https://"):
-    fail("license API base URL must remain source-controlled HTTPS")
-if not isinstance(license_key, str) or not license_key.strip():
-    fail("license API key must remain source-controlled and non-empty")
+licensing_client_path = SRC / "licensing_v2.py"
+if not licensing_client_path.is_file():
+    fail("Phase-02 Licora API v2 client module is missing")
+licensing_client_text = licensing_client_path.read_text(encoding="utf-8")
+active_licensing_text = backend_text + "\n" + licensing_client_text + "\n" + licensing_public.read_text(encoding="utf-8")
+for forbidden_marker in (
+    "LICENSE_API_KEY =", "VIB_TOOLS_LICENSE_API_KEY", '"X-API-Key"',
+    "/api/verify.php", "REPLACE_WITH_YOUR_LICORA_API_KEY", "BEGIN PRIVATE KEY",
+):
+    if forbidden_marker in active_licensing_text:
+        fail(f"Phase-02 active licensing source contains forbidden legacy/secret marker: {forbidden_marker}")
 for marker in [
-    '"X-API-Key"',
-    '"Authorization"',
-    'assert_test_mode',
-    'SendClickOutcomeUncertain',
-    'safe_spreadsheet_cell',
+    "LicoraV2Client", "generate_device_key_material", "load_device_key_material",
+    "ec.SECP256R1()", "padding.PKCS1v15()", "hashes.SHA256()",
+    'headers["Authorization"] = "Bearer " + access_token',
+    "LICENSING.activate_path", "LICENSING.status_path", "LICENSING.refresh_path",
+    "LICENSING.deactivate_path", "device_private_key_protected",
+    "refresh_token_protected", "os.replace(temporary, LICENSE_FILE)",
 ]:
+    if marker not in active_licensing_text:
+        fail(f"required Secure API v2 invariant marker missing: {marker}")
+for marker in ['assert_test_mode', 'SendClickOutcomeUncertain', 'safe_spreadsheet_cell']:
     if marker not in backend_text:
-        fail(f"required backend invariant marker missing: {marker}")
-if "VIB_TOOLS_LICENSE_API_KEY" in backend_text or "os.environ.get(\"VIB_TOOLS_LICENSE_API_KEY\"" in backend_text:
-    fail("environment/PowerShell API-key injection must not be present")
+        fail(f"required frozen backend invariant marker missing: {marker}")
+requirements_text = (ROOT / "requirements.txt").read_text(encoding="utf-8")
+requirements_build_text = (ROOT / "requirements-build.txt").read_text(encoding="utf-8")
+if "cryptography" not in requirements_text or "cryptography" not in requirements_build_text:
+    fail("cryptography must be declared for runtime and build dependencies")
 
 # Approved Settings-page/runtime scope.
 for key in ("default_full_name", "default_number", "fallback_name", "update_click_count"):
@@ -648,13 +706,13 @@ for path in ROOT.rglob("*"):
     except UnicodeDecodeError:
         continue
     scan_text = text
-    if path == SRC / "backend.py":
-        # v1.0.6 private deployment intentionally source-controls one application
-        # API key. Validate that contract in step 5, then remove only that assignment
-        # from the generic secret scan so unrelated embedded credentials still fail.
-        scan_text = re.sub(r'^LICENSE_API_KEY\s*=.*$', 'LICENSE_API_KEY = "SOURCE_CONTROLLED"', scan_text, flags=re.MULTILINE)
-    if re.search(r"(?i)(?:api[_ -]?key|x-api-key)\s*[:=]\s*['\"](?!REPLACE_|YOUR_|example|demo|SOURCE_CONTROLLED)[A-Za-z0-9_-]{32,}['\"]", scan_text):
+    if re.search(r"(?i)(?:api[_ -]?key|x-api-key)\s*[:=]\s*['\"](?!REPLACE_|YOUR_|example|demo)[A-Za-z0-9_-]{32,}['\"]", scan_text):
         fail(f"possible hard-coded real API key in {path.relative_to(ROOT)}")
+    if re.search(
+        r"-----BEGIN (?:RSA )?PRIVATE KEY-----\s+[A-Za-z0-9+/=\r\n]+-----END (?:RSA )?PRIVATE KEY-----",
+        scan_text,
+    ):
+        fail(f"private signing/key material present in {path.relative_to(ROOT)}")
 for forbidden in ["includes/config.local.php", ".licora-encryption.key", ".env.production"]:
     if (ROOT / forbidden).exists():
         fail(f"private deployment artifact present: {forbidden}")
@@ -679,14 +737,18 @@ required = [
     "README.md", "CHANGELOG.md", "UPDATE_LOG.md", "VERSIONING.md", "LICENSE", "NOTICE", "pyproject.toml", "requirements.txt", "requirements-build.txt",
     "run.py", "build.py", "config/settings.defaults.json", "config/__init__.py", "config/AppConfig/__init__.py",
     "config/AppConfig/app.py", "config/AppConfig/about.py", "config/AppConfig/support.py", "config/AppConfig/social.py",
-    "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/data_io.py",
+    "config/AppConfig/licensing_public.py", "config/verification/phase02_step002_scope.json", "config/verification/phase02_step002_v1.0.6.4_fix_scope.json",
+    "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py",
     "src/vibrapilot/qt_app.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
     "docs/updates/v1.0.6.1-vibrapilot-branding.md", "docs/updates/v1.0.6.1-github-ci-repository-hygiene-fix.md",
     "docs/updates/v1.0.6.1-github-ci-deterministic-ast-contract-fix.md",
     "docs/configuration/APPCONFIG.md", "docs/updates/v1.0.6.1-phase-01-appconfig.md",
     "docs/updates/v1.0.6.2-phase-01-verification-fix.md",
-    "docs/verification/PHASE01_V1.0.6.2_VERIFICATION.md", "tests/test_app_config_validation.py",
+    "docs/verification/PHASE01_V1.0.6.2_VERIFICATION.md", "docs/verification/PHASE02_STEP002_V1.0.6.3_VERIFICATION.md",
+    "docs/verification/PHASE02_STEP002_V1.0.6.4_FORENSIC_VERIFICATION.md",
+    "docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md", "docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md", "tests/test_app_config_validation.py",
+    "tests/test_licensing_v2_crypto.py", "tests/test_licensing_v2_client.py", "tests/test_license_manager_v2.py", "tests/test_phase02_scope_freeze.py", "tests/test_phase02_step002_fix_scope.py",
     "scripts/maintenance/Apply-v1.0.6.2-Phase01-Fix.cmd",
     "scripts/maintenance/PHASE01_V1.0.6.2_DELETE_PATHS.txt",
     "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",

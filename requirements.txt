@@ -5,3 +5,5 @@ playwright==1.61.0
 openpyxl==3.1.5
 xlrd==2.0.2
 defusedxml==0.7.1
+
+cryptography>=49,<50

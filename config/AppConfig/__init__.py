@@ -1,9 +1,9 @@
 """Authoritative internal application metadata for VibraPilot.
 
-Phase-01 contains public/non-secret product, About, support and social metadata.
-Licensing transport/security configuration is intentionally reserved for Phase-02.
+Phase-02 adds public Licora Secure API v2 transport and server-signing metadata.
+No shared API key or private signing material is stored in AppConfig.
 """
 
-from . import about, app, social, support
+from . import about, app, licensing_public, social, support
 
-__all__ = ["app", "about", "support", "social"]
+__all__ = ["app", "about", "support", "social", "licensing_public"]

@@ -6,3 +6,5 @@ openpyxl==3.1.5
 xlrd==2.0.2
 defusedxml==0.7.1
 pyinstaller==6.21.0
+
+cryptography>=49,<50
