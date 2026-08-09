@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import json
 import os
 import tempfile
@@ -7,6 +8,15 @@ from pathlib import Path
 
 # Keep test runtime writes outside the repository.
 os.environ.setdefault("VIB_TOOLS_DATA_DIR", tempfile.mkdtemp(prefix="vibrapilot-settings-test-"))
+
+
+# Standard-library unittest discovery does not consume pytest's ``pythonpath``
+# configuration. Add the repository ``src`` layout explicitly so the documented
+# direct unittest command works without shell-specific PYTHONPATH setup.
+_TEST_ROOT = Path(__file__).resolve().parents[1]
+_TEST_SRC = _TEST_ROOT / "src"
+if str(_TEST_SRC) not in sys.path:
+    sys.path.insert(0, str(_TEST_SRC))
 
 from vibrapilot.backend import (
     DEFAULT_SETTINGS,

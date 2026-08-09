@@ -9,7 +9,7 @@
 
 The uploaded v1.0.6.3 archive passed ZIP integrity checking. Excluding gitignored runtime/private/cache paths, its source content matched the previously verified v1.0.6.3 Phase-02-Step-002 source. The archive itself was not release-clean because it included ignored runtime/private/cache trees such as `AppData/`, `Logs/`, `project/`, `__pycache__/` and `.pytest_cache/`. Runtime secret values were treated as private and were not copied into the corrected release.
 
-Before the v1.0.6.4 correction, `compileall`, repository verification and the CI-style unittest suite passed. The documented plain pytest command exposed a repository import-path mismatch because pytest had not been configured with `src`. This was a verification/packaging-contract defect rather than an application licensing-protocol defect.
+Before the v1.0.6.4 correction, `compileall`, repository verification and the CI-style unittest suite passed. The documented plain pytest command exposed a repository import-path mismatch because pytest had not been configured with `src`. A later Windows Command Prompt verification also exposed that the documented unittest setup used PowerShell-only `$env:PYTHONPATH` syntax; when that line failed, direct unittest discovery could not import the `src/vibrapilot` package. Both are verification/test-runner portability defects rather than application licensing-protocol defects.
 
 ## Verified defects and root causes
 
@@ -22,6 +22,7 @@ Before the v1.0.6.4 correction, `compileall`, repository verification and the CI
 - Repeated `is_activated()` calls could repeat RSA public-key parsing and RS256 verification for the same access token.
 - The supplied archive included private/runtime/cache data contrary to `.gitignore` and release-source policy.
 - The plain pytest command in documentation did not match import behavior.
+- Standard-library unittest discovery depended on an external `PYTHONPATH`, while the documented setup line used PowerShell-only syntax and failed when pasted into Windows Command Prompt.
 
 ## Corrected invariants
 
@@ -35,6 +36,7 @@ Before the v1.0.6.4 correction, `compileall`, repository verification and the CI
 8. Cache writes flush/fsync before atomic replace.
 9. Official release outputs exclude all forbidden runtime/private/cache paths.
 10. Plain pytest imports the `src` package through `pyproject.toml`.
+11. Test modules that import `vibrapilot` bootstrap the repository `src` directory themselves, so direct unittest discovery is shell-independent and requires no external `PYTHONPATH`.
 
 ## Frozen-scope verification
 
@@ -57,7 +59,7 @@ Forensic working tree with the private comparison baseline present:
 python -m compileall -q .                         PASS
 python scripts/verify_repository.py               PASS
 python -m pytest -q                               98 passed, 61 subtests passed
-PYTHONPATH=src python -m unittest ...              56 tests, OK
+python -m unittest discover -s tests -p "test_*.py" -v   56 tests, OK
 ```
 
 Clean public/release-source staging with private `project/` intentionally absent:
@@ -66,7 +68,7 @@ Clean public/release-source staging with private `project/` intentionally absent
 python -m compileall -q .                         PASS
 python scripts/verify_repository.py               PASS
 python -m pytest -q                               97 passed, 1 skipped, 61 subtests passed
-PYTHONPATH=src python -m unittest ...              56 tests, OK, 1 skipped
+python -m unittest discover -s tests -p "test_*.py" -v   56 tests, OK, 1 skipped
 ```
 
 The single clean-staging skip is the optional comparison against the private gitignored `project/` baseline. The source-controlled backend contract, original Phase-02 AST freeze and v1.0.6.4 file-scope contract remain active in public verification.

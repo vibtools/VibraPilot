@@ -1,8 +1,18 @@
 from __future__ import annotations
 
+import sys
 import unittest
 from pathlib import Path
 from urllib.parse import urlparse
+
+
+# Standard-library unittest discovery does not consume pytest's ``pythonpath``
+# configuration. Add the repository ``src`` layout explicitly so the documented
+# direct unittest command works without shell-specific PYTHONPATH setup.
+_TEST_ROOT = Path(__file__).resolve().parents[1]
+_TEST_SRC = _TEST_ROOT / "src"
+if str(_TEST_SRC) not in sys.path:
+    sys.path.insert(0, str(_TEST_SRC))
 
 from vibrapilot.app_config import APP, ABOUT, ENABLED_SOCIAL_LINKS, LICENSING, SOCIAL_LINKS, SUPPORT
 

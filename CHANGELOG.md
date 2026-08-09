@@ -12,6 +12,7 @@
 - Add crash-safer license-cache writes using flush/fsync before atomic `os.replace()`.
 - Correct release-source hygiene after the supplied v1.0.6.3 archive was found to contain gitignored runtime/private/cache paths.
 - Configure pytest source imports so the documented plain `python -m pytest -q` invocation matches repository behavior.
+- Make the documented direct `python -m unittest discover -s tests -p "test_*.py" -v` command self-contained by bootstrapping the repository `src` layout inside the ten unittest modules that import `vibrapilot`; this removes the Command Prompt/PowerShell `PYTHONPATH` mismatch without changing runtime application code.
 
 ### Verification
 

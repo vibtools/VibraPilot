@@ -1,4 +1,6 @@
 # Keep source/config/documentation text deterministic across Windows/Linux CI.
+.gitattributes text eol=lf
+.gitignore text eol=lf
 *.py text eol=lf
 *.json text eol=lf
 *.svg text eol=lf
@@ -8,6 +10,7 @@
 *.yaml text eol=lf
 *.cff text eol=lf
 *.ygit text eol=lf
+*.txt text eol=lf
 
 # Binary assets/artifacts must never be line-ending normalized.
 *.ico binary

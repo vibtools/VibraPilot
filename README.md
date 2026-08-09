@@ -108,11 +108,10 @@ Historical Phase-01 and v1.0.6.1 notes remain under `docs/updates/` and `docs/ve
 ```powershell
 python scripts/verify_repository.py
 python -m pytest -q
-$env:PYTHONPATH = "$PWD\src"
 python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-`pyproject.toml` configures pytest to import from `src` directly. The explicit `PYTHONPATH` line keeps the standard-library unittest invocation equivalent to CI.
+`pyproject.toml` configures pytest to import from `src`. The unittest modules now bootstrap the repository `src` layout themselves, so the same direct unittest command works in Command Prompt and PowerShell without shell-specific `PYTHONPATH` syntax.
 
 The verifier checks the frozen Vib Tools design source, backend parity contract, Phase-02 scope hashes, AppConfig/static metadata consistency, Secure API v2 public-key/endpoint invariants, secret hygiene, safety behavior, branding/icons and repository structure.
 

@@ -2,7 +2,7 @@
 
 ## v1.0.6.4 — Phase-02-Step-002 forensic verification/fix — 2026-08-08
 
-Audited the user-frozen v1.0.6.3 archive and corrected only verified Phase-02-Step-002 defects: persistent device-key continuity, pre-request device-key durability, one-shot refresh ambiguity persistence, non-blocking license validation state access, startup secure-session restore, expired-token periodic recheck, cached local token verification and release-package privacy/hygiene. Expanded crypto/protocol/persistence/scope tests and synchronized version/documentation metadata. The validated automation/browser/task/report/safety/UI foundation remains frozen.
+Audited the user-frozen v1.0.6.3 archive and corrected only verified Phase-02-Step-002 defects: persistent device-key continuity, pre-request device-key durability, one-shot refresh ambiguity persistence, non-blocking license validation state access, startup secure-session restore, expired-token periodic recheck, cached local token verification and release-package privacy/hygiene. Expanded crypto/protocol/persistence/scope tests and synchronized version/documentation metadata. The validated automation/browser/task/report/safety/UI foundation remains frozen. A follow-up verification-only portability correction makes direct standard-library unittest discovery import the `src` layout without requiring shell-specific `PYTHONPATH` syntax; runtime application files remain untouched.
 
 Detailed note: `docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md`
 Forensic report: `docs/verification/PHASE02_STEP002_V1.0.6.4_FORENSIC_VERIFICATION.md`

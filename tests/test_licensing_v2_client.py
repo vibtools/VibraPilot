@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 import base64
 import hashlib
 import json
@@ -11,6 +13,15 @@ from urllib.parse import urlparse
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
+
+
+# Standard-library unittest discovery does not consume pytest's ``pythonpath``
+# configuration. Add the repository ``src`` layout explicitly so the documented
+# direct unittest command works without shell-specific PYTHONPATH setup.
+_TEST_ROOT = Path(__file__).resolve().parents[1]
+_TEST_SRC = _TEST_ROOT / "src"
+if str(_TEST_SRC) not in sys.path:
+    sys.path.insert(0, str(_TEST_SRC))
 
 from vibrapilot.app_config import LICENSING
 from vibrapilot.licensing_v2 import LicoraV2Client, LicoraV2Error, generate_device_key_material

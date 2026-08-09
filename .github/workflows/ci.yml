@@ -31,5 +31,13 @@ jobs:
       - name: Static repository verification
         run: python scripts/verify_repository.py
 
-      - name: Contract tests
-        run: python -m unittest discover -s tests -v
+      - name: Install test and runtime dependencies
+        run: |
+          python -m pip install --disable-pip-version-check -r requirements.txt
+          python -m pip install --disable-pip-version-check pytest
+
+      - name: Full pytest suite
+        run: python -m pytest -q
+
+      - name: Standard-library unittest compatibility
+        run: python -m unittest discover -s tests -p "test_*.py" -v

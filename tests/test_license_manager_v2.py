@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import base64
 import hashlib
 import json
@@ -10,6 +11,15 @@ import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+
+
+# Standard-library unittest discovery does not consume pytest's ``pythonpath``
+# configuration. Add the repository ``src`` layout explicitly so the documented
+# direct unittest command works without shell-specific PYTHONPATH setup.
+_TEST_ROOT = Path(__file__).resolve().parents[1]
+_TEST_SRC = _TEST_ROOT / "src"
+if str(_TEST_SRC) not in sys.path:
+    sys.path.insert(0, str(_TEST_SRC))
 
 from vibrapilot import backend
 

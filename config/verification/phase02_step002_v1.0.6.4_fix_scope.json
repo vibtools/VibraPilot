@@ -9,8 +9,8 @@
     "src/vibrapilot/qt_app.py"
   ],
   "frozen_file_sha256": {
-    ".gitattributes": "4add1010d7c345be7ee3f1891b4b53bf2984f453377c989ed8dcb47b808a2bbd",
-    ".github/workflows/ci.yml": "5685b6f56953e8c65413167d187c5d5d9b38778e95b5481762facb53d01e7d09",
+    ".gitattributes": "d7ca4a14533071a739cd1d3b8da157464261e4f4ffeb1e5e0be1ab42b433360f",
+    ".github/workflows/ci.yml": "a722955f9860315f77abdeb8b75cd1bfc269db24e8d46d437dd678917ba258a3",
     ".gitignore": "e8f0993497da0245e507792decd0a0d347b44699bec06ca26e968d2f0b3a3288",
     "assets/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "assets/fonts/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
