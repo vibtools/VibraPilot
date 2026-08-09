@@ -1,10 +1,17 @@
+## v1.0.6.16 — Workspace persistence verification / CI fix — 2026-08-09
+
+Re-verified v1.0.6.15 against Windows CMD and GitHub Actions job `93315001000`. The only executable CI failure was a historical v1.0.6.12 Qt test fixture missing the new `MainWindow.schedule_workspace_save` callback. Production runtime and database implementation are unchanged.
+
+Detailed note: `docs/updates/v1.0.6.16-workspace-persistence-verification-fix.md`
+Verification: `docs/verification/V1.0.6.16_WORKSPACE_PERSISTENCE_FORENSIC_VERIFICATION.md`
+
 ## v1.0.6.15 — Workspace persistence — 2026-08-09
 
 Implemented `VP-WORKSPACE-PERSISTENCE-001` against the verified v1.0.6.14 baseline. VibraPilot now stores lightweight active-workspace metadata atomically in the existing `APP_STATE_FILE`, restores visible Task slots/order and their existing SQLite runtime state, preserves selected-page and safe window geometry, and saves before clean exit/logout/license-invalid teardown. Restored Tasks always return with Browser Closed and Login Not Verified; automation never starts automatically.
 
 Closed Task recovery from v1.0.6.14 remains separate and unchanged. No TaskRuntimeStore schema, Browser Settings, profile architecture, licensing, workflow or dependency change is included.
 
-Detailed note: `docs/updates/v1.0.6.15-workspace-persistence.md`  
+Detailed note: `docs/updates/v1.0.6.15-workspace-persistence.md`
 Verification: `docs/verification/V1.0.6.15_WORKSPACE_PERSISTENCE_VERIFICATION.md`
 
 ## v1.0.6.14 — Managed persistent browser + Closed Task recovery — 2026-08-09
@@ -13,7 +20,7 @@ Implemented the approved `VP-MANAGED-PERSISTENT-BROWSER-001` scope together with
 
 `Close Task` now archives the exact Task runtime snapshot before removing the card. **Open Closed Tasks** restores deliberately closed Tasks with the same slot ID/run ID, recipient rows, progress/counts, target URL, send-limit/manual-review state and result continuity; browser/workflow/Send remain closed/stopped until explicit user action. Existing SQLite schema version 1 is unchanged.
 
-Detailed note: `docs/updates/v1.0.6.14-managed-persistent-browser-closed-task-recovery.md`  
+Detailed note: `docs/updates/v1.0.6.14-managed-persistent-browser-closed-task-recovery.md`
 Verification: `docs/verification/V1.0.6.14_MANAGED_PERSISTENT_BROWSER_CLOSED_TASK_VERIFICATION.md`
 
 # Update Log
@@ -24,7 +31,7 @@ Verified the complete v1.0.6.12 `VP-BROWSER-UI-LIFECYCLE-001` implementation aga
 
 v1.0.6.13 changes no production runtime source. It hardens only the verification harness, adds an exact no-runtime-change scope lock, synchronizes documentation/version metadata, and records the uploaded baseline archive hygiene finding.
 
-Detailed note: `docs/updates/v1.0.6.13-phase01-verification-ci-fix.md`  
+Detailed note: `docs/updates/v1.0.6.13-phase01-verification-ci-fix.md`
 Verification: `docs/verification/V1.0.6.13_PHASE01_FORENSIC_VERIFICATION.md`
 
 ## v1.0.6.12 — VP-BROWSER-UI-LIFECYCLE-001 — 2026-08-09

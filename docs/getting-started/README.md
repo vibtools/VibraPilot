@@ -1,3 +1,7 @@
+## v1.0.6.16 acceptance
+
+Run repository verifier, pytest and unittest on Windows; the historical browser lifecycle Qt test must construct successfully while v1.0.6.15 workspace behavior stays unchanged.
+
 ## v1.0.6.15 workspace acceptance
 
 After applying the v1.0.6.15 candidate, verify that active Tasks survive app restart/logout-relogin with the same slot IDs/order, Target URLs and data/progress, while every restored browser remains Closed and Login Not Verified. Also verify selected-page and window geometry restoration, Closed Tasks staying archived, corrupt `state.json` fallback, and no automatic workflow/Send.

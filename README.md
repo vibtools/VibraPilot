@@ -1,4 +1,8 @@
-# VibraPilot v1.0.6.15 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.16 — Vib Tools Browser Automation Desktop
+
+## v1.0.6.16 Workspace persistence verification fix
+
+This release verifies the complete v1.0.6.15 workspace-persistence implementation and corrects only the stale historical Qt test fixture. Production runtime behavior remains unchanged.
 
 ## v1.0.6.15 Active workspace persistence
 

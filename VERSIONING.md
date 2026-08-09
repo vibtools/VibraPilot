@@ -1,3 +1,7 @@
+## v1.0.6.16 — Workspace persistence verification fix
+
+Patch release preserving v1.0.6.15 production runtime byte-for-byte while correcting CI/test-harness compatibility and documentation formatting.
+
 ## v1.0.6.15 — Workspace persistence
 
 Patch release for `VP-WORKSPACE-PERSISTENCE-001`. No TaskRuntimeStore schema, settings-key, browser-profile or dependency change. The version remains a candidate until Windows runtime and GitHub CI acceptance are green.

@@ -1,3 +1,7 @@
+## v1.0.6.16 verification fix
+
+The v1.0.6.15 workspace runtime is unchanged; v1.0.6.16 fixes the historical Qt fixture and records forensic CI verification.
+
 ## v1.0.6.15 workspace persistence
 
 The current candidate restores normal active Task cards, selected page and safe window geometry from atomic workspace metadata while reusing the unchanged SQLite Task runtime data. Browser/login/workflow/Send remain closed until explicit user action. See `updates/v1.0.6.15-workspace-persistence.md` and `verification/V1.0.6.15_WORKSPACE_PERSISTENCE_VERIFICATION.md`.

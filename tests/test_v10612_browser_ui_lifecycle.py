@@ -281,7 +281,7 @@ class BrowserLifecycleQtTest(unittest.TestCase):
             def get(self, key, default=None):
                 return self.data.get(key, default)
 
-        fake = SimpleNamespace(settings=Settings())
+        fake = SimpleNamespace(settings=Settings(), schedule_workspace_save=lambda: None)
         slot = TaskSlotWidget(fake, 1)
         return slot
 

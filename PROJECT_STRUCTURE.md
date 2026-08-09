@@ -1,3 +1,10 @@
+## v1.0.6.16 verification surface
+
+- `config/verification/v1.0.6.16_workspace_persistence_verification_fix_scope.json`
+- `tests/test_v10616_workspace_persistence_verification_fix.py`
+- `docs/updates/v1.0.6.16-workspace-persistence-verification-fix.md`
+- `docs/verification/V1.0.6.16_WORKSPACE_PERSISTENCE_FORENSIC_VERIFICATION.md`
+
 ## v1.0.6.15 workspace persistence addition
 
 - `src/vibrapilot/workspace_state.py` — atomic lightweight workspace metadata store.

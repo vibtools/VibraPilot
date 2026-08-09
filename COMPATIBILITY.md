@@ -1,3 +1,7 @@
+## v1.0.6.16 verification compatibility
+
+The v1.0.6.15 workspace runtime contract is unchanged. The historical Qt lifecycle fixture now models the workspace-save callback introduced by v1.0.6.15.
+
 ## v1.0.6.15 workspace-state compatibility
 
 Workspace metadata uses schema version 1 in `AppData/state.json`. Missing/corrupt/unsupported state safely falls back to the existing v1.0.6.14 startup/recovery behavior. Active Task data continues to come from the unchanged TaskRuntimeStore schema version 1, and managed browser profiles remain keyed by the restored slot ID.

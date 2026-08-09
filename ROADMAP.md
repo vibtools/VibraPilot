@@ -1,3 +1,9 @@
+## Phase-03 verification/fix — v1.0.6.16
+
+`VP-WORKSPACE-PERSISTENCE-001` runtime remains byte-frozen from v1.0.6.15. GitHub Actions job `93315001000` failed because the historical v1.0.6.12 Qt fixture lacked `schedule_workspace_save`. v1.0.6.16 corrects verification only.
+
+**Next after v1.0.6.16 verified:** `VP-BROWSER-CAPABILITIES-001`.
+
 ## Phase-03 implementation candidate — v1.0.6.15
 
 v1.0.6.14 `VP-MANAGED-PERSISTENT-BROWSER-001` plus `VP-CLOSED-TASK-RECOVERY-001` is treated as the verified baseline after the supplied Windows/manual gate and green GitHub Actions run `31337925846`.

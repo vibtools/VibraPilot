@@ -1,3 +1,15 @@
+## v1.0.6.16 — Workspace persistence verification / CI fix — 2026-08-09
+
+### Fixed
+
+- Corrected the historical v1.0.6.12 Qt lifecycle test fixture so it provides the v1.0.6.15 `schedule_workspace_save` MainWindow contract when constructing `TaskSlotWidget` in isolation.
+- Removed known trailing whitespace from `UPDATE_LOG.md`.
+
+### Verification / compatibility
+
+- **No production runtime source changes.** The v1.0.6.15 runtime/database/browser/workflow implementation remains byte-frozen.
+- GitHub Actions job `93315001000` failed from stale test-fixture interface drift, not a production runtime/database defect.
+
 # Changelog
 
 ## v1.0.6.15 — Active workspace persistence — 2026-08-09

@@ -33,6 +33,7 @@ BROWSER_UI_LIFECYCLE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6
 PHASE01_VERIFICATION_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.13_phase01_verification_ci_fix_scope.json"
 MANAGED_BROWSER_CLOSED_TASK_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.14_managed_persistent_browser_closed_task_scope.json"
 WORKSPACE_PERSISTENCE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.15_workspace_persistence_scope.json"
+WORKSPACE_PERSISTENCE_VERIFICATION_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.16_workspace_persistence_verification_fix_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -361,6 +362,20 @@ for relative, expected_sha in workspace_scope.get("frozen_file_sha256", {}).item
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.15 frozen file drift detected: {relative}")
+
+if not WORKSPACE_PERSISTENCE_VERIFICATION_FIX_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.16 workspace verification-fix scope contract is missing")
+workspace_fix_scope = json.loads(WORKSPACE_PERSISTENCE_VERIFICATION_FIX_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+if workspace_fix_scope.get("official_baseline_github_commit") != "564dc159856e2e3255a1d8c101086e291bdca110" or workspace_fix_scope.get("target_version") != "1.0.6.16":
+    fail("v1.0.6.16 verification scope identity mismatch")
+if workspace_fix_scope.get("no_production_runtime_change") is not True or workspace_fix_scope.get("required_taskruntime_schema_version") != 1:
+    fail("v1.0.6.16 runtime/database boundary mismatch")
+for relative, expected_sha in workspace_fix_scope.get("runtime_byte_frozen_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.16 production runtime drift detected: {relative}")
+if "schedule_workspace_save=lambda: None" not in (ROOT / "tests/test_v10612_browser_ui_lifecycle.py").read_text(encoding="utf-8"):
+    fail("v1.0.6.16 Qt fixture workspace-save callback is missing")
 
 for relative, expected_sha in managed_scope.get("approved_target_file_sha256", {}).items():
     if relative in workspace_allowed_files:
@@ -865,8 +880,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.15":
-    fail("AppConfig VERSION must be 1.0.6.15 for the workspace persistence release")
+if app_version != "1.0.6.16":
+    fail("AppConfig VERSION must be 1.0.6.16 for the workspace persistence verification release")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -980,8 +995,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.15-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.15 release path")
+if "VibraPilot-1.0.6.16-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.16 release path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})
@@ -1510,6 +1525,7 @@ required = [
     "config/verification/v1.0.6.13_phase01_verification_ci_fix_scope.json",
     "config/verification/v1.0.6.14_managed_persistent_browser_closed_task_scope.json",
     "config/verification/v1.0.6.15_workspace_persistence_scope.json",
+    "config/verification/v1.0.6.16_workspace_persistence_verification_fix_scope.json",
     "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
     "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "src/vibrapilot/workspace_state.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
@@ -1530,6 +1546,7 @@ required = [
     "docs/verification/V1.0.6.13_PHASE01_FORENSIC_VERIFICATION.md",
     "docs/verification/V1.0.6.14_MANAGED_PERSISTENT_BROWSER_CLOSED_TASK_VERIFICATION.md",
     "docs/verification/V1.0.6.15_WORKSPACE_PERSISTENCE_VERIFICATION.md",
+    "docs/verification/V1.0.6.16_WORKSPACE_PERSISTENCE_FORENSIC_VERIFICATION.md",
     "docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md", "docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md",
     "docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md",
     "docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md",
@@ -1542,6 +1559,7 @@ required = [
     "docs/updates/v1.0.6.13-phase01-verification-ci-fix.md",
     "docs/updates/v1.0.6.14-managed-persistent-browser-closed-task-recovery.md",
     "docs/updates/v1.0.6.15-workspace-persistence.md",
+    "docs/updates/v1.0.6.16-workspace-persistence-verification-fix.md",
     "scripts/verify_source_archive.py", "tests/test_v1067_verification_fix.py", "tests/test_app_config_validation.py",
     "tests/test_licensing_v2_crypto.py", "tests/test_licensing_v2_client.py", "tests/test_license_manager_v2.py", "tests/test_phase02_scope_freeze.py", "tests/test_phase02_step002_fix_scope.py",
     "tests/test_production_scope_freeze.py", "tests/test_task_runtime_store.py", "tests/test_task_recovery.py",
@@ -1556,6 +1574,7 @@ required = [
     "tests/test_v10613_phase01_verification_fix.py",
     "tests/test_v10614_managed_persistent_browser.py",
     "tests/test_v10615_workspace_persistence.py",
+    "tests/test_v10616_workspace_persistence_verification_fix.py",
     "scripts/maintenance/Apply-v1.0.6.2-Phase01-Fix.cmd",
     "scripts/maintenance/PHASE01_V1.0.6.2_DELETE_PATHS.txt",
     "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",

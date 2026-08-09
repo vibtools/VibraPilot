@@ -1,0 +1,32 @@
+{
+  "contract_name": "VibraPilot v1.0.6.16 workspace persistence verification fix scope lock",
+  "plan_ids": [
+    "VP-WORKSPACE-PERSISTENCE-001-VERIFICATION-FIX"
+  ],
+  "official_baseline": "VibraPilot v1.0.6.15",
+  "official_baseline_archive": "VibraPilot_v1.0.6.15_Baseline.zip",
+  "official_baseline_archive_sha256": "92648c9754889eeb1f93e608fb88e9e8bbcc9024788ebf36ad3970c40554900f",
+  "official_baseline_github_commit": "564dc159856e2e3255a1d8c101086e291bdca110",
+  "failed_github_actions_run": 31341145782,
+  "failed_github_actions_job": 93315001000,
+  "target_version": "1.0.6.16",
+  "no_production_runtime_change": true,
+  "no_database_schema_change": true,
+  "required_taskruntime_schema_version": 1,
+  "no_settings_key_change": true,
+  "no_new_dependency": true,
+  "approved_verification_changes": [
+    "tests/test_v10612_browser_ui_lifecycle.py",
+    "tests/test_v10616_workspace_persistence_verification_fix.py",
+    "scripts/verify_repository.py"
+  ],
+  "runtime_byte_frozen_sha256": {
+    "src/vibrapilot/qt_app.py": "62a0eb5b0ad54423e16da3238e6815959ba8bcd604fb051758626e163be577a2",
+    "src/vibrapilot/workspace_state.py": "7b4af52a304b449504ed1a8b7333ed4738fac08a49cf431acb60e57936219ccd",
+    "src/vibrapilot/backend.py": "ef3a32f721273e242ae732a109a6e562f20bb115c1a8593affce541b13ffb15c",
+    "src/vibrapilot/task_runtime_store.py": "b4b581c936479a6a3f334170c033bae53f1d216e562cc1aff8b3e54e728dcf26",
+    "config/settings.defaults.json": "64c0377a5a84167bdd480b8302d3ca7ac7c9b0db89d56df0d118bf5566444b76"
+  },
+  "root_cause": "Historical v1.0.6.12 Qt test fixture did not provide MainWindow.schedule_workspace_save after v1.0.6.15 connected TaskUrlInput.editingFinished to that callback.",
+  "fix": "Update test fixture interface only; keep production runtime byte-frozen."
+}
