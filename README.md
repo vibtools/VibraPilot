@@ -1,6 +1,14 @@
-# VibraPilot v1.0.6.12 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.13 — Vib Tools Browser Automation Desktop
 
-**VibraPilot v1.0.6.12** is the scope-locked `VP-BROWSER-UI-LIFECYCLE-001` production-hardening candidate built from the exact user-frozen v1.0.6.11 baseline archive SHA-256 `9ecb7cd66f24832c3555d219a6f8aaf47358877dd417eeb703b5a755964fc90a` and GitHub v1.0.6.11 commit `8670415b1df221ebeeb7d8f3fba4f991a91d43ec`. Runtime changes are limited to `src/vibrapilot/backend.py` and `src/vibrapilot/qt_app.py`.
+**VibraPilot v1.0.6.13** is the verification/CI-stability correction built from the exact user-frozen v1.0.6.12 archive SHA-256 `becd6add21d377e98e458ce856c9c3baa710a113459bde0c737507c122c2a9b5` and GitHub v1.0.6.12 commit `a9cfec319285db2fb9fbff8d4bf0ede8ac87686b`. The v1.0.6.12 Phase-01 browser lifecycle runtime is byte-frozen in this correction; no production runtime source file changes.
+
+## v1.0.6.13 Phase-01 verification / CI stability correction
+
+GitHub Actions run `31331345666` proved the v1.0.6.12 repository verifier, dependency installation, full pytest suite and all Phase-01 browser lifecycle tests green. The only failing step was the second, standard-library `unittest` pass: the four-worker SQLite correctness stress test used a fixed 15-second completion threshold, and a hosted Windows runner exceeded that wall-clock threshold while threads were still making durable progress. The assertion then exited while a writer still held the SQLite file, creating a secondary `WinError 32` during temporary-directory cleanup.
+
+v1.0.6.13 corrects only that verification harness: the concurrency test now uses a bounded 60-second deadlock guard and cleanup-tolerant temporary directory semantics. It remains a correctness/isolation test rather than an artificial storage-throughput SLA. `TaskRuntimeStore`, Phase-01 browser runtime, licensing, Browser Settings, Workflow Inputs, selectors and Task workflow are unchanged.
+
+The uploaded v1.0.6.12 development archive also contains runtime/cache/private-development material, so it is valid as the forensic input baseline but not as a clean public source artifact. v1.0.6.13 release-source packaging must exclude runtime/cache paths, and public source must exclude the private `project/` workspace.
 
 ## v1.0.6.12 Browser UI/lifecycle hardening
 

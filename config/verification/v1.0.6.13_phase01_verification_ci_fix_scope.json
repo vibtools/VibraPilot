@@ -1,0 +1,50 @@
+{
+  "allowed_runtime_source_changes": [],
+  "approved_verification_file_changes": [
+    "tests/test_task_runtime_store.py",
+    "scripts/verify_repository.py",
+    "tests/test_v10613_phase01_verification_fix.py"
+  ],
+  "concurrency_test_timeout_seconds": 60.0,
+  "contract_name": "VibraPilot v1.0.6.13 Phase-01 verification/CI fix scope lock",
+  "frozen_runtime_file_sha256": {
+    "config/AppConfig/licensing_public.py": "f1311c5e8cb18f31b322d65d30ed2ca074dbc1274911a2055f6a066b16c7c7ad",
+    "config/settings.defaults.json": "cee3a7a688af488a22dc0f871f161a3e66ce454cd68c5a4ffa50824a13ef968d",
+    "config/verification/v1.0.6.12_browser_ui_lifecycle_scope.json": "26b2ced74aa18a42bb7aeef68cfbb340b61d0388079c356ad7b08a964a7b69e1",
+    "src/vibrapilot/backend.py": "55c100824ef6276e1d3479aea7695263cc1f74beddb0c99b613def604bff301d",
+    "src/vibrapilot/data_io.py": "ac8adddec1cfc2ba6784562c7f85e18ceb4da6d7906edac3296f79ed48af3c31",
+    "src/vibrapilot/licensing_v2.py": "36435d05593785b7ec02310dcf2d031342524e95d5be6212591a09277699a91b",
+    "src/vibrapilot/qt_app.py": "6eb4eca8b6f283ae7cb4a8cd030e8fe46233ba84850cbc4075a63fa7f7225376",
+    "src/vibrapilot/task_runtime_store.py": "0cc44bd26b32de9c820ca5334d566257e651679577390df072c1ceb6170e74f5",
+    "src/vibrapilot/workflow_inputs.py": "095e46558736ae9cf073bd4883a5bd43eefd1b2a1eb3de62156baa863f4a5ce9",
+    "vib_validation_app/focus_manager.py": "a073051b05cbd2442b0bdec0a1251cf8185b54cbb71e755cc25c2ee85ce7f86e"
+  },
+  "official_baseline": "VibraPilot v1.0.6.12",
+  "official_baseline_archive": "VibraPilot_v1.0.6.12.zip",
+  "official_baseline_archive_sha256": "becd6add21d377e98e458ce856c9c3baa710a113459bde0c737507c122c2a9b5",
+  "official_baseline_github_commit": "a9cfec319285db2fb9fbff8d4bf0ede8ac87686b",
+  "packaging_policy": {
+    "clean_public_source_must_exclude_project": true,
+    "delta_must_exclude": [
+      "AppData/",
+      "Logs/",
+      "Reports/",
+      "FailedData/",
+      ".pytest_cache/",
+      "__pycache__/",
+      "*.pyc"
+    ],
+    "private_development_baseline_may_include_project_markdown": true
+  },
+  "phase01_runtime_sha256": {
+    "src/vibrapilot/backend.py": "55c100824ef6276e1d3479aea7695263cc1f74beddb0c99b613def604bff301d",
+    "src/vibrapilot/qt_app.py": "6eb4eca8b6f283ae7cb4a8cd030e8fe46233ba84850cbc4075a63fa7f7225376"
+  },
+  "plan_id": "VP-BROWSER-UI-LIFECYCLE-001-VERIFICATION-FIX",
+  "root_cause_scope": [
+    "GitHub Windows unittest concurrency test used a fixed 15-second completion threshold although the same test passed in the preceding pytest run",
+    "the timeout assertion could exit while a writer thread still held the SQLite file, causing secondary TemporaryDirectory WinError 32",
+    "uploaded baseline archive contains runtime/cache/private development material and is not a clean distributable source archive"
+  ],
+  "target_version": "1.0.6.13"
+}

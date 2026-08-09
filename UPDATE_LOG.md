@@ -1,5 +1,14 @@
 # Update Log
 
+## v1.0.6.13 — Phase-01 verification/CI correction — 2026-08-09
+
+Verified the complete v1.0.6.12 `VP-BROWSER-UI-LIFECYCLE-001` implementation against the uploaded baseline and GitHub Actions run `31331345666`. No Phase-01 runtime regression was found. The only failing CI step was the duplicated standard-library unittest run, where the four-worker SQLite correctness test's fixed 15-second wall-clock threshold was too strict for hosted Windows FULL-synchronous WAL I/O and produced a secondary `WinError 32` cleanup error.
+
+v1.0.6.13 changes no production runtime source. It hardens only the verification harness, adds an exact no-runtime-change scope lock, synchronizes documentation/version metadata, and records the uploaded baseline archive hygiene finding.
+
+Detailed note: `docs/updates/v1.0.6.13-phase01-verification-ci-fix.md`  
+Verification: `docs/verification/V1.0.6.13_PHASE01_FORENSIC_VERIFICATION.md`
+
 ## v1.0.6.12 — VP-BROWSER-UI-LIFECYCLE-001 — 2026-08-09
 
 Implemented truthful Task browser lifecycle state, manual page/context/browser close detection, deterministic Open/Close Browser action, browser-only close that preserves Task/data, Login/Dashboard readiness synchronization and safe first-workspace center/clamp. Phase-02 managed persistent browser/profile work remains explicitly out of scope.

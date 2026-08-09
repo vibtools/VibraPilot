@@ -2,7 +2,11 @@
 
 VibraPilot uses a four-segment production release version for hardening/configuration/security maintenance on top of the validated v1.0.6 automation baseline.
 
-Current release candidate: **1.0.6.12**
+Current release candidate: **1.0.6.13**
+
+Version **1.0.6.13** is the verification/CI-stability correction anchored to uploaded v1.0.6.12 archive SHA-256 `becd6add21d377e98e458ce856c9c3baa710a113459bde0c737507c122c2a9b5` and GitHub v1.0.6.12 commit `a9cfec319285db2fb9fbff8d4bf0ede8ac87686b`.
+
+It authorizes **no production runtime source changes**. The v1.0.6.12 `backend.py`, `qt_app.py`, `task_runtime_store.py`, Browser Settings defaults, licensing, selectors, workflow and persistence schema are frozen. The only functional correction is to the Windows concurrency verification harness and its scope/metadata/documentation.
 
 Version **1.0.6.12** is the scope-locked `VP-BROWSER-UI-LIFECYCLE-001` candidate built from user-frozen v1.0.6.11 archive SHA-256 `9ecb7cd66f24832c3555d219a6f8aaf47358877dd417eeb703b5a755964fc90a` and GitHub v1.0.6.11 commit `8670415b1df221ebeeb7d8f3fba4f991a91d43ec`.
 

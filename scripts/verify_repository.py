@@ -30,6 +30,7 @@ WORKFLOW_INPUTS_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.
 LICENSE_LOGIN_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.10_license_login_fix_scope.json"
 QT_FOCUS_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.11_qt_focus_lifecycle_fix_scope.json"
 BROWSER_UI_LIFECYCLE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.12_browser_ui_lifecycle_scope.json"
+PHASE01_VERIFICATION_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.13_phase01_verification_ci_fix_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -308,6 +309,33 @@ for relative, expected_sha in browser_ui_scope.get("frozen_file_sha256", {}).ite
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.12 browser UI out-of-scope file drift detected: {relative}")
+
+# v1.0.6.13 is a verification/CI correction on top of the exact promoted
+# v1.0.6.12 Phase-01 tree. It authorizes no production runtime source changes.
+if not PHASE01_VERIFICATION_FIX_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.13 Phase-01 verification fix scope contract is missing")
+try:
+    phase01_verify_scope = json.loads(
+        PHASE01_VERIFICATION_FIX_SCOPE_CONTRACT.read_text(encoding="utf-8")
+    )
+except Exception as exc:
+    fail(f"v1.0.6.13 Phase-01 verification fix scope contract is invalid: {exc}")
+if phase01_verify_scope.get("plan_id") != "VP-BROWSER-UI-LIFECYCLE-001-VERIFICATION-FIX":
+    fail("v1.0.6.13 Phase-01 verification fix plan identifier mismatch")
+if phase01_verify_scope.get("official_baseline") != "VibraPilot v1.0.6.12":
+    fail("v1.0.6.13 Phase-01 verification fix baseline version mismatch")
+if phase01_verify_scope.get("official_baseline_archive_sha256") != "becd6add21d377e98e458ce856c9c3baa710a113459bde0c737507c122c2a9b5":
+    fail("v1.0.6.13 Phase-01 verification fix baseline archive mismatch")
+if phase01_verify_scope.get("official_baseline_github_commit") != "a9cfec319285db2fb9fbff8d4bf0ede8ac87686b":
+    fail("v1.0.6.13 Phase-01 verification fix GitHub baseline mismatch")
+if phase01_verify_scope.get("target_version") != "1.0.6.13":
+    fail("v1.0.6.13 Phase-01 verification fix target mismatch")
+if phase01_verify_scope.get("allowed_runtime_source_changes") != []:
+    fail("v1.0.6.13 Phase-01 verification fix must not authorize runtime source changes")
+for relative, expected_sha in phase01_verify_scope.get("frozen_runtime_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.13 frozen runtime drift detected: {relative}")
 
 # v1.0.6.11 VP-QT-FOCUS-LIFECYCLE-001 authorizes exactly one design-runtime
 # implementation file. Historical scope manifests remain immutable evidence;
@@ -723,8 +751,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.12":
-    fail("AppConfig VERSION must be 1.0.6.12 for VP-BROWSER-UI-LIFECYCLE-001")
+if app_version != "1.0.6.13":
+    fail("AppConfig VERSION must be 1.0.6.13 for the Phase-01 verification/CI correction")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -838,8 +866,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.12-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.12 release path")
+if "VibraPilot-1.0.6.13-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.13 release path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})
@@ -1355,6 +1383,7 @@ required = [
     "config/verification/v1.0.6.10_license_login_fix_scope.json",
     "config/verification/v1.0.6.11_qt_focus_lifecycle_fix_scope.json",
     "config/verification/v1.0.6.12_browser_ui_lifecycle_scope.json",
+    "config/verification/v1.0.6.13_phase01_verification_ci_fix_scope.json",
     "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
     "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
@@ -1372,6 +1401,7 @@ required = [
     "docs/verification/V1.0.6.10_LICENSE_LOGIN_FORENSIC_VERIFICATION.md",
     "docs/verification/V1.0.6.11_QT_FOCUS_LIFECYCLE_VERIFICATION.md",
     "docs/verification/V1.0.6.12_BROWSER_UI_LIFECYCLE_VERIFICATION.md",
+    "docs/verification/V1.0.6.13_PHASE01_FORENSIC_VERIFICATION.md",
     "docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md", "docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md",
     "docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md",
     "docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md",
@@ -1381,6 +1411,7 @@ required = [
     "docs/updates/v1.0.6.10-license-login-durability-recovery-fix.md",
     "docs/updates/v1.0.6.11-qt-focus-lifecycle-fix.md",
     "docs/updates/v1.0.6.12-browser-ui-lifecycle.md",
+    "docs/updates/v1.0.6.13-phase01-verification-ci-fix.md",
     "scripts/verify_source_archive.py", "tests/test_v1067_verification_fix.py", "tests/test_app_config_validation.py",
     "tests/test_licensing_v2_crypto.py", "tests/test_licensing_v2_client.py", "tests/test_license_manager_v2.py", "tests/test_phase02_scope_freeze.py", "tests/test_phase02_step002_fix_scope.py",
     "tests/test_production_scope_freeze.py", "tests/test_task_runtime_store.py", "tests/test_task_recovery.py",
@@ -1392,6 +1423,7 @@ required = [
     "tests/test_v10610_license_login_fix.py",
     "tests/test_v10611_qt_focus_lifecycle_fix.py",
     "tests/test_v10612_browser_ui_lifecycle.py",
+    "tests/test_v10613_phase01_verification_fix.py",
     "scripts/maintenance/Apply-v1.0.6.2-Phase01-Fix.cmd",
     "scripts/maintenance/PHASE01_V1.0.6.2_DELETE_PATHS.txt",
     "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",

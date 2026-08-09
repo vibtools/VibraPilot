@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 import sys
@@ -13,6 +14,9 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from vibrapilot.task_runtime_store import TaskRuntimeStore
+
+
+CONCURRENT_STORE_TEST_TIMEOUT_SECONDS = 60.0
 
 
 @dataclass
@@ -96,7 +100,13 @@ class TaskRuntimeStoreTest(unittest.TestCase):
 
 
     def test_four_worker_threads_persist_independent_results_without_cross_run_leak(self):
-        with tempfile.TemporaryDirectory() as temp:
+        # This is a correctness/isolation stress test, not a 15-second storage
+        # throughput SLA. Windows hosted runners can occasionally spend longer
+        # flushing FULL-synchronous WAL transactions even though the same test
+        # is making forward progress. Keep a bounded deadlock guard, but give
+        # durable writes enough time to finish and keep any timeout failure
+        # focused on the primary assertion instead of TempDirectory WinError 32.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp:
             store = TaskRuntimeStore(Path(temp) / "store.sqlite3")
             run_ids = []
             count_per_run = 100
@@ -146,9 +156,18 @@ class TaskRuntimeStoreTest(unittest.TestCase):
             ]
             for thread in threads:
                 thread.start()
+
+            deadline = time.monotonic() + CONCURRENT_STORE_TEST_TIMEOUT_SECONDS
             for thread in threads:
-                thread.join(timeout=15)
-            self.assertFalse(any(thread.is_alive() for thread in threads))
+                remaining = max(0.0, deadline - time.monotonic())
+                thread.join(timeout=remaining)
+
+            alive = [thread for thread in threads if thread.is_alive()]
+            self.assertFalse(
+                alive,
+                "concurrent runtime-store writers did not finish within "
+                f"{CONCURRENT_STORE_TEST_TIMEOUT_SECONDS:.0f}s",
+            )
             self.assertEqual(errors, [])
             self.assertEqual(len(store.results(limit=None)), 4 * count_per_run)
             for slot in range(1, 5):

@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.0.6.13 — Phase-01 verification / CI stability correction — 2026-08-09
+
+### Fixed
+
+- Corrected the Windows GitHub Actions false-negative in `TaskRuntimeStoreTest.test_four_worker_threads_persist_independent_results_without_cross_run_leak`.
+- Replaced the test-only 15-second storage throughput threshold with a bounded 60-second deadlock guard appropriate for FULL-synchronous SQLite WAL writes on variable hosted Windows storage.
+- Prevented a timeout failure from being obscured by a secondary `TemporaryDirectory` `WinError 32` cleanup exception.
+- Added a v1.0.6.13 verification scope contract proving that the v1.0.6.12 Phase-01 runtime (`backend.py`, `qt_app.py`) and `task_runtime_store.py` are byte-frozen.
+
+### Verified
+
+- GitHub Actions run `31331345666` had repository verification PASS, dependency installation PASS and pytest **176 passed, 1 skipped, 138 subtests passed** before the duplicate unittest compatibility step hit the old 15-second threshold.
+- Phase-01 browser lifecycle tests in that run passed.
+- No runtime behavior, database schema, browser profile defaults, Browser Settings, Licora protocol, selectors or workflow behavior is changed by this correction.
+
+### Packaging
+
+- The uploaded v1.0.6.12 development ZIP contains runtime/cache/private-development material and is therefore not a clean public source archive.
+- v1.0.6.13 release-source artifacts must exclude runtime/cache paths; the private `project/` workspace remains development-only.
+
 ## v1.0.6.12 — Browser UI/lifecycle hardening — 2026-08-09
 
 ### Fixed

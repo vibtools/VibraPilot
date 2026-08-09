@@ -1,5 +1,13 @@
 # VibraPilot Roadmap
 
+## Phase-01 verification correction candidate — v1.0.6.13
+
+GitHub Actions verified the v1.0.6.12 Phase-01 browser lifecycle implementation through repository verification and the complete pytest suite. The remaining CI failure was not a Phase-01 runtime regression: the duplicate unittest pass exceeded a test-only 15-second SQLite concurrency threshold on hosted Windows storage.
+
+v1.0.6.13 freezes the Phase-01 runtime byte-for-byte and corrects only that verification harness. Phase-01 remains in **VERIFICATION** until the v1.0.6.13 Windows live browser lifecycle/geometry gate and the new GitHub Actions run are green.
+
+**Next after Phase-01 VERIFIED:** `VP-MANAGED-PERSISTENT-BROWSER-001`.
+
 ## Phase-01 implementation candidate — v1.0.6.12
 
 `VP-BROWSER-UI-LIFECYCLE-001` is implemented at source level: manual page/context/browser close now converges to truthful Task browser state, the primary browser action transitions between Open/Close states, browser-only close preserves Task/data, Login and Dashboard readiness synchronize with lifecycle state, and the first workspace is centered/clamped after activation. Windows live browser-close/geometry acceptance remains required before this phase is marked VERIFIED.
