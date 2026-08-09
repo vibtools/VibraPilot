@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.0.6.8 — VP-WORKFLOW-INPUTS-001 — 2026-08-09
+
+### Added
+
+- Added a dedicated top-level **Workflow Inputs** page and a form-metadata-only `src/vibrapilot/workflow_inputs.py` module.
+- Added isolated Save/Reset handling for the existing workflow input keys.
+
+### Changed
+
+- Moved `default_full_name`, `default_number`, `fallback_name` and `update_click_count` out of the App Settings UI without renaming or migrating their persisted keys.
+- Preserved the existing View shortcuts for Dashboard, Tasks, Reports, Live Logs, App Settings and Browser Settings while inserting Workflow Inputs after Tasks.
+
+### Preserved
+
+- `default_target_url` remains in App Settings. Backend worker logic, Browser Settings, task workflow, selectors, SQLite runtime persistence and Licora Secure API v2 are unchanged.
+- No fake/single-option workflow selector is included.
+
+### Verification
+
+- Added `config/verification/v1.0.6.8_workflow_inputs_scope.json` plus workflow-input persistence/UI/scope regression tests.
+- Added `docs/updates/v1.0.6.8-workflow-inputs-separation.md` and `docs/verification/V1.0.6.8_WORKFLOW_INPUTS_VERIFICATION.md`.
+
 ### Windows SQLite concurrent-write verification correction
 
 - Fixed a Windows-only multi-worker persistence contention failure where four concurrent task writers could exceed the 15-second verification window and leave a temporary SQLite file handle active during test cleanup.

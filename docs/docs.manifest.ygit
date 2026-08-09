@@ -3,8 +3,8 @@
   "documentation": {
     "id": "vibrapilot",
     "title": "VibraPilot Documentation",
-    "description": "Documentation for VibraPilot v1.0.6.7 by Vib Tools.",
-    "version": "1.0.6.7",
+    "description": "Documentation for VibraPilot v1.0.6.8 by Vib Tools.",
+    "version": "1.0.6.8",
     "root": "docs",
     "home": "index.md"
   }

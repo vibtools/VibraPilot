@@ -25,6 +25,7 @@ FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "phase02_step002_v1.0.6.
 PRODUCTION_SCOPE_CONTRACT = ROOT / "config" / "verification" / "production_mt_lr_v1.0.6.5_scope.json"
 CURRENT_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.7_vp_prod_mt_lr_verification_fix_scope.json"
 WINDOWS_SQLITE_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.7_windows_sqlite_concurrency_fix_scope.json"
+WORKFLOW_INPUTS_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.8_workflow_inputs_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -307,6 +308,28 @@ for method_name, expected_sha in production_scope.get("frozen_automationworker_m
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"production out-of-scope AutomationWorker method drift detected: {method_name}")
 
+# VP-WORKFLOW-INPUTS-001 is anchored to the final v1.0.6.7 tree, which is the
+# clean v1.0.6.7 Official Baseline plus its approved Windows SQLite fix delta.
+if not WORKFLOW_INPUTS_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.8 Workflow Inputs scope contract is missing")
+try:
+    workflow_inputs_scope = json.loads(WORKFLOW_INPUTS_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.8 Workflow Inputs scope contract is invalid: {exc}")
+expected_workflow_components = {
+    "VibraPilot_v1.0.6.7_Official_Baseline.zip": "76dbc63cd9c033f1b471e4624d3b6f704a3c5552b4ce3a081fabb99c6b0b72e6",
+    "VibraPilot_v1.0.6.7_Windows-SQLite-Concurrency-Fix_Replace-Ready_Delta.zip": "bd6dc9aa6df6c7aa2a71b762318442192dcb6870f0b29ca9339a74019114b996",
+}
+if workflow_inputs_scope.get("official_baseline_components") != expected_workflow_components:
+    fail("v1.0.6.8 Workflow Inputs scope baseline components mismatch")
+if workflow_inputs_scope.get("official_baseline_tree_sha256") != "84d22fd2c1fef38cbf49024f7d3b2c9ec250e3389dd2b479192735fb2419bb89":
+    fail("v1.0.6.8 Workflow Inputs scope final v1.0.6.7 tree mismatch")
+if workflow_inputs_scope.get("target_version") != "1.0.6.8":
+    fail("v1.0.6.8 Workflow Inputs scope target version mismatch")
+workflow_allowed_files = set(workflow_inputs_scope.get("allowed_runtime_source_changes", []))
+workflow_release_files = set(workflow_inputs_scope.get("approved_release_metadata_changes", []))
+workflow_approved_mainwindow = set(workflow_inputs_scope.get("approved_mainwindow_method_changes", []))
+
 # Follow-up v1.0.6.7 Windows SQLite concurrency fix is anchored to the clean
 # v1.0.6.7 Official Baseline and may supersede only the explicitly authorized
 # file/method locks from the earlier verification scope.
@@ -335,7 +358,7 @@ if current_fix_scope.get("official_baseline_archive_sha256") != "f391099de9d0d11
 if current_fix_scope.get("target_version") != "1.0.6.7":
     fail("v1.0.6.7 fix scope target version mismatch")
 for relative, expected_sha in current_fix_scope.get("frozen_file_sha256", {}).items():
-    if relative in followup_allowed_files:
+    if relative in followup_allowed_files or relative in workflow_allowed_files or relative in workflow_release_files:
         continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
@@ -351,6 +374,8 @@ current_checks = {
     "qt_app.BROWSER_SETTING_GROUPS": qt_ann_nodes.get("BROWSER_SETTING_GROUPS"),
 }
 for name, node in current_checks.items():
+    if name == "qt_app.MainWindow" and workflow_approved_mainwindow:
+        continue
     expected_sha = current_ast.get(name)
     if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.7 out-of-scope AST drift detected: {name}")
@@ -366,6 +391,8 @@ for method_name, expected_sha in current_fix_scope.get("frozen_automationworker_
 
 # Enforce the later Windows SQLite fix boundary against the clean v1.0.6.7 baseline.
 for relative, expected_sha in windows_sqlite_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in workflow_allowed_files or relative in workflow_release_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
         fail(f"v1.0.6.7 Windows SQLite fix out-of-scope file drift detected: {relative}")
@@ -373,6 +400,8 @@ if windows_sqlite_fix_scope.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
     fail("v1.0.6.7 Windows SQLite fix AST hash algorithm mismatch")
 followup_ast = windows_sqlite_fix_scope.get("frozen_ast_sha256", {})
 for name, node in current_checks.items():
+    if name == "qt_app.MainWindow" and workflow_approved_mainwindow:
+        continue
     expected_sha = followup_ast.get(name)
     if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.7 Windows SQLite fix out-of-scope AST drift detected: {name}")
@@ -382,6 +411,56 @@ for method_name, expected_sha in windows_sqlite_fix_scope.get("frozen_automation
     node = automation_worker_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.7 Windows SQLite fix out-of-scope AutomationWorker drift: {method_name}")
+
+# Enforce VP-WORKFLOW-INPUTS-001 against the final v1.0.6.7 baseline.
+for relative, expected_sha in workflow_inputs_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or sha256(path) != expected_sha:
+        fail(f"v1.0.6.8 Workflow Inputs out-of-scope file drift detected: {relative}")
+if workflow_inputs_scope.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
+    fail("v1.0.6.8 Workflow Inputs scope AST hash algorithm mismatch")
+workflow_fixed_ast = workflow_inputs_scope.get("frozen_ast_sha256", {})
+workflow_ast_checks = {
+    "backend.LicenseManager": production_nodes.get("LicenseManager"),
+    "backend.AutomationWorker": production_nodes.get("AutomationWorker"),
+    "backend.TaskItem": production_nodes.get("TaskItem"),
+    "backend.TaskState": production_nodes.get("TaskState"),
+    "backend.SELECTORS": backend_assignment_nodes.get("SELECTORS"),
+    "qt_app.ActivationPage": qt_nodes.get("ActivationPage"),
+    "qt_app.BROWSER_SETTING_GROUPS": qt_ann_nodes.get("BROWSER_SETTING_GROUPS"),
+}
+for name, node in workflow_ast_checks.items():
+    expected_sha = workflow_fixed_ast.get(name)
+    if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
+        fail(f"v1.0.6.8 Workflow Inputs out-of-scope AST drift detected: {name}")
+
+main_window = qt_nodes.get("MainWindow")
+if main_window is None:
+    fail("v1.0.6.8 Workflow Inputs MainWindow is missing")
+main_window_methods = {
+    node.name: node
+    for node in main_window.body
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+}
+for method_name, expected_sha in workflow_inputs_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
+    if method_name in workflow_approved_mainwindow:
+        fail(f"v1.0.6.8 Workflow Inputs scope incorrectly freezes approved MainWindow method: {method_name}")
+    node = main_window_methods.get(method_name)
+    if node is None or ast_contract_sha(node) != expected_sha:
+        fail(f"v1.0.6.8 Workflow Inputs out-of-scope MainWindow method drift detected: {method_name}")
+
+task_slot = qt_nodes.get("TaskSlotWidget")
+if task_slot is None:
+    fail("v1.0.6.8 Workflow Inputs TaskSlotWidget is missing")
+task_slot_methods = {
+    node.name: node
+    for node in task_slot.body
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+}
+for method_name, expected_sha in workflow_inputs_scope.get("frozen_taskslotwidget_method_ast_sha256", {}).items():
+    node = task_slot_methods.get(method_name)
+    if node is None or ast_contract_sha(node) != expected_sha:
+        fail(f"v1.0.6.8 Workflow Inputs TaskSlotWidget drift detected: {method_name}")
 
 # Local developer check: when the private project workspace is present, prove that
 # the published machine contract still describes the private v1.0.6 baseline.
@@ -416,8 +495,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.7":
-    fail("AppConfig VERSION must be 1.0.6.7 for the VP-PROD-MT-LR-001 verification/fix release")
+if app_version != "1.0.6.8":
+    fail("AppConfig VERSION must be 1.0.6.8 for VP-WORKFLOW-INPUTS-001")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -531,8 +610,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.7-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.7 release path")
+if "VibraPilot-1.0.6.8-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.8 release path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})
@@ -664,6 +743,56 @@ if 'if parsed < 0:' not in backend_text:
 if 'MAX_TEST_SEND_LIMIT' in backend_text:
     fail("Test Send Limit must not have a hardcoded upper ceiling in application code")
 
+# VP-WORKFLOW-INPUTS-001 UI ownership contract. Existing keys/defaults remain unchanged.
+workflow_inputs_path = SRC / "workflow_inputs.py"
+if not workflow_inputs_path.is_file():
+    fail("Workflow Inputs metadata module is missing")
+workflow_inputs_text = workflow_inputs_path.read_text(encoding="utf-8")
+workflow_tree = ast.parse(workflow_inputs_text, filename=str(workflow_inputs_path))
+workflow_keys_node = next(
+    (
+        node
+        for node in workflow_tree.body
+        if (
+            isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "WORKFLOW_INPUT_FIELDS" for target in node.targets)
+        )
+        or (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == "WORKFLOW_INPUT_FIELDS"
+        )
+    ),
+    None,
+)
+if workflow_keys_node is None:
+    fail("Workflow Inputs field definition is missing")
+expected_workflow_keys = ("default_full_name", "default_number", "fallback_name", "update_click_count")
+for key in expected_workflow_keys:
+    if f'key="{key}"' not in workflow_inputs_text:
+        fail(f"Workflow Inputs field key is missing: {key}")
+if 'default_target_url' in workflow_inputs_text:
+    fail("default_target_url must not move into Workflow Inputs")
+nav_sections = literal_assignment(ROOT / "src" / "vibrapilot" / "qt_app.py", "NAV_SECTIONS")
+if nav_sections != ["Dashboard", "Tasks", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]:
+    fail("Workflow Inputs navigation order mismatch")
+for method_name in ("make_workflow_inputs_page", "refresh_workflow_input_widgets", "save_workflow_inputs", "reset_workflow_inputs"):
+    if method_name not in main_window_methods:
+        fail(f"Workflow Inputs MainWindow method is missing: {method_name}")
+settings_page_source = ast.get_source_segment(qt_text, main_window_methods["make_settings_page"]) or ""
+workflow_page_source = ast.get_source_segment(qt_text, main_window_methods["make_workflow_inputs_page"]) or ""
+for key in expected_workflow_keys:
+    if key in settings_page_source:
+        fail(f"workflow input remains exposed by App Settings: {key}")
+if 'default_target_url' not in settings_page_source:
+    fail("default_target_url must remain in App Settings")
+if 'WORKFLOW_INPUT_FIELDS' not in workflow_page_source or 'Default Form Inputs' not in workflow_page_source:
+    fail("Workflow Inputs page is not bound to the approved form metadata")
+if 'combo_box(' in workflow_page_source or 'Workflow:' in workflow_page_source:
+    fail("Workflow Inputs must not add a fake/single-option workflow selector")
+if 'Legacy Contact Settings (Preserved)' in qt_text:
+    fail("legacy workflow/contact fields must no longer be owned by App Settings UI")
+
 # Dedicated Browser Settings scope.
 qt_tree_for_browser_settings = ast.parse(qt_text)
 browser_groups_node = next(
@@ -793,6 +922,8 @@ if 'elif name == "Browser Settings":' not in qt_text or qt_text.count("self.refr
     fail("Browser Settings must refresh from SettingsManager on navigation, save and reset")
 for marker in [
     '"App Settings": "settings"',
+    '"Workflow Inputs": "file"',
+    '("Workflow Inputs", self.make_workflow_inputs_page)',
     '("App Settings", self.make_settings_page)',
     'worker.control_queue.put(("settings", {"settings": dict(self.settings.data)}))',
     'if command == "settings":',
@@ -806,7 +937,7 @@ for marker in [
     "apply_nav_button_contract",
     "install_keyboard_focus_ring",
     "CONST.sidebar_width",
-    'NAV_SECTIONS = ["Dashboard", "Tasks", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]',
+    'NAV_SECTIONS = ["Dashboard", "Tasks", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]',
 ]:
     if marker not in qt_text:
         fail(f"required branded UI integration marker missing: {marker}")
@@ -928,8 +1059,9 @@ required = [
     "config/verification/production_mt_lr_v1.0.6.5_scope.json",
     "config/verification/v1.0.6.7_vp_prod_mt_lr_verification_fix_scope.json",
     "config/verification/v1.0.6.7_windows_sqlite_concurrency_fix_scope.json",
+    "config/verification/v1.0.6.8_workflow_inputs_scope.json",
     "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
-    "src/vibrapilot/qt_app.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
+    "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
     "docs/updates/v1.0.6.1-vibrapilot-branding.md", "docs/updates/v1.0.6.1-github-ci-repository-hygiene-fix.md",
     "docs/updates/v1.0.6.1-github-ci-deterministic-ast-contract-fix.md",
@@ -940,16 +1072,19 @@ required = [
     "docs/verification/V1.0.6.5_PRODUCTION_RUNTIME_VERIFICATION.md",
     "docs/verification/V1.0.6.7_VP_PROD_MT_LR_FORENSIC_VERIFICATION.md",
     "docs/verification/V1.0.6.7_WINDOWS_SQLITE_CONCURRENCY_VERIFICATION.md",
+    "docs/verification/V1.0.6.8_WORKFLOW_INPUTS_VERIFICATION.md",
     "docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md", "docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md",
     "docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md",
     "docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md",
     "docs/updates/v1.0.6.7-windows-sqlite-concurrency-fix.md",
+    "docs/updates/v1.0.6.8-workflow-inputs-separation.md",
     "scripts/verify_source_archive.py", "tests/test_v1067_verification_fix.py", "tests/test_app_config_validation.py",
     "tests/test_licensing_v2_crypto.py", "tests/test_licensing_v2_client.py", "tests/test_license_manager_v2.py", "tests/test_phase02_scope_freeze.py", "tests/test_phase02_step002_fix_scope.py",
     "tests/test_production_scope_freeze.py", "tests/test_task_runtime_store.py", "tests/test_task_recovery.py",
     "tests/test_multi_task_isolation.py", "tests/test_long_run_worker_stability.py", "tests/test_report_integrity.py",
     "tests/test_input_reconciliation.py", "tests/test_context_recycling.py", "tests/test_worker_shutdown.py",
     "tests/test_ui_queue_backpressure.py",
+    "tests/test_workflow_inputs.py", "tests/test_workflow_inputs_ui.py", "tests/test_workflow_inputs_scope.py",
     "scripts/maintenance/Apply-v1.0.6.2-Phase01-Fix.cmd",
     "scripts/maintenance/PHASE01_V1.0.6.2_DELETE_PATHS.txt",
     "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",

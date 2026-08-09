@@ -1,6 +1,11 @@
-# VibraPilot v1.0.6.7 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.8 — Vib Tools Browser Automation Desktop
 
-**VibraPilot v1.0.6.7** is the forensic verification/fix promotion of the user-frozen **VibraPilot v1.0.6.5** `VP-PROD-MT-LR-001` baseline (SHA-256 `f391099de9d0d117d190b2898b96d5e90b3f102541cf8efa217f9e9fbfbed118`). It preserves the approved Multiple Task, long-run worker, recovery and reporting architecture while correcting verified startup, shutdown-backpressure, crash-result-ledger and source-package hygiene defects. The Razorpay Share Invite selectors/Send sequence, Licora Secure API v2, Browser Settings contract, ActivationPage and Vib Tools visual foundation remain unchanged.
+**VibraPilot v1.0.6.8** is the approved `VP-WORKFLOW-INPUTS-001` UI-ownership separation release built from the final v1.0.6.7 baseline. It moves the four existing workflow/form values out of App Settings into a dedicated **Workflow Inputs** page while preserving the same settings keys, saved values, backend behavior, Browser Settings, task workflow and Licora Secure API v2.
+
+
+## Workflow Inputs separation
+
+`VP-WORKFLOW-INPUTS-001` adds a dedicated **Workflow Inputs** page after Tasks. The page owns the existing `default_full_name`, `default_number`, `fallback_name` and `update_click_count` values through the existing `SettingsManager` keys. `default_target_url` remains in App Settings. No workflow selector is shown while only one real workflow exists, and the new `workflow_inputs.py` module contains form metadata only.
 
 ## Windows SQLite concurrency verification
 
@@ -11,6 +16,7 @@ The v1.0.6.7 verification baseline includes a follow-up Windows concurrency corr
 - **License Activation** — device-bound Licora API v2 activation and periodic server revalidation.
 - **Dashboard** — task, runtime, license and usage overview.
 - **Tasks** — independent browser task slots, data loading and processing controls.
+- **Workflow Inputs** — workflow/form values kept separate from application and browser configuration.
 - **Reports** — searchable results with CSV/Excel export.
 - **Live Logs** — operational log viewer, save and clear actions.
 - **App Settings** — safety, application, task-processing and licensing/network settings.
@@ -55,7 +61,7 @@ Production behavior now includes:
 - a default maximum of 4 simultaneously active task workers; and
 - a persistent-profile collision guard when multiple tasks would claim the same shared profile.
 
-No new permanent top-level UI page was added. Recovery uses the existing Tasks workspace plus transient confirmation dialogs.
+The v1.0.6.5 production-hardening milestone itself added no permanent top-level page; its recovery flow remains in Tasks plus transient dialogs. v1.0.6.8 later adds only the approved Workflow Inputs configuration page.
 
 ## v1.0.6.7 forensic corrections
 
@@ -121,6 +127,8 @@ The builder produces the `VibraPilot` PyInstaller ONEDIR application and release
 - Cumulative release history: `CHANGELOG.md`
 - Concise update log: `UPDATE_LOG.md`
 - Versioning discipline: `VERSIONING.md`
+- v1.0.6.8 Workflow Inputs note: `docs/updates/v1.0.6.8-workflow-inputs-separation.md`
+- v1.0.6.8 Workflow Inputs verification: `docs/verification/V1.0.6.8_WORKFLOW_INPUTS_VERIFICATION.md`
 - v1.0.6.7 verification/fix note: `docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md`
 - v1.0.6.7 forensic verification: `docs/verification/V1.0.6.7_VP_PROD_MT_LR_FORENSIC_VERIFICATION.md`
 - v1.0.6.5 production-hardening note: `docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md`

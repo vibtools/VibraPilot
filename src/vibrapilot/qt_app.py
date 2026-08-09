@@ -109,9 +109,18 @@ from .data_io import (
     parse_data_with_audit,
 )
 from .task_runtime_store import TaskRuntimeStore
+from .workflow_inputs import WORKFLOW_INPUT_FIELDS, WORKFLOW_INPUT_KEYS
 
 
-NAV_SECTIONS = ["Dashboard", "Tasks", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]
+NAV_SECTIONS = ["Dashboard", "Tasks", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]
+VIEW_NAV_SHORTCUTS = {
+    "Dashboard": "Ctrl+1",
+    "Tasks": "Ctrl+2",
+    "Reports": "Ctrl+3",
+    "Live Logs": "Ctrl+4",
+    "App Settings": "Ctrl+5",
+    "Browser Settings": "Ctrl+6",
+}
 UI_QUEUE_CAPACITY = 4096
 UI_QUEUE_MAX_EVENTS_PER_TICK = 250
 REPORT_RECENT_LIMIT = 1000
@@ -1508,6 +1517,7 @@ class MainWindow(QMainWindow):
         self.nav_buttons: dict[str, QPushButton] = {}
         self.pages: dict[str, int] = {}
         self.setting_widgets: dict[str, QWidget] = {}
+        self.workflow_input_widgets: dict[str, QWidget] = {}
         self.browser_setting_widgets: dict[str, QWidget] = {}
         self._workspace_active = False
         self._workspace_transitioning = False
@@ -1669,9 +1679,13 @@ class MainWindow(QMainWindow):
         task_menu.addAction("Open Tasks", lambda: self.navigate("Tasks"), QKeySequence("Ctrl+1"))
 
         view_menu = self.menuBar().addMenu("View")
-        for idx, name in enumerate(NAV_SECTIONS, start=1):
-            shortcut = f"Ctrl+{idx}" if idx <= 6 else None
-            view_menu.addAction(name, lambda checked=False, n=name: self.navigate(n), QKeySequence(shortcut) if shortcut else QKeySequence())
+        for name in NAV_SECTIONS:
+            shortcut = VIEW_NAV_SHORTCUTS.get(name)
+            view_menu.addAction(
+                name,
+                lambda checked=False, n=name: self.navigate(n),
+                QKeySequence(shortcut) if shortcut else QKeySequence(),
+            )
         view_menu.addSeparator()
         locked = view_menu.addAction("Vib Tools Dark Theme — Locked")
         locked.setEnabled(False)
@@ -1734,6 +1748,7 @@ class MainWindow(QMainWindow):
         icon_name = {
             "Dashboard": "home",
             "Tasks": "refresh",
+            "Workflow Inputs": "file",
             "Browser Settings": "search",
             "Reports": "file",
             "Live Logs": "info",
@@ -1780,6 +1795,7 @@ class MainWindow(QMainWindow):
         for name, maker in (
             ("Dashboard", self.make_dashboard_page),
             ("Tasks", self.make_tasks_page),
+            ("Workflow Inputs", self.make_workflow_inputs_page),
             ("Reports", self.make_reports_page),
             ("Live Logs", self.make_logs_page),
             ("App Settings", self.make_settings_page),
@@ -1811,6 +1827,8 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Viewing: {name}")
         if name == "Dashboard":
             self.update_dashboard()
+        elif name == "Workflow Inputs":
+            self.refresh_workflow_input_widgets()
         elif name == "Browser Settings":
             # Always render the current persisted SettingsManager values when the
             # advanced page is opened; this prevents stale UI if a value changed
@@ -2306,6 +2324,51 @@ class MainWindow(QMainWindow):
         root.addWidget(self._scroll_page(inner), 1)
         return page
 
+    def make_workflow_inputs_page(self) -> QWidget:
+        page = page_frame()
+        root = vbox(page, margins=(0, 0, 0, 0), spacing=0)
+        save_btn = button("Save Workflow Inputs", "primary", "save")
+        save_btn.clicked.connect(self.save_workflow_inputs)
+        reset_btn = button("Reset Workflow Inputs", "danger")
+        reset_btn.clicked.connect(self.reset_workflow_inputs)
+        root.addWidget(
+            page_header(
+                "Workflow Inputs",
+                "Workflow-specific form values are kept separate from application and browser settings.",
+                [save_btn, reset_btn],
+            )
+        )
+
+        inner = QWidget()
+        inner.setObjectName("PageInner")
+        lay = vbox(
+            inner,
+            margins=(CONST.page_padding, CONST.page_padding, CONST.page_padding, CONST.page_padding),
+            spacing=CONST.content_gap,
+        )
+
+        form_card = card("Default Form Inputs")
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(CONST.content_gap)
+        grid.setVerticalSpacing(CONST.form_group_gap)
+        grid.setColumnStretch(1, 1)
+        form_card.layout().addLayout(grid)
+
+        self.workflow_input_widgets.clear()
+        for row, field in enumerate(WORKFLOW_INPUT_FIELDS):
+            grid.addWidget(label(field.label, "FormLabel", False), row, 0)
+            value = self.settings.get(field.key, DEFAULT_SETTINGS[field.key])
+            widget = line_input(field.placeholder, str(value))
+            if field.help_text:
+                widget.setToolTip(field.help_text)
+            self.workflow_input_widgets[field.key] = widget
+            grid.addWidget(widget, row, 1)
+
+        lay.addWidget(form_card)
+        lay.addStretch(1)
+        root.addWidget(self._scroll_page(inner), 1)
+        return page
+
     def make_settings_page(self) -> QWidget:
         page = page_frame()
         root = vbox(page, margins=(0, 0, 0, 0), spacing=0)
@@ -2329,9 +2392,6 @@ class MainWindow(QMainWindow):
         )
 
         groups = {
-            "Legacy Contact Settings (Preserved)": [
-                "default_full_name", "default_number", "fallback_name", "update_click_count"
-            ],
             "Test Safety Settings": ["authorized_testing_only", "max_test_send_limit"],
             "Task Processing Settings": [
                 "batch_size", "auto_save_interval", "max_concurrent_tasks", "save_failed_data",
@@ -2952,6 +3012,57 @@ class MainWindow(QMainWindow):
         self.refresh_browser_settings_widgets()
         self.log_ui("Browser settings reset to source defaults.")
         _message(self, "Browser Settings", "Browser settings reset to defaults.")
+
+    def refresh_workflow_input_widgets(self) -> None:
+        """Render the exact persisted values for the dedicated workflow form inputs."""
+        for key in WORKFLOW_INPUT_KEYS:
+            widget = self.workflow_input_widgets.get(key)
+            if widget is None:
+                continue
+            value = self.settings.get(key, DEFAULT_SETTINGS[key])
+            if isinstance(widget, QLineEdit):
+                widget.setText(str(value))
+
+    def save_workflow_inputs(self) -> None:
+        try:
+            parsed_settings: dict[str, Any] = {}
+            for key in WORKFLOW_INPUT_KEYS:
+                widget = self.workflow_input_widgets.get(key)
+                if widget is None:
+                    raise RuntimeError(f"Workflow input widget is unavailable: {key}")
+                parsed_settings[key] = self.parse_setting_value(
+                    key, self._widget_value(key, widget)
+                )
+
+            self.settings.data.update(parsed_settings)
+            self.settings.save()
+            self.refresh_workflow_input_widgets()
+            self.log_ui("Workflow Inputs saved.")
+            _message(
+                self,
+                "Workflow Inputs",
+                "Workflow Inputs saved successfully. Existing setting keys and saved-value compatibility are preserved.",
+            )
+        except Exception as exc:
+            _message(self, "Workflow Inputs error", str(exc), "error")
+
+    def reset_workflow_inputs(self) -> None:
+        if not _confirm(
+            self,
+            "Reset Workflow Inputs",
+            "Reset only Workflow Inputs to source defaults? App Settings and Browser Settings will be preserved.",
+        ):
+            return
+        for key in WORKFLOW_INPUT_KEYS:
+            self.settings.data[key] = DEFAULT_SETTINGS[key]
+        self.settings.save()
+        self.refresh_workflow_input_widgets()
+        self.log_ui("Workflow Inputs reset to source defaults.")
+        _message(
+            self,
+            "Workflow Inputs",
+            "Workflow Inputs reset to defaults. App Settings and Browser Settings were preserved.",
+        )
 
     def save_settings(self) -> None:
         try:

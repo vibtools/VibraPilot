@@ -1,5 +1,12 @@
 # Update Log
 
+## v1.0.6.8 — VP-WORKFLOW-INPUTS-001 — 2026-08-09
+
+Separated workflow/form values from App Settings into a dedicated Workflow Inputs page while retaining the same setting keys and saved values. `default_target_url`, backend/task/browser behavior and Licora API v2 remain unchanged, and no fake single-option workflow selector was added.
+
+Detailed note: `docs/updates/v1.0.6.8-workflow-inputs-separation.md`
+Verification: `docs/verification/V1.0.6.8_WORKFLOW_INPUTS_VERIFICATION.md`
+
 ## v1.0.6.7 Windows SQLite concurrency verification correction
 
 Corrected the verified Windows four-worker `TaskRuntimeStore` contention/file-handle failure without changing the application version or unrelated runtime behavior. Concurrent workers now serialize local SQLite write transactions before the WAL writer lock, and the high-frequency recipient/result/progress persistence path commits atomically in one transaction.

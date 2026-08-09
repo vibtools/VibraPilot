@@ -1,5 +1,9 @@
 # VibraPilot Roadmap
 
+## Completed UI ownership milestone — v1.0.6.8
+
+`VP-WORKFLOW-INPUTS-001`: moved the four existing workflow/form settings into a dedicated Workflow Inputs page while preserving keys, saved values and backend behavior. No fake workflow selector was added; `default_target_url` remains in App Settings.
+
 ## Verified production baseline — v1.0.6.7
 
 Forensic verification/fix of the completed `VP-PROD-MT-LR-001` milestone. Corrected the startup stylesheet descriptor, bounded-queue shutdown liveness, pre-Send crash-result-ledger durability and source-baseline packaging verification without changing the approved automation workflow, licensing protocol, Browser Settings or design foundation.

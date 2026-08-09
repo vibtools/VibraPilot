@@ -179,7 +179,7 @@ def test_browser_logging_controls_are_not_ui_only():
 
 def test_navigation_places_app_settings_above_advanced_browser_settings():
     ui = QT_PATH.read_text(encoding="utf-8")
-    marker = 'NAV_SECTIONS = ["Dashboard", "Tasks", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]'
+    marker = 'NAV_SECTIONS = ["Dashboard", "Tasks", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]'
     assert marker in ui
     assert '("App Settings", self.make_settings_page)' in ui
     assert '("Browser Settings", self.make_browser_settings_page)' in ui

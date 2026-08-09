@@ -13,9 +13,10 @@ scripts/                     Launch, repository verification and clean source-ar
 src/vibrapilot/              Production application
   app_config.py              Validated read-only AppConfig facade
   licensing_v2.py            Secure Licora API v2 protocol/cryptographic client
-  backend.py                 validated automation + production worker/runtime wiring; current release v1.0.6.7
+  backend.py                 validated automation + production worker/runtime wiring; current release v1.0.6.8
   data_io.py                 Input/export adapters + import reconciliation
   task_runtime_store.py       SQLite task/checkpoint/result persistence
+  workflow_inputs.py          Workflow/form input metadata only
   qt_app.py                  Vib Tools PySide6 interface
 tests/                       Static/runtime/security/scope contract tests
 vib_validation_app/          Exact supplied Vib Tools design-system modules

@@ -16,3 +16,7 @@ On first successful Secure API v2 activation, VibraPilot creates and persistentl
 ## Production task recovery
 
 Long-running task progress and authoritative recipient outcomes are stored locally in `AppData/task_runtime.sqlite3`. Recovery never automatically opens a browser or sends a recipient; the operator must restore the task, open/login/verify the browser session and explicitly resume. Ambiguous post-Send outcomes remain manual-review-only and are never automatically retried.
+
+## Workflow Inputs
+
+Workflow/form values are configured from the dedicated **Workflow Inputs** page. Existing values saved under `default_full_name`, `default_number`, `fallback_name` and `update_click_count` are preserved. **Default Target URL** remains in App Settings, while browser/runtime controls remain in Browser Settings.
