@@ -1,5 +1,12 @@
 # Update Log
 
+## v1.0.6.12 — VP-BROWSER-UI-LIFECYCLE-001 — 2026-08-09
+
+Implemented truthful Task browser lifecycle state, manual page/context/browser close detection, deterministic Open/Close Browser action, browser-only close that preserves Task/data, Login/Dashboard readiness synchronization and safe first-workspace center/clamp. Phase-02 managed persistent browser/profile work remains explicitly out of scope.
+
+Detailed note: `docs/updates/v1.0.6.12-browser-ui-lifecycle.md`
+Verification: `docs/verification/V1.0.6.12_BROWSER_UI_LIFECYCLE_VERIFICATION.md`
+
 ## v1.0.6.11 — Qt focus lifecycle — 2026-08-09
 
 Corrected the Windows PySide6 focus-manager lifetime race that could dereference an already-deleted `QLineEdit`/`QWidget` wrapper during page transitions or delayed tooltip handling. The patch changes only `vib_validation_app/focus_manager.py` at runtime and preserves all visual focus behavior and application workflows.

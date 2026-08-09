@@ -35,10 +35,16 @@ class WorkflowInputsScopeTest(unittest.TestCase):
         data = json.loads(SCOPE.read_text(encoding="utf-8"))
         current_license_scope = ROOT / "config/verification/v1.0.6.10_license_login_fix_scope.json"
         current_focus_scope = ROOT / "config/verification/v1.0.6.11_qt_focus_lifecycle_fix_scope.json"
+        current_browser_scope = ROOT / "config/verification/v1.0.6.12_browser_ui_lifecycle_scope.json"
+        browser_allowed = set()
+        if current_browser_scope.is_file():
+            browser_allowed = set(json.loads(current_browser_scope.read_text(encoding="utf-8")).get("allowed_runtime_source_changes", []))
         for relative, expected in data["frozen_file_sha256"].items():
             if current_license_scope.is_file() and relative == "src/vibrapilot/backend.py":
                 continue
             if current_focus_scope.is_file() and relative == "vib_validation_app/focus_manager.py":
+                continue
+            if relative in browser_allowed:
                 continue
             path = ROOT / relative
             self.assertTrue(path.is_file(), relative)

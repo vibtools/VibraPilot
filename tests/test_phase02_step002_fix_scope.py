@@ -22,6 +22,9 @@ class Phase02Step002FixScopeTest(unittest.TestCase):
         current_focus_scope = ROOT / "config/verification/v1.0.6.11_qt_focus_lifecycle_fix_scope.json"
         if current_focus_scope.is_file():
             allowed.add("vib_validation_app/focus_manager.py")
+        current_browser_scope = ROOT / "config/verification/v1.0.6.12_browser_ui_lifecycle_scope.json"
+        if current_browser_scope.is_file():
+            allowed.update(json.loads(current_browser_scope.read_text(encoding="utf-8")).get("allowed_runtime_source_changes", []))
         for relative, expected in CONTRACT["frozen_file_sha256"].items():
             if relative in allowed:
                 continue

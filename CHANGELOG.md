@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.0.6.12 — Browser UI/lifecycle hardening — 2026-08-09
+
+### Fixed
+
+- Added deterministic `Closed / Opening / Open / Closing` browser lifecycle state for every Task.
+- Added owner-thread page/context/browser close detection so manual closure clears browser/login readiness without stale `Browser: Open` state.
+- Converted the existing primary browser action between **Open Browser** and **Close Browser** while preserving **Close Task** as a separate action.
+- Kept Task/data/runtime state when only the browser is closed.
+- Synchronized browser close state with Login and Dashboard Browser Ready counters.
+- Centered/clamped the first workspace geometry after activation so the large workspace opens fully on-screen.
+
+### Preserved
+
+- Razorpay Share Invite selectors/Send workflow, Test Mode/security rules, retry/backoff, TaskRuntimeStore schema, Reports, Workflow Inputs, Browser Settings defaults, Licora API v2, ActivationPage visual design, Qt focus lifecycle hardening and browser auto-restart policy.
+- No persistent-profile productization, downloads, uploads, extensions, stealth/CAPTCHA behavior or new UI page.
+
+### Verification
+
+- Added `VP-BROWSER-UI-LIFECYCLE-001` scope contract and backend/UI lifecycle regression coverage.
+- Source-level regression is required to remain green; Windows live manual-close and geometry verification is the final platform gate.
+
 ## v1.0.6.11 — Qt focus lifecycle verification/fix — 2026-08-09
 
 ### Fixed

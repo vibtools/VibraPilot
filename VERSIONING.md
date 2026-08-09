@@ -2,7 +2,13 @@
 
 VibraPilot uses a four-segment production release version for hardening/configuration/security maintenance on top of the validated v1.0.6 automation baseline.
 
-Current release: **1.0.6.11**
+Current release candidate: **1.0.6.12**
+
+Version **1.0.6.12** is the scope-locked `VP-BROWSER-UI-LIFECYCLE-001` candidate built from user-frozen v1.0.6.11 archive SHA-256 `9ecb7cd66f24832c3555d219a6f8aaf47358877dd417eeb703b5a755964fc90a` and GitHub v1.0.6.11 commit `8670415b1df221ebeeb7d8f3fba4f991a91d43ec`.
+
+The approved runtime surface is limited to browser lifecycle methods in `src/vibrapilot/backend.py` and Task/browser/workspace lifecycle methods in `src/vibrapilot/qt_app.py`. Managed persistent profiles, Browser Settings defaults, task persistence schema, site-specific workflow logic, licensing and visual design remain frozen.
+
+Version **1.0.6.11** remains the verified Qt focus-lifecycle baseline until the v1.0.6.12 Windows live gate passes.
 
 Version **1.0.6.11** is the scope-locked `VP-QT-FOCUS-LIFECYCLE-001` correction promoted from exact GitHub v1.0.6.10 commit `d712a9d04fa62e5e3a0df9c00a99c1315052bd05` and clean v1.0.6.10 baseline archive SHA-256 `d818aa1d4ee3492df810fb29034999293b47c343444469b32ceebbbb92f5e044`.
 

@@ -799,6 +799,8 @@ class TaskSlotWidget(QFrame):
         self.stop_event = threading.Event()
         self.pause_event = threading.Event()
         self.worker: AutomationWorker | None = None
+        self.browser_lifecycle_state = "Closed"
+        self.browser_action_button: QPushButton | None = None
         self.state = TaskState(
             slot_id=slot_id,
             target_url=str(app.settings.get("default_target_url", DEFAULT_SETTINGS["default_target_url"])),
@@ -993,11 +995,11 @@ class TaskSlotWidget(QFrame):
         # Group 3: browser/window actions.
         action_group = QWidget()
         action_lay = hbox(action_group, margins=(0, 0, 0, 0), spacing=6)
-        open_btn = button("Open Browser", "primary")
-        open_btn.setObjectName("TaskOpenBrowserButton")
-        open_btn.setFixedHeight(32)
-        open_btn.clicked.connect(self.open_browser)
-        action_lay.addWidget(open_btn)
+        self.browser_action_button = button("Open Browser", "primary")
+        self.browser_action_button.setObjectName("TaskOpenBrowserButton")
+        self.browser_action_button.setFixedHeight(32)
+        self.browser_action_button.clicked.connect(self.browser_action)
+        action_lay.addWidget(self.browser_action_button)
         close_btn = button("Close Task", "danger")
         close_btn.setObjectName("TaskCloseButton")
         close_btn.setFixedHeight(32)
@@ -1173,14 +1175,50 @@ class TaskSlotWidget(QFrame):
             w.setToolTip(str(value))
 
     def _render_browser_status(self, status: str) -> None:
-        """Render browser state as a non-clickable text pill with a colored dot."""
-        self.browser_status.setText(f"Browser: {status}")
-        state = "open" if status == "Open" else "closed" if status == "Closed" else "neutral"
+        """Render one deterministic browser lifecycle state and matching action."""
+        normalized = str(status).strip().title()
+        if normalized not in {"Closed", "Opening", "Open", "Closing"}:
+            normalized = "Closed"
+        self.browser_lifecycle_state = normalized
+        self.browser_status.setText(f"Browser: {normalized}")
+        state = "open" if normalized == "Open" else "closed" if normalized == "Closed" else "neutral"
         self.browser_status_dot.setProperty("browserState", state)
         style = self.browser_status_dot.style()
         style.unpolish(self.browser_status_dot)
         style.polish(self.browser_status_dot)
         self.browser_status_dot.update()
+
+        action = self.browser_action_button
+        if action is not None:
+            if normalized == "Closed":
+                action.setText("Open Browser")
+                action.setEnabled(True)
+            elif normalized == "Open":
+                action.setText("Close Browser")
+                action.setEnabled(True)
+            elif normalized == "Opening":
+                action.setText("Opening...")
+                action.setEnabled(False)
+            else:
+                action.setText("Closing...")
+                action.setEnabled(False)
+
+    def browser_action(self) -> None:
+        """Execute the single browser action that matches the visible lifecycle state."""
+        if self.browser_lifecycle_state == "Closed":
+            self.open_browser()
+            return
+        if self.browser_lifecycle_state != "Open":
+            return
+        if self.worker and self.worker.is_processing():
+            if not _confirm(
+                self,
+                "Close browser",
+                "This task is running. Closing its browser will stop processing and preserve the current recovery/unprocessed state. Close browser?",
+            ):
+                return
+        self.close_browser(wait=False)
+        self.app.update_dashboard()
 
     def open_browser(self) -> None:
         url = self.url.text().strip()
@@ -1408,7 +1446,11 @@ class TaskSlotWidget(QFrame):
     def close_browser(self, wait: bool = True) -> bool:
         worker = self.worker
         if not worker:
+            self._render_browser_status("Closed")
+            self._set_metric("Login", "Not Verified")
             return True
+        self._render_browser_status("Closing")
+        self._set_metric("Login", "Not Verified")
         worker.request_close()
         self._set_metric("Status", "Closing")
         if wait and worker.is_alive():
@@ -1448,13 +1490,47 @@ class TaskSlotWidget(QFrame):
         self.setParent(None)
         self.deleteLater()
 
+    def _finalize_closed_browser_state(self) -> None:
+        """Release a stopped worker only after its thread has actually exited."""
+        if self.browser_lifecycle_state != "Closing":
+            return
+        worker = self.worker
+        if worker is not None and worker.is_alive():
+            QTimer.singleShot(100, self._finalize_closed_browser_state)
+            return
+        self.worker = None
+        self._render_browser_status("Closed")
+        self._set_metric("Login", "Not Verified")
+        if not self.is_running() and self.state.status not in {
+            "Completed", "Failed", "Stopped", "Test Send Limit Reached", "Login/Test Mode Required"
+        }:
+            self._set_metric("Status", "Ready")
+        self.app.update_dashboard()
+
     def set_browser_status(self, status: str) -> None:
-        self._render_browser_status(status)
-        if status == "Closed" and self.worker and not self.worker.is_alive():
+        normalized = str(status).strip().title()
+        if normalized == "Closed" and self.worker and self.worker.is_alive():
+            # The visible browser is already unavailable, but keep the Task action
+            # disabled until the worker finishes its deterministic cleanup.
+            self._render_browser_status("Closing")
+            self._set_metric("Login", "Not Verified")
+            if not self.is_running():
+                self._set_metric("Status", "Closing")
+            QTimer.singleShot(100, self._finalize_closed_browser_state)
+            return
+
+        self._render_browser_status(normalized)
+        if normalized == "Closed" and self.worker and not self.worker.is_alive():
             self.worker = None
-        if status == "Open" and not self.is_running():
+        if normalized == "Open" and not self.is_running():
             self._set_metric("Status", "Login Verified" if self.is_login_verified() else "Login Required")
-        elif status == "Closed" and not self.is_running() and self.state.status not in {
+        elif normalized == "Opening" and not self.is_running():
+            self._set_metric("Login", "Not Verified")
+            self._set_metric("Status", "Opening Browser")
+        elif normalized == "Closing" and not self.is_running():
+            self._set_metric("Login", "Not Verified")
+            self._set_metric("Status", "Closing")
+        elif normalized == "Closed" and not self.is_running() and self.state.status not in {
             "Completed", "Failed", "Stopped", "Test Send Limit Reached", "Login/Test Mode Required"
         }:
             self._set_metric("Login", "Not Verified")
@@ -1463,7 +1539,14 @@ class TaskSlotWidget(QFrame):
     def set_login_status(self, verified: bool, message: str = "") -> None:
         self._set_metric("Login", "Verified" if verified else "Not Verified")
         if not self.is_running():
-            self._set_metric("Status", "Login Verified" if verified else "Login Required")
+            if not verified and self.browser_lifecycle_state == "Closing":
+                self._set_metric("Status", "Closing")
+            elif not verified and self.browser_lifecycle_state == "Closed":
+                self._set_metric("Status", "Ready")
+            elif not verified and self.browser_lifecycle_state == "Opening":
+                self._set_metric("Status", "Opening Browser")
+            else:
+                self._set_metric("Status", "Login Verified" if verified else "Login Required")
         if message:
             self.app.log_ui(
                 f"Task {self.slot_id}: {message}",
@@ -1493,7 +1576,12 @@ class TaskSlotWidget(QFrame):
         self._set_metric("Status", status)
 
     def is_browser_open(self) -> bool:
-        return bool(self.worker and self.worker.is_alive() and self.worker.is_browser_ready())
+        return bool(
+            self.browser_lifecycle_state == "Open"
+            and self.worker
+            and self.worker.is_alive()
+            and self.worker.is_browser_ready()
+        )
 
     def is_login_verified(self) -> bool:
         return bool(self.worker and self.worker.is_alive() and self.worker.is_login_verified())
@@ -1628,6 +1716,41 @@ class MainWindow(QMainWindow):
         frame.moveCenter(screen.availableGeometry().center())
         self.move(frame.topLeft())
 
+    def _fit_workspace_to_screen(self) -> None:
+        """Resize and center the workspace fully inside the current screen."""
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is None:
+            self.setMinimumSize(CONST.min_window_width, CONST.min_window_height)
+            self.resize(CONST.default_window_width, CONST.default_window_height)
+            return
+
+        available = screen.availableGeometry()
+        target_width = max(1, min(CONST.default_window_width, available.width()))
+        target_height = max(1, min(CONST.default_window_height, available.height()))
+        self.setMinimumSize(0, 0)
+        self.resize(target_width, target_height)
+
+        # Account for the native frame/title-bar size after the client resize so
+        # the complete top-level window remains inside availableGeometry().
+        frame = self.frameGeometry()
+        excess_width = max(0, frame.width() - available.width())
+        excess_height = max(0, frame.height() - available.height())
+        if excess_width or excess_height:
+            self.resize(
+                max(1, self.width() - excess_width),
+                max(1, self.height() - excess_height),
+            )
+            frame = self.frameGeometry()
+
+        minimum_width = min(CONST.min_window_width, self.width())
+        minimum_height = min(CONST.min_window_height, self.height())
+        self.setMinimumSize(minimum_width, minimum_height)
+
+        frame.moveCenter(available.center())
+        left = max(available.left(), min(frame.left(), available.right() - frame.width() + 1))
+        top = max(available.top(), min(frame.top(), available.bottom() - frame.height() + 1))
+        self.move(left, top)
+
     def show_workspace(self) -> None:
         # A successful activation may only enter the workspace once. Repeated queued
         # callbacks are ignored instead of rebuilding/deleting the same Qt widgets.
@@ -1648,8 +1771,7 @@ class MainWindow(QMainWindow):
             self._build_shell()
             self.activation_page = None
             self._build_status_bar()
-            self.setMinimumSize(CONST.min_window_width, CONST.min_window_height)
-            self.resize(CONST.default_window_width, CONST.default_window_height)
+            self._fit_workspace_to_screen()
             self.navigate("Dashboard")
             self._workspace_active = True
             if not self.tasks:

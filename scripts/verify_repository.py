@@ -29,6 +29,7 @@ WORKFLOW_INPUTS_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.8_wo
 WORKFLOW_INPUTS_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.9_workflow_inputs_verification_fix_scope.json"
 LICENSE_LOGIN_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.10_license_login_fix_scope.json"
 QT_FOCUS_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.11_qt_focus_lifecycle_fix_scope.json"
+BROWSER_UI_LIFECYCLE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.12_browser_ui_lifecycle_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -274,6 +275,40 @@ license_allowed_mw_methods = set(license_fix_scope.get("approved_mainwindow_meth
 if license_allowed_files != {"src/vibrapilot/backend.py", "src/vibrapilot/qt_app.py"}:
     fail("v1.0.6.10 license runtime surface mismatch")
 
+# v1.0.6.12 VP-BROWSER-UI-LIFECYCLE-001 supersedes only the approved
+# browser-lifecycle methods in backend/qt_app. Historical manifests remain
+# immutable evidence for every other method and file.
+if not BROWSER_UI_LIFECYCLE_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.12 browser UI lifecycle scope contract is missing")
+try:
+    browser_ui_scope = json.loads(BROWSER_UI_LIFECYCLE_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.12 browser UI lifecycle scope contract is invalid: {exc}")
+if browser_ui_scope.get("plan_id") != "VP-BROWSER-UI-LIFECYCLE-001":
+    fail("v1.0.6.12 browser UI lifecycle plan identifier mismatch")
+if browser_ui_scope.get("official_baseline") != "VibraPilot v1.0.6.11":
+    fail("v1.0.6.12 browser UI lifecycle baseline version mismatch")
+if browser_ui_scope.get("official_baseline_archive_sha256") != "9ecb7cd66f24832c3555d219a6f8aaf47358877dd417eeb703b5a755964fc90a":
+    fail("v1.0.6.12 browser UI lifecycle baseline archive mismatch")
+if browser_ui_scope.get("official_baseline_github_commit") != "8670415b1df221ebeeb7d8f3fba4f991a91d43ec":
+    fail("v1.0.6.12 browser UI lifecycle GitHub baseline mismatch")
+if browser_ui_scope.get("target_version") != "1.0.6.12":
+    fail("v1.0.6.12 browser UI lifecycle target mismatch")
+browser_ui_allowed_files = set(browser_ui_scope.get("allowed_runtime_source_changes", []))
+if browser_ui_allowed_files != {"src/vibrapilot/backend.py", "src/vibrapilot/qt_app.py"}:
+    fail("v1.0.6.12 browser UI lifecycle runtime surface mismatch")
+browser_ui_allowed_worker = set(browser_ui_scope.get("approved_automationworker_method_changes", []))
+browser_ui_allowed_task = set(browser_ui_scope.get("approved_taskslotwidget_method_changes", []))
+browser_ui_allowed_main = set(browser_ui_scope.get("approved_mainwindow_method_changes", []))
+for relative, expected_sha in browser_ui_scope.get("approved_runtime_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.12 approved runtime file mismatch: {relative}")
+for relative, expected_sha in browser_ui_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.12 browser UI out-of-scope file drift detected: {relative}")
+
 # v1.0.6.11 VP-QT-FOCUS-LIFECYCLE-001 authorizes exactly one design-runtime
 # implementation file. Historical scope manifests remain immutable evidence;
 # this current scope supersedes their old focus_manager byte hash only.
@@ -299,6 +334,8 @@ if qt_focus_allowed_files != {"vib_validation_app/focus_manager.py"}:
 if qt_focus_scope.get("approved_focus_manager_sha256") != EXPECTED_BRAND_HASHES["vib_validation_app/focus_manager.py"]:
     fail("v1.0.6.11 approved focus-manager hash does not match the current design contract")
 for relative, expected_sha in qt_focus_scope.get("frozen_file_sha256", {}).items():
+    if relative in browser_ui_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.11 Qt focus out-of-scope file drift detected: {relative}")
@@ -361,6 +398,8 @@ automation_worker_methods = {
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
 }
 for method_name, expected_sha in production_scope.get("frozen_automationworker_method_ast_sha256", {}).items():
+    if method_name in browser_ui_allowed_worker:
+        continue
     node = automation_worker_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"production out-of-scope AutomationWorker method drift detected: {method_name}")
@@ -438,13 +477,15 @@ current_checks = {
 for name, node in current_checks.items():
     if name == "backend.LicenseManager" and "src/vibrapilot/backend.py" in license_allowed_files:
         continue
-    if name == "qt_app.MainWindow" and (workflow_approved_mainwindow or license_allowed_mw_methods):
+    if name == "qt_app.MainWindow" and (workflow_approved_mainwindow or license_allowed_mw_methods or browser_ui_allowed_main):
         continue
     expected_sha = current_ast.get(name)
     if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.7 out-of-scope AST drift detected: {name}")
 allowed_current_worker = set(current_fix_scope.get("approved_automationworker_method_changes", []))
 for method_name, expected_sha in current_fix_scope.get("frozen_automationworker_method_ast_sha256", {}).items():
+    if method_name in browser_ui_allowed_worker:
+        continue
     if method_name in allowed_current_worker:
         fail(f"v1.0.6.7 fix scope incorrectly freezes an approved worker method: {method_name}")
     if method_name in followup_allowed_worker:
@@ -455,7 +496,7 @@ for method_name, expected_sha in current_fix_scope.get("frozen_automationworker_
 
 # Enforce the later Windows SQLite fix boundary against the clean v1.0.6.7 baseline.
 for relative, expected_sha in windows_sqlite_fix_scope.get("frozen_file_sha256", {}).items():
-    if relative in workflow_allowed_files or relative in workflow_release_files or relative in qt_focus_allowed_files:
+    if relative in workflow_allowed_files or relative in workflow_release_files or relative in qt_focus_allowed_files or relative in browser_ui_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
@@ -466,12 +507,14 @@ followup_ast = windows_sqlite_fix_scope.get("frozen_ast_sha256", {})
 for name, node in current_checks.items():
     if name == "backend.LicenseManager" and "src/vibrapilot/backend.py" in license_allowed_files:
         continue
-    if name == "qt_app.MainWindow" and (workflow_approved_mainwindow or license_allowed_mw_methods):
+    if name == "qt_app.MainWindow" and (workflow_approved_mainwindow or license_allowed_mw_methods or browser_ui_allowed_main):
         continue
     expected_sha = followup_ast.get(name)
     if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.7 Windows SQLite fix out-of-scope AST drift detected: {name}")
 for method_name, expected_sha in windows_sqlite_fix_scope.get("frozen_automationworker_method_ast_sha256", {}).items():
+    if method_name in browser_ui_allowed_worker:
+        continue
     if method_name in followup_allowed_worker:
         fail(f"v1.0.6.7 Windows SQLite fix incorrectly freezes an approved worker method: {method_name}")
     node = automation_worker_methods.get(method_name)
@@ -480,7 +523,7 @@ for method_name, expected_sha in windows_sqlite_fix_scope.get("frozen_automation
 
 # Enforce VP-WORKFLOW-INPUTS-001 against the final v1.0.6.7 baseline.
 for relative, expected_sha in workflow_inputs_scope.get("frozen_file_sha256", {}).items():
-    if relative in license_allowed_files or relative in qt_focus_allowed_files:
+    if relative in license_allowed_files or relative in qt_focus_allowed_files or relative in browser_ui_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
@@ -500,6 +543,8 @@ workflow_ast_checks = {
 for name, node in workflow_ast_checks.items():
     if name == "backend.LicenseManager" and "src/vibrapilot/backend.py" in license_allowed_files:
         continue
+    if name == "backend.AutomationWorker" and browser_ui_allowed_worker:
+        continue
     expected_sha = workflow_fixed_ast.get(name)
     if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.8 Workflow Inputs out-of-scope AST drift detected: {name}")
@@ -513,7 +558,7 @@ main_window_methods = {
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
 }
 for method_name, expected_sha in workflow_inputs_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in license_allowed_mw_methods:
+    if method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main:
         continue
     if method_name in workflow_approved_mainwindow:
         fail(f"v1.0.6.8 Workflow Inputs scope incorrectly freezes approved MainWindow method: {method_name}")
@@ -530,6 +575,8 @@ task_slot_methods = {
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
 }
 for method_name, expected_sha in workflow_inputs_scope.get("frozen_taskslotwidget_method_ast_sha256", {}).items():
+    if method_name in browser_ui_allowed_task:
+        continue
     node = task_slot_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.8 Workflow Inputs TaskSlotWidget drift detected: {method_name}")
@@ -554,7 +601,7 @@ workflow_fix_approved_methods = set(workflow_fix_scope.get("approved_mainwindow_
 if workflow_fix_approved_methods != {"save_workflow_inputs", "reset_workflow_inputs"}:
     fail("v1.0.6.9 approved MainWindow method surface mismatch")
 for relative, expected_sha in workflow_fix_scope.get("frozen_file_sha256", {}).items():
-    if relative in license_allowed_files or relative in qt_focus_allowed_files:
+    if relative in license_allowed_files or relative in qt_focus_allowed_files or relative in browser_ui_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
@@ -562,7 +609,7 @@ for relative, expected_sha in workflow_fix_scope.get("frozen_file_sha256", {}).i
 if workflow_fix_scope.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
     fail("v1.0.6.9 Workflow Inputs fix AST hash algorithm mismatch")
 for method_name, expected_sha in workflow_fix_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in license_allowed_mw_methods:
+    if method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main:
         continue
     if method_name in workflow_fix_approved_methods:
         fail(f"v1.0.6.9 fix scope incorrectly freezes approved MainWindow method: {method_name}")
@@ -588,6 +635,8 @@ license_ast_checks = {
     "qt_app.BROWSER_SETTING_GROUPS": qt_ann_nodes.get("BROWSER_SETTING_GROUPS"),
 }
 for name, expected_sha in license_fix_scope.get("frozen_ast_sha256", {}).items():
+    if name == "backend.AutomationWorker" and browser_ui_allowed_worker:
+        continue
     node = license_ast_checks.get(name)
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.10 license out-of-scope AST drift detected: {name}")
@@ -605,11 +654,41 @@ for method_name, expected_sha in license_fix_scope.get("frozen_licensemanager_me
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.10 out-of-scope LicenseManager drift: {method_name}")
 for method_name, expected_sha in license_fix_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
+    if method_name in browser_ui_allowed_main:
+        continue
     if method_name in license_allowed_mw_methods:
         fail(f"v1.0.6.10 license scope incorrectly freezes approved MainWindow method: {method_name}")
     node = main_window_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.10 out-of-scope MainWindow drift: {method_name}")
+
+# v1.0.6.12 exact current browser UI/lifecycle scope verification.
+if browser_ui_scope.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
+    fail("v1.0.6.12 browser UI lifecycle AST hash algorithm mismatch")
+current_scope_ast = {
+    "backend.LicenseManager": production_nodes.get("LicenseManager"),
+    "backend.TaskItem": production_nodes.get("TaskItem"),
+    "backend.TaskState": production_nodes.get("TaskState"),
+    "backend.SELECTORS": backend_assignment_nodes.get("SELECTORS"),
+    "qt_app.ActivationPage": qt_nodes.get("ActivationPage"),
+    "qt_app.BROWSER_SETTING_GROUPS": qt_ann_nodes.get("BROWSER_SETTING_GROUPS"),
+}
+for name, expected_sha in browser_ui_scope.get("frozen_ast_sha256", {}).items():
+    node = current_scope_ast.get(name)
+    if node is None or ast_contract_sha(node) != expected_sha:
+        fail(f"v1.0.6.12 browser UI frozen AST drift detected: {name}")
+for method_name, expected_sha in browser_ui_scope.get("frozen_automationworker_method_ast_sha256", {}).items():
+    node = automation_worker_methods.get(method_name)
+    if node is None or ast_contract_sha(node) != expected_sha:
+        fail(f"v1.0.6.12 browser UI out-of-scope AutomationWorker drift: {method_name}")
+for method_name, expected_sha in browser_ui_scope.get("frozen_taskslotwidget_method_ast_sha256", {}).items():
+    node = task_slot_methods.get(method_name)
+    if node is None or ast_contract_sha(node) != expected_sha:
+        fail(f"v1.0.6.12 browser UI out-of-scope TaskSlotWidget drift: {method_name}")
+for method_name, expected_sha in browser_ui_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
+    node = main_window_methods.get(method_name)
+    if node is None or ast_contract_sha(node) != expected_sha:
+        fail(f"v1.0.6.12 browser UI out-of-scope MainWindow drift: {method_name}")
 
 # Local developer check: when the private project workspace is present, prove that
 # the published machine contract still describes the private v1.0.6 baseline.
@@ -644,8 +723,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.11":
-    fail("AppConfig VERSION must be 1.0.6.11 for the Qt focus lifecycle verification/fix")
+if app_version != "1.0.6.12":
+    fail("AppConfig VERSION must be 1.0.6.12 for VP-BROWSER-UI-LIFECYCLE-001")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -759,8 +838,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.11-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.11 release path")
+if "VibraPilot-1.0.6.12-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.12 release path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})
@@ -1176,8 +1255,8 @@ for marker in transition_markers:
         fail(f"activation/workspace lifecycle marker missing: {marker}")
 
 show_workspace_source = qt_text[qt_text.index("    def show_workspace(self) -> None:"):qt_text.index("    def _build_menu_bar", qt_text.index("    def show_workspace(self) -> None:"))]
-if show_workspace_source.index("self._build_shell()") > show_workspace_source.index("self.setMinimumSize(CONST.min_window_width, CONST.min_window_height)"):
-    fail("workspace minimum size must be restored only after the live shell is built")
+if show_workspace_source.index("self._build_shell()") > show_workspace_source.index("self._fit_workspace_to_screen()"):
+    fail("workspace geometry must be applied only after the live shell is built")
 if "tl = hbox(toolbar," in qt_text or "cl = hbox(controls," in qt_text:
     fail("workspace card must not receive a second top-level Qt layout")
 
@@ -1239,6 +1318,29 @@ for marker in (
 if "except Exception:" in focus_manager_text:
     fail("v1.0.6.11 focus manager must not hide unrelated exceptions with a broad handler")
 
+# v1.0.6.12 Browser UI/lifecycle invariants.
+for marker in [
+    'self._browser_lifecycle_state = "CLOSED"',
+    'def _browser_objects_ready(self) -> bool:',
+    'browser.on("disconnected", browser_disconnected)',
+    'context.on("close", context_closed)',
+    'page.on("close", page_closed)',
+    'self.browser_action_button = button("Open Browser", "primary")',
+    'action.setText("Close Browser")',
+    'self.close_browser(wait=False)',
+    'def _fit_workspace_to_screen(self) -> None:',
+    'screen.availableGeometry()',
+]:
+    if marker not in (backend_text + qt_text):
+        fail(f"v1.0.6.12 browser UI/lifecycle marker missing: {marker}")
+settings_defaults = json.loads((ROOT / "config" / "settings.defaults.json").read_text(encoding="utf-8"))
+if settings_defaults.get("use_persistent_context") is not False:
+    fail("v1.0.6.12 must not enable managed persistent browser mode")
+if settings_defaults.get("restore_previous_session") is not False:
+    fail("v1.0.6.12 must not enable previous-session restoration")
+if settings_defaults.get("extensions_enabled") is not False:
+    fail("v1.0.6.12 must not change extension defaults")
+
 print("[8/8] Required project files")
 required = [
     "README.md", "CHANGELOG.md", "UPDATE_LOG.md", "VERSIONING.md", "LICENSE", "NOTICE", "pyproject.toml", "requirements.txt", "requirements-build.txt",
@@ -1252,6 +1354,7 @@ required = [
     "config/verification/v1.0.6.9_workflow_inputs_verification_fix_scope.json",
     "config/verification/v1.0.6.10_license_login_fix_scope.json",
     "config/verification/v1.0.6.11_qt_focus_lifecycle_fix_scope.json",
+    "config/verification/v1.0.6.12_browser_ui_lifecycle_scope.json",
     "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
     "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
@@ -1268,6 +1371,7 @@ required = [
     "docs/verification/V1.0.6.9_WORKFLOW_INPUTS_FORENSIC_VERIFICATION.md",
     "docs/verification/V1.0.6.10_LICENSE_LOGIN_FORENSIC_VERIFICATION.md",
     "docs/verification/V1.0.6.11_QT_FOCUS_LIFECYCLE_VERIFICATION.md",
+    "docs/verification/V1.0.6.12_BROWSER_UI_LIFECYCLE_VERIFICATION.md",
     "docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md", "docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md",
     "docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md",
     "docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md",
@@ -1276,6 +1380,7 @@ required = [
     "docs/updates/v1.0.6.9-workflow-inputs-verification-fix.md",
     "docs/updates/v1.0.6.10-license-login-durability-recovery-fix.md",
     "docs/updates/v1.0.6.11-qt-focus-lifecycle-fix.md",
+    "docs/updates/v1.0.6.12-browser-ui-lifecycle.md",
     "scripts/verify_source_archive.py", "tests/test_v1067_verification_fix.py", "tests/test_app_config_validation.py",
     "tests/test_licensing_v2_crypto.py", "tests/test_licensing_v2_client.py", "tests/test_license_manager_v2.py", "tests/test_phase02_scope_freeze.py", "tests/test_phase02_step002_fix_scope.py",
     "tests/test_production_scope_freeze.py", "tests/test_task_runtime_store.py", "tests/test_task_recovery.py",
@@ -1286,6 +1391,7 @@ required = [
     "tests/test_v1069_workflow_inputs_verification_fix.py",
     "tests/test_v10610_license_login_fix.py",
     "tests/test_v10611_qt_focus_lifecycle_fix.py",
+    "tests/test_v10612_browser_ui_lifecycle.py",
     "scripts/maintenance/Apply-v1.0.6.2-Phase01-Fix.cmd",
     "scripts/maintenance/PHASE01_V1.0.6.2_DELETE_PATHS.txt",
     "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",

@@ -48,3 +48,8 @@ On Windows without an explicit `VIB_TOOLS_DATA_DIR`, licensing state is stored u
 ## v1.0.6.11 Qt focus lifecycle compatibility
 
 No Python dependency, PySide6 version range, UI visual token, application page, settings key, browser engine, SQLite schema, licensing protocol, selector or task/workflow behavior changes. The only runtime change is deleted-QObject lifetime guarding in `vib_validation_app/focus_manager.py`; Shiboken is already shipped as part of the existing PySide6 runtime.
+
+
+## v1.0.6.12 Browser UI/lifecycle compatibility
+
+No Python dependency, Browser Settings key/default, SQLite schema, Licora protocol, selector, Razorpay Send sequence, Workflow Inputs contract, ActivationPage visual design or managed-persistent-profile behavior changes. The worker now owns browser lifecycle truth through thread-safe readiness events and page/context/browser close callbacks; the Qt Task UI consumes those events to render a deterministic Open/Close browser action. First-workspace geometry is centered/clamped to the current screen only; persistent window geometry remains reserved for a later workspace-persistence phase.

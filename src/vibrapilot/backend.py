@@ -1699,6 +1699,15 @@ class AutomationWorker(threading.Thread):
         self.active_profile_dir: Path | None = None
         self.browser_restart_count = 0
         self.resource_route_handler = None
+        # Phase-01 browser lifecycle truth is owned by this worker thread and
+        # exposed to the UI through thread-safe Events/status messages.  Qt must
+        # never need to inspect Playwright objects directly.
+        self._browser_lifecycle_lock = threading.RLock()
+        self._browser_lifecycle_state = "CLOSED"
+        self._context_transitioning = False
+        self._lifecycle_browser_id: int | None = None
+        self._lifecycle_context_id: int | None = None
+        self._lifecycle_page_ids: set[int] = set()
 
     def emit(self, kind: str, payload: dict[str, Any]) -> None:
         payload["slot_id"] = self.state.slot_id
@@ -1799,12 +1808,160 @@ class AutomationWorker(threading.Thread):
         self.pause_event.clear()
         self.control_queue.put(("close", {}))
 
-    def is_browser_ready(self) -> bool:
-        if not self.browser_ready_event.is_set():
+    def _set_browser_lifecycle_state(self, state: str) -> None:
+        """Publish one deterministic browser lifecycle state to the UI.
+
+        Playwright objects remain worker-thread owned.  Other threads consume
+        only ``browser_ready_event`` and emitted state, avoiding cross-thread
+        calls into Page/Browser wrappers.
+        """
+        normalized = str(state).strip().upper()
+        if normalized not in {"CLOSED", "OPENING", "OPEN", "CLOSING"}:
+            raise ValueError(f"Unsupported browser lifecycle state: {state}")
+        with self._browser_lifecycle_lock:
+            previous = self._browser_lifecycle_state
+            self._browser_lifecycle_state = normalized
+            if normalized == "OPEN":
+                self.browser_ready_event.set()
+            else:
+                self.browser_ready_event.clear()
+                self.login_verified_event.clear()
+            changed = previous != normalized
+        if changed:
+            self.emit("browser", {"status": normalized.title()})
+
+    def _live_context_pages(self, *, exclude=None) -> list[Any]:
+        context = self.context
+        if context is None:
+            return []
+        try:
+            pages = list(context.pages)
+        except Exception:
+            return []
+        live: list[Any] = []
+        for page in pages:
+            if page is exclude:
+                continue
+            try:
+                if not page.is_closed():
+                    live.append(page)
+            except Exception:
+                continue
+        return live
+
+    def _mark_browser_unavailable(self, reason: str = "") -> None:
+        """Clear browser/login readiness once for an external lifecycle loss."""
+        was_login_verified = self.login_verified_event.is_set()
+        with self._browser_lifecycle_lock:
+            was_available = self._browser_lifecycle_state != "CLOSED"
+        self._set_browser_lifecycle_state("CLOSED")
+        if was_login_verified or (reason and was_available):
+            self.emit(
+                "login",
+                {
+                    "verified": False,
+                    "message": reason or "Browser session closed; login verification was cleared.",
+                },
+            )
+
+    def _browser_objects_ready(self) -> bool:
+        """Owner-thread health probe for the controlled browser/page objects."""
+        context = self.context
+        if context is None:
             return False
+        page = self.active_page
+        try:
+            page_closed = page is None or page.is_closed()
+        except Exception:
+            page_closed = True
+        if page_closed:
+            live_pages = self._live_context_pages(exclude=page)
+            if not live_pages:
+                return False
+            self.active_page = live_pages[-1]
+            if self.login_verified_event.is_set():
+                self.login_verified_event.clear()
+                self.emit(
+                    "login",
+                    {
+                        "verified": False,
+                        "message": "The active browser page changed; verify the current login session again.",
+                    },
+                )
         if self.persistent_context_mode:
-            return bool(self.context and self.active_page and not self.active_page.is_closed())
-        return bool(self.browser and self.browser.is_connected())
+            return True
+        browser = self.browser
+        if browser is None:
+            return False
+        try:
+            return bool(browser.is_connected())
+        except Exception:
+            return False
+
+    def _attach_browser_lifecycle_events(self) -> None:
+        """Attach idempotent Browser/Context close events to the live objects."""
+        browser = self.browser
+        if browser is not None and id(browser) != self._lifecycle_browser_id:
+            self._lifecycle_browser_id = id(browser)
+
+            def browser_disconnected(_browser=None) -> None:
+                if browser is not self.browser or self.close_event.is_set():
+                    return
+                self._mark_browser_unavailable("Browser closed outside the application.")
+
+            browser.on("disconnected", browser_disconnected)
+
+        context = self.context
+        if context is not None and id(context) != self._lifecycle_context_id:
+            self._lifecycle_context_id = id(context)
+
+            def context_closed(_context=None) -> None:
+                if (
+                    context is not self.context
+                    or self._context_transitioning
+                    or self.close_event.is_set()
+                    or self._browser_lifecycle_state in {"OPENING", "CLOSING"}
+                ):
+                    return
+                self._mark_browser_unavailable("Browser context closed outside the application.")
+
+            context.on("close", context_closed)
+
+    def _attach_page_lifecycle_events(self, page) -> None:
+        """Track manual closure of the active controlled page without UI polling."""
+        if page is None or id(page) in self._lifecycle_page_ids:
+            return
+        self._lifecycle_page_ids.add(id(page))
+
+        def page_closed(_page=None) -> None:
+            self._lifecycle_page_ids.discard(id(page))
+            if (
+                self._context_transitioning
+                or self.close_event.is_set()
+                or self._browser_lifecycle_state in {"OPENING", "CLOSING"}
+                or page is not self.active_page
+            ):
+                return
+            live_pages = self._live_context_pages(exclude=page)
+            if live_pages:
+                self.active_page = live_pages[-1]
+                self.login_verified_event.clear()
+                self.emit(
+                    "login",
+                    {
+                        "verified": False,
+                        "message": "The active browser page was closed; another open page is now active and must be verified.",
+                    },
+                )
+                return
+            self.active_page = None
+            self._mark_browser_unavailable("The controlled browser page was closed manually.")
+
+        page.on("close", page_closed)
+
+    def is_browser_ready(self) -> bool:
+        """Return the thread-safe lifecycle truth exposed to the UI."""
+        return self.browser_ready_event.is_set()
 
     def is_processing(self) -> bool:
         return self.processing_event.is_set()
@@ -1815,10 +1972,10 @@ class AutomationWorker(threading.Thread):
     def run(self) -> None:
         restart_attempts = 0
         try:
+            self._set_browser_lifecycle_state("OPENING")
             self.launch_browser()
-            self.browser_ready_event.set()
+            self._set_browser_lifecycle_state("OPEN")
             self.state.status = "Login Required"
-            self.emit("browser", {"status": "Open"})
             self.emit("status", {"status": "Login Required"})
             self.emit(
                 "login",
@@ -1829,7 +1986,8 @@ class AutomationWorker(threading.Thread):
                 try:
                     command, payload = self.control_queue.get(timeout=0.2)
                 except queue.Empty:
-                    if not self.is_browser_ready():
+                    if not self._browser_objects_ready():
+                        self._mark_browser_unavailable("Browser was closed outside the application.")
                         if bool(
                             self.settings.get(
                                 "auto_restart_browser_on_crash",
@@ -1862,6 +2020,7 @@ class AutomationWorker(threading.Thread):
                                     f"{restart_attempts}/{max_restarts} scheduled.",
                                     "WARNING",
                                 )
+                                self._set_browser_lifecycle_state("OPENING")
                                 self.interruptible_sleep(delay)
                                 try:
                                     if self.context:
@@ -1877,8 +2036,7 @@ class AutomationWorker(threading.Thread):
                                 self.browser = None
                                 self.active_page = None
                                 self.launch_browser()
-                                self.browser_ready_event.set()
-                                self.emit("browser", {"status": "Open"})
+                                self._set_browser_lifecycle_state("OPEN")
                                 self.emit(
                                     "login",
                                     {
@@ -1887,9 +2045,20 @@ class AutomationWorker(threading.Thread):
                                     },
                                 )
                                 continue
-                        raise RuntimeError(
-                            "Browser was closed outside the application."
-                        ) from None
+                        if self.state.status not in {
+                            "Completed",
+                            "Failed",
+                            "Stopped",
+                            "Test Send Limit Reached",
+                            "Login/Test Mode Required",
+                        }:
+                            self.state.status = "Ready"
+                            self.emit("status", {"status": "Ready"})
+                        self.log(
+                            "Browser closed outside the application; the Task was kept for reopening.",
+                            "WARNING",
+                        )
+                        break
                     restart_attempts = 0
                     self.refresh_login_verification()
                     continue
@@ -2119,11 +2288,9 @@ class AutomationWorker(threading.Thread):
             self.emit("status", {"status": "Browser Failed"})
         finally:
             self.processing_event.clear()
-            self.browser_ready_event.clear()
-            self.login_verified_event.clear()
+            self._set_browser_lifecycle_state("CLOSED")
             self.cleanup()
             self.stopped_event.set()
-            self.emit("browser", {"status": "Closed"})
             self.emit("done", {"status": self.state.status})
 
     def test_mode_banner_ready(self, page) -> bool:
@@ -3279,10 +3446,14 @@ class AutomationWorker(threading.Thread):
 
         if not using_precreated_persistent_context:
             if self.context:
+                self._context_transitioning = True
                 try:
                     self.context.close()
                 except Exception:
                     pass
+                finally:
+                    self._context_transitioning = False
+                self._lifecycle_page_ids.clear()
             if not self.browser:
                 raise RuntimeError("Browser instance is not available.")
             self.context = self.browser.new_context(
@@ -3394,6 +3565,8 @@ class AutomationWorker(threading.Thread):
         self.context_item_count = 0
 
         def attach_page_events(page) -> None:
+            self._attach_page_lifecycle_events(page)
+
             def dialog_handler(dialog):
                 if bool(
                     self.settings.get(
@@ -3483,6 +3656,7 @@ class AutomationWorker(threading.Thread):
             page.on("response", response_handler)
             page.on("requestfailed", request_failed_handler)
 
+        self._attach_browser_lifecycle_events()
         self.context.on("page", attach_page_events)
         pages = list(self.context.pages)
         if using_precreated_persistent_context and pages:

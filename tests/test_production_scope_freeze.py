@@ -57,6 +57,9 @@ class ProductionScopeFreezeTest(unittest.TestCase):
 
     def test_out_of_scope_files_and_ast_are_frozen(self):
         current_focus_scope = ROOT / "config/verification/v1.0.6.11_qt_focus_lifecycle_fix_scope.json"
+        current_browser_scope = ROOT / "config/verification/v1.0.6.12_browser_ui_lifecycle_scope.json"
+        browser_data = json.loads(current_browser_scope.read_text(encoding="utf-8")) if current_browser_scope.is_file() else {}
+        approved_worker = set(browser_data.get("approved_automationworker_method_changes", []))
         for relative, expected in CONTRACT["frozen_file_sha256"].items():
             if current_focus_scope.is_file() and relative == "vib_validation_app/focus_manager.py":
                 continue
@@ -98,6 +101,8 @@ class ProductionScopeFreezeTest(unittest.TestCase):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         }
         for method_name, expected in CONTRACT.get("frozen_automationworker_method_ast_sha256", {}).items():
+            if method_name in approved_worker:
+                continue
             with self.subTest(worker_method=method_name):
                 self.assertIn(method_name, worker_methods)
                 self.assertEqual(_hash(worker_methods[method_name]), expected)

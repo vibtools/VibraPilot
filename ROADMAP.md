@@ -1,5 +1,11 @@
 # VibraPilot Roadmap
 
+## Phase-01 implementation candidate — v1.0.6.12
+
+`VP-BROWSER-UI-LIFECYCLE-001` is implemented at source level: manual page/context/browser close now converges to truthful Task browser state, the primary browser action transitions between Open/Close states, browser-only close preserves Task/data, Login and Dashboard readiness synchronize with lifecycle state, and the first workspace is centered/clamped after activation. Windows live browser-close/geometry acceptance remains required before this phase is marked VERIFIED.
+
+**Next after verification:** Phase-02 `VP-MANAGED-PERSISTENT-BROWSER-001`. Persistent-profile defaults and managed profile architecture remain unchanged in Phase-01.
+
 ## Verified Qt lifecycle milestone — v1.0.6.11
 
 The shared keyboard-focus manager is hardened against deleted PySide6 wrappers and delayed-tooltip lifetime races without changing the frozen visual focus contract. Windows live runtime verification remains the final platform gate before treating this correction as production-accepted.

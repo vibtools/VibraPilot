@@ -1,6 +1,14 @@
-# VibraPilot v1.0.6.11 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.12 — Vib Tools Browser Automation Desktop
 
-**VibraPilot v1.0.6.11** is the scope-locked `VP-QT-FOCUS-LIFECYCLE-001` correction built from exact GitHub v1.0.6.10 commit `d712a9d04fa62e5e3a0df9c00a99c1315052bd05`. It changes only the shared Qt keyboard-focus lifecycle manager so deleted PySide6 widget wrappers are never dereferenced during page transitions or delayed tooltip callbacks. Visual focus behavior, design tokens, ActivationPage, backend, licensing, browser/task/workflow/report behavior and dependencies remain unchanged.
+**VibraPilot v1.0.6.12** is the scope-locked `VP-BROWSER-UI-LIFECYCLE-001` production-hardening candidate built from the exact user-frozen v1.0.6.11 baseline archive SHA-256 `9ecb7cd66f24832c3555d219a6f8aaf47358877dd417eeb703b5a755964fc90a` and GitHub v1.0.6.11 commit `8670415b1df221ebeeb7d8f3fba4f991a91d43ec`. Runtime changes are limited to `src/vibrapilot/backend.py` and `src/vibrapilot/qt_app.py`.
+
+## v1.0.6.12 Browser UI/lifecycle hardening
+
+Task browser state is now modeled as **Closed → Opening → Open → Closing → Closed**. The worker owns Playwright lifecycle truth and maps active-page close, context close and browser disconnect events back to the Task UI without requiring the Qt thread to inspect Playwright Page/Browser wrappers. The Task browser action changes deterministically between **Open Browser**, **Opening...**, **Close Browser** and **Closing...** while **Close Task** remains a separate destructive Task action.
+
+Manual browser closure clears login verification, removes stale Browser Ready state from the Dashboard, and preserves the Task/data so the browser can be opened again. The existing browser auto-restart policy remains authoritative for unexpected closure when enabled. Successful Activation-to-Workspace transition now fits and centers the workspace inside the current screen's available geometry instead of expanding from the compact activation window's old top-left position.
+
+This phase does **not** enable managed persistent profiles, change Browser Settings defaults, add downloads/uploads/extensions, change Razorpay selectors/Send behavior, or alter Licora API v2. Windows live browser-lifecycle verification remains the final platform acceptance gate before v1.0.6.12 becomes the next Official Baseline Freeze.
 
 ## v1.0.6.11 Qt focus lifecycle correction
 
