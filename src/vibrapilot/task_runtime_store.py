@@ -21,6 +21,23 @@ RECOVERABLE_STATUSES = {
     "Login/Test Mode Required", "Test Send Limit Reached", "Manual Review Required",
 }
 
+CLOSED_STATUS_PREFIX = "Closed::"
+
+
+def _encode_closed_status(status: str) -> str:
+    value = str(status).strip() or "Ready"
+    if value.startswith(CLOSED_STATUS_PREFIX):
+        return value
+    return f"{CLOSED_STATUS_PREFIX}{value}"
+
+
+def _decode_closed_status(status: str) -> str | None:
+    value = str(status)
+    if not value.startswith(CLOSED_STATUS_PREFIX):
+        return None
+    previous = value[len(CLOSED_STATUS_PREFIX):].strip()
+    return previous or "Ready"
+
 
 def file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -383,6 +400,105 @@ class TaskRuntimeStore:
                 "UPDATE runs SET task_status='Discarded',manual_review_required=0,updated_at=? WHERE run_id=?",
                 (timestamp, run_id),
             )
+
+    def close_run(
+        self,
+        *,
+        run_id: str,
+        task_status: str,
+        timestamp: str,
+        current_index: int,
+        total: int,
+        success_count: int,
+        failed_count: int,
+        send_limit_used: int,
+        manual_review_required: bool,
+        target_url: str,
+        items: Iterable[Any],
+    ) -> None:
+        """Persist the exact Task snapshot and archive it without changing schema."""
+        if not run_id:
+            return
+        item_rows = list(items)
+        with self._write_connection() as conn:
+            conn.executemany(
+                """UPDATE items SET email=?,name=?,status=?,attempts=?,message=?,result=?
+                   WHERE run_id=? AND item_index=?""",
+                [
+                    (
+                        str(getattr(item, "email", "")),
+                        str(getattr(item, "name", "")),
+                        str(getattr(item, "status", "pending")),
+                        int(getattr(item, "attempts", 0)),
+                        str(getattr(item, "message", "")),
+                        str(getattr(item, "result", "")),
+                        run_id,
+                        index,
+                    )
+                    for index, item in enumerate(item_rows)
+                ],
+            )
+            conn.execute(
+                """UPDATE runs SET current_index=?,total=?,success_count=?,failed_count=?,
+                   send_limit_used=?,task_status=?,manual_review_required=?,updated_at=?,target_url=?
+                   WHERE run_id=?""",
+                (
+                    max(0, int(current_index)),
+                    max(0, int(total)),
+                    max(0, int(success_count)),
+                    max(0, int(failed_count)),
+                    max(0, int(send_limit_used)),
+                    _encode_closed_status(task_status),
+                    1 if manual_review_required else 0,
+                    timestamp,
+                    str(target_url),
+                    run_id,
+                ),
+            )
+
+    def closed_runs(self) -> list[dict[str, Any]]:
+        """Return deliberately closed Tasks; crash recovery remains separate."""
+        with self._connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM runs WHERE schema_version=? AND task_status LIKE ? "
+                "ORDER BY updated_at DESC, slot_id ASC",
+                (SCHEMA_VERSION, f"{CLOSED_STATUS_PREFIX}%"),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def closed_slot_ids(self) -> list[int]:
+        with self._connection() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT slot_id FROM runs WHERE schema_version=? AND task_status LIKE ? "
+                "ORDER BY slot_id",
+                (SCHEMA_VERSION, f"{CLOSED_STATUS_PREFIX}%"),
+            ).fetchall()
+        return [int(row[0]) for row in rows]
+
+    def reopen_closed_run(self, run_id: str, timestamp: str) -> dict[str, Any] | None:
+        """Reopen one deliberately closed run and restore its prior Task status."""
+        if not run_id:
+            return None
+        with self._write_connection() as conn:
+            row = conn.execute(
+                "SELECT schema_version,task_status,total FROM runs WHERE run_id=?",
+                (run_id,),
+            ).fetchone()
+            if row is None or int(row["schema_version"]) != SCHEMA_VERSION:
+                return None
+            previous_status = _decode_closed_status(str(row["task_status"]))
+            if previous_status is None:
+                return None
+            if previous_status in {
+                "Running", "Paused", "Starting", "Login Verified", "Login Required",
+                "Opening Browser", "Closing",
+            }:
+                previous_status = "Stopped" if int(row["total"]) > 0 else "Ready"
+            conn.execute(
+                "UPDATE runs SET task_status=?,updated_at=? WHERE run_id=?",
+                (previous_status, timestamp, run_id),
+            )
+        return self.load_run(run_id)
 
     def recoverable_runs(self) -> list[dict[str, Any]]:
         placeholders = ",".join("?" for _ in RECOVERABLE_STATUSES)

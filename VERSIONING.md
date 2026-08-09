@@ -1,8 +1,12 @@
+## v1.0.6.14 scope identity
+
+Version **1.0.6.14** is the scope-locked managed-persistent-browser and Closed Task recovery candidate based on verified v1.0.6.13 GitHub commit `5f082df8d1226710c095d4a8e591fb153c02c1c3`. Runtime changes are limited to `src/vibrapilot/backend.py`, `src/vibrapilot/qt_app.py`, `src/vibrapilot/task_runtime_store.py` and `config/settings.defaults.json`; SQLite schema version 1 is preserved.
+
 # Versioning
 
 VibraPilot uses a four-segment production release version for hardening/configuration/security maintenance on top of the validated v1.0.6 automation baseline.
 
-Current release candidate: **1.0.6.13**
+Current release candidate: **1.0.6.14**
 
 Version **1.0.6.13** is the verification/CI-stability correction anchored to uploaded v1.0.6.12 archive SHA-256 `becd6add21d377e98e458ce856c9c3baa710a113459bde0c737507c122c2a9b5` and GitHub v1.0.6.12 commit `a9cfec319285db2fb9fbff8d4bf0ede8ac87686b`.
 

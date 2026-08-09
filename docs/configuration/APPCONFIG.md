@@ -1,6 +1,10 @@
+# AppConfig and Current Runtime Contract
+
+Current release candidate: **VibraPilot v1.0.6.14**. Public application/version metadata remains centralized under `config/AppConfig/`. Phase-02 browser-profile defaults remain in `config/settings.defaults.json`; no secret browser/profile or license material belongs in AppConfig.
+
 # AppConfig Architecture
 
-VibraPilot v1.0.6.11 keeps public application configuration under `config/AppConfig/` and validates it through the read-only `src/vibrapilot/app_config.py` facade.
+VibraPilot v1.0.6.14 keeps public application configuration under `config/AppConfig/` and validates it through the read-only `src/vibrapilot/app_config.py` facade.
 
 ## Source layout
 
@@ -18,7 +22,7 @@ Runtime consumers import validated facade objects (`APP`, `ABOUT`, `SUPPORT`, so
 
 ## `app.py`
 
-Authoritative public application identity/version/owner/license/platform metadata. Current release: **1.0.6.11**.
+Authoritative public application identity/version/owner/license/platform metadata. Current release: **1.0.6.14**.
 
 ## `about.py`, `support.py`, `social.py`
 

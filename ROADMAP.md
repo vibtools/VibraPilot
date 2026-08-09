@@ -1,3 +1,11 @@
+## Phase-02 implementation candidate — v1.0.6.14
+
+Phase-01 `VP-BROWSER-UI-LIFECYCLE-001` is **VERIFIED** by the supplied Windows/manual browser lifecycle gate and green GitHub Actions run for v1.0.6.13.
+
+The current v1.0.6.14 candidate implements `VP-MANAGED-PERSISTENT-BROWSER-001` plus the approved amendment `VP-CLOSED-TASK-RECOVERY-001`: durable app-managed persistent browser profiles, stable Task-slot profile ownership/isolation, personal Chrome profile rejection, safe legacy VibraPilot profile migration, persistent-recycle lifecycle compatibility, and deliberate Closed Task archive/reopen without a database schema change.
+
+**Next after v1.0.6.14 verification:** continue the remaining `VP-WORKSPACE-PERSISTENCE-001` scope for normal active-workspace restoration. Closed Task recovery is already completed as an approved subset and must not be reimplemented.
+
 # VibraPilot Roadmap
 
 ## Phase-01 verification correction candidate — v1.0.6.13

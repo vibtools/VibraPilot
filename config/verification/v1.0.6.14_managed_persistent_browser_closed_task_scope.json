@@ -1,0 +1,99 @@
+{
+  "contract_name": "VibraPilot v1.0.6.14 managed persistent browser + closed task recovery scope lock",
+  "plan_ids": [
+    "VP-MANAGED-PERSISTENT-BROWSER-001",
+    "VP-CLOSED-TASK-RECOVERY-001"
+  ],
+  "official_baseline": "VibraPilot v1.0.6.13",
+  "official_baseline_archive": "VibraPilot_v1.0.6.13_Official_Development_Baseline.zip",
+  "official_baseline_archive_sha256": "7ffd7fc30d1b4da3b740988d342ac8e288c6b4d382e9f5b0046fc0fe4c11096a",
+  "official_baseline_github_commit": "5f082df8d1226710c095d4a8e591fb153c02c1c3",
+  "target_version": "1.0.6.14",
+  "allowed_runtime_source_changes": [
+    "src/vibrapilot/backend.py",
+    "src/vibrapilot/qt_app.py",
+    "src/vibrapilot/task_runtime_store.py",
+    "config/settings.defaults.json"
+  ],
+  "approved_settings_default_changes": {
+    "use_persistent_context": {
+      "from": false,
+      "to": true
+    }
+  },
+  "approved_settingsmanager_method_changes": [
+    "load"
+  ],
+  "approved_automationworker_method_changes": [
+    "default_managed_browser_profile_root",
+    "_normalized_profile_path",
+    "validate_managed_browser_profile_path",
+    "resolve_persistent_user_data_dir",
+    "_migrate_legacy_managed_profile_if_needed",
+    "launch_browser",
+    "maybe_recycle_context"
+  ],
+  "approved_taskruntime_method_changes": [
+    "close_run",
+    "closed_runs",
+    "closed_slot_ids",
+    "reopen_closed_run"
+  ],
+  "approved_taskslotwidget_method_changes": [
+    "open_browser",
+    "_persist_closed_task",
+    "close",
+    "restore_runtime"
+  ],
+  "approved_mainwindow_method_changes": [
+    "make_tasks_page",
+    "add_task",
+    "open_closed_tasks",
+    "_persistent_profile_claim",
+    "can_open_task_browser",
+    "make_browser_settings_page",
+    "save_browser_settings"
+  ],
+  "no_database_schema_change": true,
+  "required_schema_version": 1,
+  "no_new_dependency": true,
+  "no_new_page": true,
+  "restore_previous_session_must_remain_false": true,
+  "no_personal_chrome_profile_import": true,
+  "no_auto_browser_start": true,
+  "no_auto_workflow_start": true,
+  "no_auto_send": true,
+  "no_permanent_task_delete_feature": true,
+  "baseline_allowed_file_sha256": {
+    "src/vibrapilot/backend.py": "55c100824ef6276e1d3479aea7695263cc1f74beddb0c99b613def604bff301d",
+    "src/vibrapilot/qt_app.py": "6eb4eca8b6f283ae7cb4a8cd030e8fe46233ba84850cbc4075a63fa7f7225376",
+    "src/vibrapilot/task_runtime_store.py": "0cc44bd26b32de9c820ca5334d566257e651679577390df072c1ceb6170e74f5",
+    "config/settings.defaults.json": "cee3a7a688af488a22dc0f871f161a3e66ce454cd68c5a4ffa50824a13ef968d"
+  },
+  "approved_target_file_sha256": {
+    "src/vibrapilot/backend.py": "ef3a32f721273e242ae732a109a6e562f20bb115c1a8593affce541b13ffb15c",
+    "src/vibrapilot/qt_app.py": "4cbf0284221635a2c38cec4d735c10cad47b976945cc6e409d8015fc63e90982",
+    "src/vibrapilot/task_runtime_store.py": "b4b581c936479a6a3f334170c033bae53f1d216e562cc1aff8b3e54e728dcf26",
+    "config/settings.defaults.json": "64c0377a5a84167bdd480b8302d3ca7ac7c9b0db89d56df0d118bf5566444b76"
+  },
+  "frozen_file_sha256": {
+    "src/vibrapilot/licensing_v2.py": "36435d05593785b7ec02310dcf2d031342524e95d5be6212591a09277699a91b",
+    "src/vibrapilot/data_io.py": "ac8adddec1cfc2ba6784562c7f85e18ceb4da6d7906edac3296f79ed48af3c31",
+    "src/vibrapilot/workflow_inputs.py": "095e46558736ae9cf073bd4883a5bd43eefd1b2a1eb3de62156baa863f4a5ce9",
+    "config/AppConfig/licensing_public.py": "f1311c5e8cb18f31b322d65d30ed2ca074dbc1274911a2055f6a066b16c7c7ad",
+    "vib_validation_app/focus_manager.py": "a073051b05cbd2442b0bdec0a1251cf8185b54cbb71e755cc25c2ee85ce7f86e"
+  },
+  "approved_verification_file_changes": [
+    "scripts/verify_repository.py",
+    "tests/test_app_config.py",
+    "tests/test_multi_task_isolation.py",
+    "tests/test_settings_runtime.py",
+    "tests/test_v10612_browser_ui_lifecycle.py",
+    "tests/test_production_scope_freeze.py",
+    "tests/test_v10611_qt_focus_lifecycle_fix.py",
+    "tests/test_v10613_phase01_verification_fix.py",
+    "tests/test_workflow_inputs_scope.py",
+    "tests/test_v10614_managed_persistent_browser.py"
+  ],
+  "approved_documentation_change": "Version/changelog/public docs and private project development logs required by user approval."
+}

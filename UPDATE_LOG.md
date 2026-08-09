@@ -1,3 +1,12 @@
+## v1.0.6.14 — Managed persistent browser + Closed Task recovery — 2026-08-09
+
+Implemented the approved `VP-MANAGED-PERSISTENT-BROWSER-001` scope together with the explicitly amended `VP-CLOSED-TASK-RECOVERY-001`. The existing persistent-context browser path is now the managed default, blank profile roots use a durable per-user VibraPilot location on Windows, personal Chrome `User Data` paths are blocked, stable slot IDs own isolated browser profiles, and internal persistent-context recycling is synchronized with the verified Phase-01 lifecycle.
+
+`Close Task` now archives the exact Task runtime snapshot before removing the card. **Open Closed Tasks** restores deliberately closed Tasks with the same slot ID/run ID, recipient rows, progress/counts, target URL, send-limit/manual-review state and result continuity; browser/workflow/Send remain closed/stopped until explicit user action. Existing SQLite schema version 1 is unchanged.
+
+Detailed note: `docs/updates/v1.0.6.14-managed-persistent-browser-closed-task-recovery.md`  
+Verification: `docs/verification/V1.0.6.14_MANAGED_PERSISTENT_BROWSER_CLOSED_TASK_VERIFICATION.md`
+
 # Update Log
 
 ## v1.0.6.13 — Phase-01 verification/CI correction — 2026-08-09

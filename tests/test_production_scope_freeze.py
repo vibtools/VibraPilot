@@ -49,6 +49,11 @@ class ProductionScopeFreezeTest(unittest.TestCase):
         settings = json.loads((ROOT / "config/settings.defaults.json").read_text(encoding="utf-8"))
         for key in CONTRACT.get("approved_new_setting_keys", []):
             settings.pop(key, None)
+        current_scope = ROOT / "config/verification/v1.0.6.14_managed_persistent_browser_closed_task_scope.json"
+        if current_scope.is_file():
+            current = json.loads(current_scope.read_text(encoding="utf-8"))
+            for key, change in current.get("approved_settings_default_changes", {}).items():
+                settings[key] = change["from"]
         payload = json.dumps(settings, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
         self.assertEqual(
             hashlib.sha256(payload).hexdigest(),
@@ -59,9 +64,14 @@ class ProductionScopeFreezeTest(unittest.TestCase):
         current_focus_scope = ROOT / "config/verification/v1.0.6.11_qt_focus_lifecycle_fix_scope.json"
         current_browser_scope = ROOT / "config/verification/v1.0.6.12_browser_ui_lifecycle_scope.json"
         browser_data = json.loads(current_browser_scope.read_text(encoding="utf-8")) if current_browser_scope.is_file() else {}
-        approved_worker = set(browser_data.get("approved_automationworker_method_changes", []))
+        current_phase_scope = ROOT / "config/verification/v1.0.6.14_managed_persistent_browser_closed_task_scope.json"
+        phase_data = json.loads(current_phase_scope.read_text(encoding="utf-8")) if current_phase_scope.is_file() else {}
+        approved_worker = set(browser_data.get("approved_automationworker_method_changes", [])) | set(phase_data.get("approved_automationworker_method_changes", []))
+        current_allowed = set(phase_data.get("allowed_runtime_source_changes", []))
         for relative, expected in CONTRACT["frozen_file_sha256"].items():
             if current_focus_scope.is_file() and relative == "vib_validation_app/focus_manager.py":
+                continue
+            if relative in current_allowed:
                 continue
             with self.subTest(path=relative):
                 self.assertEqual(hashlib.sha256((ROOT / relative).read_bytes()).hexdigest(), expected)

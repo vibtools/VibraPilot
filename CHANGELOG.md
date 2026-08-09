@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.0.6.14 — Managed persistent browser + Closed Task recovery — 2026-08-09
+
+### Added
+
+- Promoted the existing Playwright persistent-context implementation into the standard managed browser mode while preserving Google Chrome channel behavior and all existing Test Mode/workflow safety controls.
+- Added deterministic per-Task managed profile ownership using the existing Task slot ID.
+- Added **Open Closed Tasks** to the existing Tasks page; no new page was introduced.
+- Added deliberate Closed Task persistence/reopen behavior using the existing `TaskRuntimeStore` tables and schema version 1.
+
+### Changed
+
+- `use_persistent_context` source default is now `true`; `restore_previous_session` remains `false`.
+- Blank persistent-profile paths resolve to a durable VibraPilot-managed browser-profile root on Windows; explicit `VIB_TOOLS_DATA_DIR` deployments remain authoritative.
+- Exact untouched legacy persistent-browser defaults migrate to the new managed default without overwriting customized persistent-profile configurations.
+- Persistent internal context recycling is guarded as an intentional lifecycle transition and re-verifies login state after relaunch.
+
+### Safety / compatibility
+
+- Rejects the user's normal Google Chrome `User Data` tree and its descendants.
+- Legacy VibraPilot profile migration is one-way only when the managed destination does not already exist; profiles are never merged or silently deleted.
+- Closing a Task does not delete its managed browser profile. Reopened Tasks retain the same slot ID/run ID and therefore the same managed profile identity.
+- No database schema change, dependency change, extension/download/upload feature change, CAPTCHA bypass, stealth/fingerprint change, automatic browser launch, automatic workflow start, automatic Send or permanent Task deletion feature.
+
+
 ## v1.0.6.13 — Phase-01 verification / CI stability correction — 2026-08-09
 
 ### Fixed

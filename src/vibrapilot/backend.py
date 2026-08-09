@@ -692,6 +692,22 @@ class SettingsManager:
             self.data["gpu_enabled"] = bool(old_hardware and old_gpu)
         self.data.pop("hardware_acceleration_enabled", None)
 
+        # v1.0.6.14 managed-browser migration: an exact untouched v1.0.6.13
+        # persistent-profile bundle is promoted to the new managed persistent
+        # default. Any customized persistent-profile value keeps user intent.
+        legacy_persistent_defaults = {
+            "use_persistent_context": False,
+            "persistent_user_data_dir": "",
+            "dedicated_profile_per_task": True,
+            "persistent_profile_directory": "",
+            "profile_lock_policy": "fail",
+            "persist_profile_between_runs": True,
+            "persist_profile_cache": True,
+            "restore_previous_session": False,
+        }
+        if raw and all(raw.get(key) == value for key, value in legacy_persistent_defaults.items()):
+            self.data["use_persistent_context"] = True
+
         browser_bool_keys = (
             "headless",
             "use_chrome_channel",
@@ -2560,6 +2576,108 @@ class AutomationWorker(threading.Thread):
             self.state.status = "Running"
             self.emit("status", {"status": "Running"})
 
+    @staticmethod
+    def default_managed_browser_profile_root() -> Path:
+        """Return VibraPilot's durable application-owned browser-profile root."""
+        if os.environ.get("VIB_TOOLS_DATA_DIR"):
+            return APP_DATA_DIR / "BrowserProfiles"
+        if sys.platform.startswith("win"):
+            base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+            if base:
+                return (
+                    Path(base).expanduser().resolve()
+                    / "Vib Tools"
+                    / "VibraPilot"
+                    / "BrowserProfiles"
+                )
+        return APP_DATA_DIR / "BrowserProfiles"
+
+    @staticmethod
+    def _normalized_profile_path(path: Path) -> str:
+        try:
+            resolved = path.expanduser().resolve(strict=False)
+        except Exception:
+            resolved = path.expanduser().absolute()
+        return str(resolved).replace("\\", "/").rstrip("/").casefold()
+
+    @classmethod
+    def validate_managed_browser_profile_path(cls, path: Path) -> None:
+        """Reject the operator's everyday Chrome User Data tree."""
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if not local_app_data:
+            return
+        candidate = cls._normalized_profile_path(path)
+        chrome_roots = (
+            Path(local_app_data) / "Google" / "Chrome" / "User Data",
+            Path(local_app_data) / "Google" / "Chrome Beta" / "User Data",
+            Path(local_app_data) / "Google" / "Chrome Dev" / "User Data",
+            Path(local_app_data) / "Google" / "Chrome SxS" / "User Data",
+        )
+        for root in chrome_roots:
+            normalized_root = cls._normalized_profile_path(root)
+            if candidate == normalized_root or candidate.startswith(normalized_root + "/"):
+                raise ValueError(
+                    "VibraPilot cannot use your everyday Google Chrome User Data profile. "
+                    "Leave Persistent User Data Directory blank for the managed profile, "
+                    "or choose a separate automation-only directory."
+                )
+
+    @classmethod
+    def resolve_persistent_user_data_dir(
+        cls, settings: dict[str, Any], slot_id: int
+    ) -> Path:
+        """Resolve the stable User Data Directory claimed by one persistent Task."""
+        raw = str(
+            settings.get(
+                "persistent_user_data_dir",
+                DEFAULT_SETTINGS["persistent_user_data_dir"],
+            )
+        ).strip()
+        if raw:
+            base = Path(raw).expanduser()
+            if not base.is_absolute():
+                base = APP_DATA_DIR / base
+        else:
+            base = cls.default_managed_browser_profile_root()
+        if bool(
+            settings.get(
+                "dedicated_profile_per_task",
+                DEFAULT_SETTINGS["dedicated_profile_per_task"],
+            )
+        ):
+            base = base / f"slot_{int(slot_id)}"
+        cls.validate_managed_browser_profile_path(base)
+        return base.resolve()
+
+    def _migrate_legacy_managed_profile_if_needed(self, target: Path) -> bool:
+        """Move only a legacy VibraPilot profile into the managed root when safe."""
+        raw = str(
+            self.settings.get(
+                "persistent_user_data_dir",
+                DEFAULT_SETTINGS["persistent_user_data_dir"],
+            )
+        ).strip()
+        if raw or os.environ.get("VIB_TOOLS_DATA_DIR"):
+            return False
+        legacy = APP_DATA_DIR / "BrowserProfiles"
+        if bool(
+            self.settings.get(
+                "dedicated_profile_per_task",
+                DEFAULT_SETTINGS["dedicated_profile_per_task"],
+            )
+        ):
+            legacy = legacy / f"slot_{self.state.slot_id}"
+        try:
+            if legacy.resolve() == target.resolve() or not legacy.exists() or target.exists():
+                return False
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(legacy), str(target))
+            return True
+        except Exception as exc:
+            raise RuntimeError(
+                f"Legacy VibraPilot browser profile could not be migrated from {legacy} to {target}: {exc}"
+            ) from exc
+
     def launch_browser(self) -> None:
         from playwright.sync_api import sync_playwright
 
@@ -2931,26 +3049,19 @@ class AutomationWorker(threading.Thread):
         self.persistent_context_mode = use_persistent
 
         if use_persistent:
-            profile_base_raw = str(
-                self.settings.get(
-                    "persistent_user_data_dir",
-                    DEFAULT_SETTINGS["persistent_user_data_dir"],
-                )
-            ).strip()
-            if profile_base_raw:
-                profile_base = Path(profile_base_raw).expanduser()
-                if not profile_base.is_absolute():
-                    profile_base = APP_DATA_DIR / profile_base
-            else:
-                profile_base = APP_DATA_DIR / "BrowserProfiles"
-
             if bool(
                 self.settings.get(
                     "persist_profile_between_runs",
                     DEFAULT_SETTINGS["persist_profile_between_runs"],
                 )
             ):
-                user_data_dir = profile_base
+                user_data_dir = self.resolve_persistent_user_data_dir(
+                    self.settings, self.state.slot_id
+                )
+                if self._migrate_legacy_managed_profile_if_needed(user_data_dir):
+                    self.log(
+                        f"Legacy VibraPilot browser profile migrated to {user_data_dir}."
+                    )
             else:
                 user_data_dir = (
                     APP_DATA_DIR
@@ -2958,17 +3069,16 @@ class AutomationWorker(threading.Thread):
                     / f"slot_{self.state.slot_id}_{int(time.time() * 1000)}"
                 )
                 self.temporary_profile_dir = user_data_dir
-
-            if bool(
-                self.settings.get(
-                    "dedicated_profile_per_task",
-                    DEFAULT_SETTINGS["dedicated_profile_per_task"],
-                )
-            ):
-                user_data_dir = user_data_dir / f"slot_{self.state.slot_id}"
-                if self.temporary_profile_dir is not None:
+                if bool(
+                    self.settings.get(
+                        "dedicated_profile_per_task",
+                        DEFAULT_SETTINGS["dedicated_profile_per_task"],
+                    )
+                ):
+                    user_data_dir = user_data_dir / f"slot_{self.state.slot_id}"
                     self.temporary_profile_dir = user_data_dir
 
+            self.validate_managed_browser_profile_path(user_data_dir)
             user_data_dir.mkdir(parents=True, exist_ok=True)
             self.active_profile_dir = user_data_dir
 
@@ -3819,20 +3929,27 @@ class AutomationWorker(threading.Thread):
         )
 
         if self.persistent_context_mode:
-            try:
-                if self.context:
-                    self.context.close()
-            except Exception:
-                pass
-            self.context = None
-            self.browser = None
-            self.active_page = None
             old_initial_url = self.initial_url
+            self._context_transitioning = True
             try:
+                try:
+                    if self.context:
+                        self.context.close()
+                except Exception:
+                    pass
+                self.context = None
+                self.browser = None
+                self.active_page = None
                 self.initial_url = current_url if restore_page else ""
                 self.launch_browser()
             finally:
                 self.initial_url = old_initial_url
+                self._context_transitioning = False
+            # The recycle is an internal maintenance transition, not a manual
+            # Browser Close. Re-verify the authenticated Test Mode page against
+            # the relaunched managed profile before the next Send can proceed.
+            self.login_verified_event.clear()
+            self.refresh_login_verification(force_emit=True)
             return
 
         self.new_context(

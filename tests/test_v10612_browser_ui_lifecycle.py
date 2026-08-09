@@ -248,11 +248,10 @@ class BrowserLifecycleSourceContractTest(unittest.TestCase):
         self.assertNotIn("restoreGeometry(", self.qt_text)
         self.assertNotIn("saveGeometry(", self.qt_text)
 
-    def test_phase_does_not_change_browser_profile_defaults(self):
-        defaults = json.loads((ROOT / "config/settings.defaults.json").read_text(encoding="utf-8"))
-        self.assertFalse(defaults["use_persistent_context"])
-        self.assertFalse(defaults["restore_previous_session"])
-        self.assertFalse(defaults["extensions_enabled"])
+    def test_phase_scope_records_that_v10612_did_not_change_browser_profile_defaults(self):
+        scope = json.loads((ROOT / "config/verification/v1.0.6.12_browser_ui_lifecycle_scope.json").read_text(encoding="utf-8"))
+        self.assertTrue(scope["no_browser_settings_change"])
+        self.assertEqual(scope["target_version"], "1.0.6.12")
 
     def test_backend_preserves_current_auto_restart_setting_path(self):
         self.assertIn('"auto_restart_browser_on_crash"', self.backend_text)

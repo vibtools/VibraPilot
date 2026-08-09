@@ -1,3 +1,16 @@
+## v1.0.6.14 current implementation surface
+
+```text
+config/settings.defaults.json   Managed persistent browser enabled by default
+config/verification/v1.0.6.14_managed_persistent_browser_closed_task_scope.json
+src/vibrapilot/backend.py       Managed profile resolver/migration + persistent recycle compatibility
+src/vibrapilot/qt_app.py        Profile validation + Open Closed Tasks / Task archive-reopen UI
+src/vibrapilot/task_runtime_store.py  Closed Task lifecycle using existing schema v1
+tests/test_v10614_managed_persistent_browser.py
+```
+
+No new application page, database table/column, dependency or permanent Task-delete feature is introduced.
+
 # Project Structure
 
 ```text

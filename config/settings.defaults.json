@@ -68,7 +68,7 @@
   "default_target_url": "https://dashboard.razorpay.com/app/paymentpages/",
   "re_open_after_success_per_order": false,
   "browser_executable_path": "",
-  "use_persistent_context": false,
+  "use_persistent_context": true,
   "persistent_user_data_dir": "",
   "dedicated_profile_per_task": true,
   "persistent_profile_directory": "",

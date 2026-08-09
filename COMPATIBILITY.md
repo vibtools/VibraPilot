@@ -1,3 +1,12 @@
+## v1.0.6.14 managed-profile / Closed Task compatibility
+
+- Windows default blank persistent-profile root is application-managed and durable; explicit `VIB_TOOLS_DATA_DIR` remains supported.
+- The user's everyday Google Chrome `User Data` profile is intentionally rejected.
+- `use_persistent_context` is enabled by default while `restore_previous_session` remains disabled.
+- Existing advanced profile-lock/fallback, Chrome-channel, profile-cache and per-Task profile settings remain supported.
+- TaskRuntimeStore schema remains version 1. Closed Tasks use the existing `task_status` field and existing run/item/result records.
+- Phase-01 browser lifecycle, licensing, workflow selectors/Test Mode, reporting, Workflow Inputs and dependencies remain compatible.
+
 # Compatibility
 
 ## Supported release target

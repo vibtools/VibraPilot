@@ -150,7 +150,7 @@ def test_duplicate_hardware_acceleration_alias_migrates_to_effective_gpu_state()
 
 def test_master_browser_settings_defaults_preserve_existing_runtime_behavior():
     expected_defaults = {
-        "use_persistent_context": False,
+        "use_persistent_context": True,
         "headless": False,
         "use_chrome_channel": True,
         "allow_chromium_fallback": True,

@@ -1249,7 +1249,7 @@ class TaskSlotWidget(QFrame):
             runtime_store=self.app.runtime_store,
         )
         self.worker.start()
-        self.app.log_ui(f"Task {self.slot_id}: opening a fresh browser session")
+        self.app.log_ui(f"Task {self.slot_id}: opening browser session")
 
     def load_data(self) -> None:
         if self.worker and self.worker.is_processing():
@@ -1312,7 +1312,9 @@ class TaskSlotWidget(QFrame):
             logging.exception("Data load failed")
             _message(self, "Data load failed", str(exc), "error")
 
-    def restore_runtime(self, run: dict[str, Any]) -> None:
+    def restore_runtime(
+        self, run: dict[str, Any], *, preserve_task_status: bool = False
+    ) -> None:
         """Restore persisted task state only; browser/login/Send never auto-start."""
         self.state.run_id = str(run.get("run_id", ""))
         self.state.target_url = str(run.get("target_url", ""))
@@ -1335,9 +1337,18 @@ class TaskSlotWidget(QFrame):
             )
             for row in run.get("items", [])
         ]
-        self.state.status = (
-            "Manual Review Required" if self.state.manual_review_required else "Recovered"
-        )
+        if self.state.manual_review_required:
+            self.state.status = "Manual Review Required"
+        elif preserve_task_status:
+            prior_status = str(run.get("task_status", "Ready")).strip() or "Ready"
+            if prior_status in {
+                "Running", "Paused", "Starting", "Login Verified", "Login Required",
+                "Opening Browser", "Closing",
+            }:
+                prior_status = "Stopped" if self.state.items else "Ready"
+            self.state.status = prior_status
+        else:
+            self.state.status = "Recovered"
         if self.state.target_url:
             self.url.setText(self.state.target_url)
         source = Path(self.state.source_file) if self.state.source_file else None
@@ -1470,6 +1481,35 @@ class TaskSlotWidget(QFrame):
         self._set_metric("Login", "Not Verified")
         return True
 
+    def _persist_closed_task(self) -> None:
+        """Archive the current Task snapshot before removing its widget."""
+        timestamp = now_str()
+        self.state.target_url = self.url.text().strip()
+        if not self.state.created_at:
+            self.state.created_at = timestamp
+        if not self.state.run_id:
+            self.state.run_id = self.app.runtime_store.start_run(
+                slot_id=self.slot_id,
+                target_url=self.state.target_url,
+                source_file=self.state.source_file,
+                source_fingerprint=self.state.source_fingerprint,
+                items=self.state.items,
+                created_at=self.state.created_at,
+            )
+        self.app.runtime_store.close_run(
+            run_id=self.state.run_id,
+            task_status=self.state.status,
+            timestamp=timestamp,
+            current_index=self.state.current_index,
+            total=self.state.total,
+            success_count=self.state.success_count,
+            failed_count=self.state.failed_count,
+            send_limit_used=self.state.send_limit_used,
+            manual_review_required=self.state.manual_review_required,
+            target_url=self.state.target_url,
+            items=self.state.items,
+        )
+
     def close(self) -> None:
         if self.worker and self.worker.is_processing():
             if not _confirm(
@@ -1484,6 +1524,17 @@ class TaskSlotWidget(QFrame):
                 "Worker still closing",
                 "The browser worker is still completing cleanup. The task was kept open; try again after it closes.",
                 "warning",
+            )
+            return
+        try:
+            self._persist_closed_task()
+        except Exception as exc:
+            logging.exception("Closed Task persistence failed")
+            _message(
+                self,
+                "Close task failed",
+                f"The Task could not be saved for later reopening and was kept visible. Detail: {exc}",
+                "error",
             )
             return
         self.app.remove_task(self.slot_id)
@@ -2120,13 +2171,15 @@ class MainWindow(QMainWindow):
     def make_tasks_page(self) -> QWidget:
         page = page_frame()
         root = vbox(page, margins=(0, 0, 0, 0), spacing=0)
+        open_closed_btn = button("Open Closed Tasks", "secondary")
+        open_closed_btn.clicked.connect(self.open_closed_tasks)
         add_btn = button("Add Task", "primary", "open")
         add_btn.clicked.connect(self.add_task)
         root.addWidget(
             page_header(
                 "Tasks",
                 "Independent authorized Test Mode browser slots with file import, controls and live counters.",
-                [add_btn],
+                [open_closed_btn, add_btn],
             )
         )
 
@@ -2399,10 +2452,19 @@ class MainWindow(QMainWindow):
                     w.setToolTip(
                         "Browser-context control. Saved immediately; takes effect on the next context creation/recycle unless Playwright supports a live update."
                     )
+                elif key == "use_persistent_context":
+                    w.setToolTip(
+                        "Managed persistent browser profiles are enabled by default. Applies when the next browser session is opened."
+                    )
+                elif key == "persistent_user_data_dir":
+                    w.setToolTip(
+                        "Blank uses VibraPilot's managed LocalAppData browser-profile root. Do not select your everyday Google Chrome User Data folder."
+                    )
+                elif key == "dedicated_profile_per_task":
+                    w.setToolTip(
+                        "Each Task slot owns a separate managed browser User Data Directory when enabled."
+                    )
                 elif key in {
-                    "use_persistent_context",
-                    "persistent_user_data_dir",
-                    "dedicated_profile_per_task",
                     "persistent_profile_directory",
                     "profile_lock_policy",
                     "persist_profile_between_runs",
@@ -2649,26 +2711,99 @@ class MainWindow(QMainWindow):
         return slot
 
     def add_task(self) -> None:
-        self._add_task_with_id(self.next_slot_id)
+        closed_slots = set(self.runtime_store.closed_slot_ids())
+        candidate = max(1, int(self.next_slot_id))
+        while candidate in self.tasks or candidate in closed_slots:
+            candidate += 1
+        self._add_task_with_id(candidate)
 
     def remove_task(self, slot_id: int) -> None:
         self.tasks.pop(slot_id, None)
         self._refresh_report_task_filter()
         self.update_dashboard()
 
+    def open_closed_tasks(self) -> None:
+        closed = sorted(
+            self.runtime_store.closed_runs(),
+            key=lambda row: (int(row.get("slot_id", 0)), str(row.get("updated_at", ""))),
+        )
+        if not closed:
+            _message(self, "Closed Tasks", "There are no closed Tasks to reopen.")
+            return
+
+        restored = 0
+        conflicts: list[int] = []
+        for summary in closed:
+            slot_id = int(summary.get("slot_id", 0))
+            run_id = str(summary.get("run_id", ""))
+            if slot_id <= 0 or not run_id:
+                continue
+            if slot_id in self.tasks:
+                conflicts.append(slot_id)
+                continue
+            run = self.runtime_store.reopen_closed_run(run_id, now_str())
+            if not run:
+                continue
+            slot = self._add_task_with_id(slot_id)
+            if slot is None:
+                # Restore the archived marker if the UI could not own the slot.
+                self.runtime_store.close_run(
+                    run_id=run_id,
+                    task_status=str(run.get("task_status", "Ready")),
+                    timestamp=now_str(),
+                    current_index=int(run.get("current_index", 0)),
+                    total=int(run.get("total", 0)),
+                    success_count=int(run.get("success_count", 0)),
+                    failed_count=int(run.get("failed_count", 0)),
+                    send_limit_used=int(run.get("send_limit_used", 0)),
+                    manual_review_required=bool(run.get("manual_review_required", 0)),
+                    target_url=str(run.get("target_url", "")),
+                    items=[
+                        TaskItem(
+                            email=str(item.get("email", "")),
+                            name=str(item.get("name", "")),
+                            status=str(item.get("status", "pending")),
+                            attempts=int(item.get("attempts", 0)),
+                            message=str(item.get("message", "")),
+                            result=str(item.get("result", "")),
+                        )
+                        for item in run.get("items", [])
+                    ],
+                )
+                continue
+            slot.restore_runtime(run, preserve_task_status=True)
+            slot._render_browser_status("Closed")
+            slot._set_metric("Login", "Not Verified")
+            restored += 1
+            self.log_ui(
+                f"Task {slot_id}: reopened from Closed Tasks; browser remains closed until explicitly opened."
+            )
+
+        self.update_dashboard()
+        if conflicts:
+            self.log_ui(
+                "Closed Task restore skipped occupied slot IDs: "
+                + ", ".join(str(slot_id) for slot_id in sorted(set(conflicts))),
+                "WARNING",
+            )
+        if restored == 0:
+            _message(
+                self,
+                "Closed Tasks",
+                "No closed Task could be reopened because its original slot is currently in use.",
+                "warning",
+            )
+
     def _persistent_profile_claim(self, slot: TaskSlotWidget) -> str | None:
         if not bool(self.settings.get("use_persistent_context", DEFAULT_SETTINGS["use_persistent_context"])):
             return None
         if not bool(self.settings.get("persist_profile_between_runs", DEFAULT_SETTINGS["persist_profile_between_runs"])):
             return None
-        if bool(self.settings.get("dedicated_profile_per_task", DEFAULT_SETTINGS["dedicated_profile_per_task"])):
-            return None
-        raw = str(self.settings.get("persistent_user_data_dir", DEFAULT_SETTINGS["persistent_user_data_dir"])).strip()
-        base = Path(raw).expanduser() if raw else (APP_DATA_DIR / "BrowserProfiles")
-        if raw and not base.is_absolute():
-            base = APP_DATA_DIR / base
-        profile = str(self.settings.get("persistent_profile_directory", DEFAULT_SETTINGS["persistent_profile_directory"])).strip()
-        return str((base / (profile or "Default")).resolve())
+        return str(
+            AutomationWorker.resolve_persistent_user_data_dir(
+                dict(self.settings.data), slot.slot_id
+            )
+        )
 
     def can_open_task_browser(self, slot: TaskSlotWidget) -> tuple[bool, str]:
         limit = max(1, int(self.settings.get("max_concurrent_tasks", DEFAULT_SETTINGS["max_concurrent_tasks"])))
@@ -2678,14 +2813,17 @@ class MainWindow(QMainWindow):
         ]
         if len(active) >= limit:
             return False, f"Maximum Concurrent Tasks is {limit}. Close an active task browser before opening another."
-        claim = self._persistent_profile_claim(slot)
-        if claim:
-            for other in active:
-                if self._persistent_profile_claim(other) == claim:
-                    return False, (
-                        "Another running task already owns the same persistent browser profile. "
-                        "Enable Dedicated Profile Per Task or close the other browser first."
-                    )
+        try:
+            claim = self._persistent_profile_claim(slot)
+            if claim:
+                for other in active:
+                    if self._persistent_profile_claim(other) == claim:
+                        return False, (
+                            "Another running task already owns the same persistent browser profile. "
+                            "Enable Dedicated Profile Per Task or close the other browser first."
+                        )
+        except ValueError as exc:
+            return False, str(exc)
         return True, ""
 
     def _refresh_report_task_filter(self) -> None:
@@ -3084,6 +3222,14 @@ class MainWindow(QMainWindow):
                         "For unpacked extensions, disable Use Google Chrome Channel and use bundled Chromium, "
                         "or provide a compatible custom Chromium executable."
                     )
+
+            if parsed_settings["use_persistent_context"]:
+                raw_profile_root = str(parsed_settings["persistent_user_data_dir"]).strip()
+                if raw_profile_root:
+                    profile_root = Path(raw_profile_root).expanduser()
+                    if not profile_root.is_absolute():
+                        profile_root = APP_DATA_DIR / profile_root
+                    AutomationWorker.validate_managed_browser_profile_path(profile_root)
 
             self.settings.data.update(parsed_settings)
             self.settings.save()

@@ -1,3 +1,7 @@
+## v1.0.6.14 managed-profile acceptance
+
+For the v1.0.6.14 candidate, keep the verified Phase-01 browser lifecycle gate and additionally verify that a Task reopens the same VibraPilot-managed profile after browser/app restart, Task profiles remain isolated, personal Chrome `User Data` paths are blocked, and **Open Closed Tasks** restores deliberately closed Task data/progress without opening the browser or starting/sending automatically. Browser-history persistence must be checked with real Chrome on Windows before baseline freeze.
+
 # Getting Started
 
 1. Install Python 3.12 x64 on Windows 10/11.

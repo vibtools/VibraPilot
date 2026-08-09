@@ -1,4 +1,15 @@
-# VibraPilot v1.0.6.13 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.14 — Vib Tools Browser Automation Desktop
+
+**VibraPilot v1.0.6.14** is the scope-locked implementation candidate for `VP-MANAGED-PERSISTENT-BROWSER-001` plus the explicitly amended `VP-CLOSED-TASK-RECOVERY-001`, built from the verified v1.0.6.13 baseline commit `5f082df8d1226710c095d4a8e591fb153c02c1c3`.
+
+## v1.0.6.14 Managed persistent browser + Closed Task recovery
+
+VibraPilot now uses its existing Playwright persistent-context engine as the default browser-session model. With a blank profile path, each Task owns a dedicated application-managed browser profile under the durable Windows per-user VibraPilot data root; an explicit `VIB_TOOLS_DATA_DIR` remains authoritative. The application rejects the user's normal Google Chrome `User Data` tree, preserves per-Task profile isolation, retains shared-profile collision protection, and safely migrates a legacy VibraPilot-managed profile only when the new destination does not already exist. `restore_previous_session` remains disabled, and browser/workflow/Send never auto-start.
+
+The Tasks page also adds **Open Closed Tasks**. **Close Task** now persists the Task snapshot before removing its card, using the existing `TaskRuntimeStore` schema and the same run ID. Reopening closed Tasks restores the original slot ID, uploaded recipient records, Target URL, current index, success/failed/remaining progress, send-limit usage, manual-review state and result continuity while keeping the browser closed. The stable slot ID therefore reconnects the restored Task to the same managed browser profile without deleting or copying browser-profile data. No permanent-delete feature is introduced.
+
+Phase-01 browser Open/Close lifecycle, Test Mode/security checks, Razorpay Share Invite selectors/Send flow, licensing, reporting, Workflow Inputs and SQLite schema version 1 remain preserved. Browser history persistence and live Chrome profile continuity require the v1.0.6.14 Windows acceptance gate before this candidate is frozen as the next Official Baseline.
+
 
 **VibraPilot v1.0.6.13** is the verification/CI-stability correction built from the exact user-frozen v1.0.6.12 archive SHA-256 `becd6add21d377e98e458ce856c9c3baa710a113459bde0c737507c122c2a9b5` and GitHub v1.0.6.12 commit `a9cfec319285db2fb9fbff8d4bf0ede8ac87686b`. The v1.0.6.12 Phase-01 browser lifecycle runtime is byte-frozen in this correction; no production runtime source file changes.
 

@@ -1,6 +1,6 @@
 # VibraPilot Documentation
 
-This documentation accompanies **VibraPilot v1.0.6.13 — Phase-01 verification / CI-stability correction**.
+This documentation accompanies **VibraPilot v1.0.6.14 — Managed Persistent Browser + Closed Task Recovery candidate**.
 
 Start with:
 

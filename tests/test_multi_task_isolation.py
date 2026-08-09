@@ -38,7 +38,7 @@ class MultiTaskIsolationTest(unittest.TestCase):
         self.assertIn("max_concurrent_tasks", can_source)
         self.assertIn("len(active) >= limit", can_source)
         self.assertIn("Another running task already owns the same persistent browser profile", can_source)
-        self.assertIn("dedicated_profile_per_task", claim_source)
+        self.assertIn("resolve_persistent_user_data_dir", claim_source)
         self.assertIn("persist_profile_between_runs", claim_source)
 
 if __name__ == "__main__":

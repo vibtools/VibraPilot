@@ -54,9 +54,12 @@ class V10611FocusLifecycleStaticTest(unittest.TestCase):
     def test_frozen_out_of_scope_files_match_baseline_hashes(self):
         data = json.loads(SCOPE.read_text(encoding="utf-8"))
         current_scope = ROOT / "config/verification/v1.0.6.12_browser_ui_lifecycle_scope.json"
+        current_phase_scope = ROOT / "config/verification/v1.0.6.14_managed_persistent_browser_closed_task_scope.json"
         current_allowed = set()
         if current_scope.is_file():
-            current_allowed = set(json.loads(current_scope.read_text(encoding="utf-8")).get("allowed_runtime_source_changes", []))
+            current_allowed |= set(json.loads(current_scope.read_text(encoding="utf-8")).get("allowed_runtime_source_changes", []))
+        if current_phase_scope.is_file():
+            current_allowed |= set(json.loads(current_phase_scope.read_text(encoding="utf-8")).get("allowed_runtime_source_changes", []))
         for relative, expected in data["frozen_file_sha256"].items():
             if relative in current_allowed:
                 continue
