@@ -1,4 +1,10 @@
-# VibraPilot v1.0.6.16 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.17 — Vib Tools Browser Automation Desktop
+
+## v1.0.6.17 Browser capabilities
+
+`VP-BROWSER-CAPABILITIES-001` adds durable site-initiated browser downloads, explicit user-controlled website file chooser handling, and stronger unpacked-extension validation without changing Browser Settings keys or any Razorpay/Test Mode workflow. Blank Download Directory now resolves to a durable per-Task VibraPilot-managed folder; explicit download paths retain their prior semantics. Each Task card adds a **Downloads** action that opens its effective folder.
+
+Website uploads remain strictly user-driven: VibraPilot reacts only to a page file chooser, opens a native Qt file/directory picker, and sends the selected paths back to the same pending chooser through an opaque request ID. Selected local upload paths are not written to settings, workspace state, TaskRuntimeStore or reports. Extensions remain unpacked-directory only and require the existing persistent Chromium-compatible launch model.
 
 ## v1.0.6.16 Workspace persistence verification fix
 

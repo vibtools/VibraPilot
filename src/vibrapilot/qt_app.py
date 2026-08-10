@@ -20,8 +20,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, QTimer, QSize
-from PySide6.QtGui import QCloseEvent, QIcon, QKeySequence, QPixmap, QTextCursor
+from PySide6.QtCore import Qt, QTimer, QSize, QUrl
+from PySide6.QtGui import QCloseEvent, QDesktopServices, QIcon, QKeySequence, QPixmap, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
     QAbstractItemView,
@@ -113,6 +113,11 @@ from .data_io import (
 from .task_runtime_store import TaskRuntimeStore
 from .workflow_inputs import WORKFLOW_INPUT_FIELDS, WORKFLOW_INPUT_KEYS
 from .workspace_state import WorkspaceStateStore
+from .browser_capabilities import (
+    ensure_task_download_directory,
+    normalize_extension_paths,
+    validate_unpacked_extension_directories,
+)
 
 
 NAV_SECTIONS = ["Dashboard", "Tasks", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]
@@ -858,6 +863,7 @@ class TaskSlotWidget(QFrame):
                 background: #7F1D1D; color: #FFFFFF;
             }
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskOpenBrowserButton,
+            QFrame[vibTaskCard="compact-v1"] QPushButton#TaskDownloadsButton,
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskCloseButton {
                 min-height: 32px; max-height: 32px; border-radius: 6px;
             }
@@ -1002,6 +1008,11 @@ class TaskSlotWidget(QFrame):
         self.browser_action_button.setFixedHeight(32)
         self.browser_action_button.clicked.connect(self.browser_action)
         action_lay.addWidget(self.browser_action_button)
+        downloads_btn = button("Downloads", "secondary", "folder")
+        downloads_btn.setObjectName("TaskDownloadsButton")
+        downloads_btn.setFixedHeight(32)
+        downloads_btn.clicked.connect(self.open_downloads_folder)
+        action_lay.addWidget(downloads_btn)
         close_btn = button("Close Task", "danger")
         close_btn.setObjectName("TaskCloseButton")
         close_btn.setFixedHeight(32)
@@ -1222,6 +1233,28 @@ class TaskSlotWidget(QFrame):
                 return
         self.close_browser(wait=False)
         self.app.update_dashboard()
+
+    def open_downloads_folder(self) -> None:
+        """Open this Task's effective durable download directory."""
+        try:
+            directory = ensure_task_download_directory(
+                self.app.settings.data, self.slot_id, APP_DATA_DIR
+            )
+        except Exception as exc:
+            _message(
+                self,
+                "Downloads",
+                f"The Task download directory could not be prepared: {exc}",
+                "error",
+            )
+            return
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(directory))):
+            _message(
+                self,
+                "Downloads",
+                "The Task download directory could not be opened in the system file manager.",
+                "warning",
+            )
 
     def open_browser(self) -> None:
         url = self.url.text().strip()
@@ -2637,6 +2670,10 @@ class MainWindow(QMainWindow):
                     w.setToolTip(
                         "Blank uses VibraPilot's managed LocalAppData browser-profile root. Do not select your everyday Google Chrome User Data folder."
                     )
+                elif key == "downloads_path":
+                    w.setToolTip(
+                        "Blank uses VibraPilot's durable per-Task managed Downloads folder. An explicit path preserves the configured shared download directory."
+                    )
                 elif key == "dedicated_profile_per_task":
                     w.setToolTip(
                         "Each Task slot owns a separate managed browser User Data Directory when enabled."
@@ -2648,7 +2685,6 @@ class MainWindow(QMainWindow):
                     "persist_profile_cache",
                     "restore_previous_session",
                     "extensions_enabled",
-                    "extension_paths",
                 }:
                     w.setToolTip(
                         "Persistent-profile control. Applies when the next browser session is opened."
@@ -2675,7 +2711,7 @@ class MainWindow(QMainWindow):
                     )
                 elif key == "extension_paths":
                     w.setToolTip(
-                        "Semicolon-separated unpacked extension directories. Extensions require Persistent Browser Context and bundled/custom Chromium."
+                        "Semicolon-separated unpacked extension directories. Each directory must contain a valid manifest.json. Extensions require Persistent Browser Context and bundled/custom Chromium."
                     )
 
                 self.browser_setting_widgets[key] = w
@@ -3366,13 +3402,9 @@ class MainWindow(QMainWindow):
                         "Page Initialization Script File does not exist."
                     )
 
-            extension_paths = [
-                part.strip()
-                for part in re.split(
-                    r"[;\n]+", str(parsed_settings["extension_paths"])
-                )
-                if part.strip()
-            ]
+            extension_paths = normalize_extension_paths(
+                str(parsed_settings["extension_paths"])
+            )
             if parsed_settings["restore_previous_session"] and not parsed_settings["use_persistent_context"]:
                 raise ValueError(
                     "Restore Previous Browser Session requires Use Persistent Browser Context."
@@ -3387,15 +3419,12 @@ class MainWindow(QMainWindow):
                     raise ValueError(
                         "Extension Loading requires Use Persistent Browser Context."
                     )
-                if not extension_paths:
-                    raise ValueError(
-                        "Extension Loading is enabled but Extension Directories is empty."
-                    )
-                for extension_path in extension_paths:
-                    if not Path(extension_path).expanduser().is_dir():
-                        raise ValueError(
-                            f"Extension directory does not exist: {extension_path}"
-                        )
+                extension_paths = validate_unpacked_extension_directories(
+                    str(parsed_settings["extension_paths"])
+                )
+                parsed_settings["extension_paths"] = ";".join(
+                    str(path) for path in extension_paths
+                )
                 if (
                     parsed_settings["use_chrome_channel"]
                     and not executable_path
@@ -3711,6 +3740,53 @@ class MainWindow(QMainWindow):
 
     # ---------- worker event bridge ----------
 
+    def _handle_browser_file_chooser(self, slot: TaskSlotWidget, payload: dict[str, Any]) -> None:
+        """Collect explicit user file selection for a site-triggered chooser."""
+        worker = slot.worker
+        request_id = str(payload.get("request_id", ""))
+        if not request_id or worker is None or not worker.is_alive():
+            return
+        directory = bool(payload.get("directory", False))
+        multiple = bool(payload.get("multiple", False))
+        selected: list[str] = []
+        if directory:
+            path = QFileDialog.getExistingDirectory(
+                self,
+                f"Task {slot.slot_id} — Select Upload Directory",
+            )
+            if path:
+                selected = [path]
+        elif multiple:
+            paths, _ = QFileDialog.getOpenFileNames(
+                self,
+                f"Task {slot.slot_id} — Select Files to Upload",
+            )
+            selected = list(paths)
+        else:
+            path, _ = QFileDialog.getOpenFileName(
+                self,
+                f"Task {slot.slot_id} — Select File to Upload",
+            )
+            if path:
+                selected = [path]
+        worker.request_file_chooser_selection(
+            request_id, selected, cancelled=not selected
+        )
+
+    def _render_download_event(self, slot_id: int, payload: dict[str, Any]) -> None:
+        status = str(payload.get("status", "")).strip().lower()
+        filename = str(payload.get("filename", "download"))
+        if status == "started":
+            self.log_ui(f"Task {slot_id}: browser download started: {filename}")
+        elif status == "saved":
+            self.log_ui(f"Task {slot_id}: browser download saved: {filename}")
+        else:
+            message = str(payload.get("message", "Download could not be saved."))
+            self.log_ui(
+                f"Task {slot_id}: browser download failed: {filename} — {message}",
+                "ERROR",
+            )
+
     def poll_queue(self) -> None:
         processed = 0
         while processed < UI_QUEUE_MAX_EVENTS_PER_TICK:
@@ -3745,6 +3821,10 @@ class MainWindow(QMainWindow):
                 slot.set_login_status(bool(payload.get("verified", False)), str(payload.get("message", "")))
             elif kind == "send_limit" and slot:
                 slot.update_send_limit(int(payload.get("used", 0)), int(payload.get("limit", 1)))
+            elif kind == "download":
+                self._render_download_event(slot_id, payload)
+            elif kind == "browser_file_chooser" and slot:
+                self._handle_browser_file_chooser(slot, payload)
             elif kind == "done":
                 pass
             elif kind == "license_invalid":

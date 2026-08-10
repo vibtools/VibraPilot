@@ -1,3 +1,9 @@
+## Phase-04 implementation candidate — v1.0.6.17
+
+`VP-BROWSER-CAPABILITIES-001` is implemented from the verified v1.0.6.16 baseline. The scope is limited to durable downloads, explicit site-triggered file chooser handling, and unpacked-extension validation. It does not add workflow-defined uploads, download history/database UI, Chrome Web Store automation, stealth/CAPTCHA behavior, or settings/schema changes.
+
+**Next after v1.0.6.17 verification:** `VP-MASTER-WORKFLOW-ENGINE-001`.
+
 ## Phase-03 verification/fix — v1.0.6.16
 
 `VP-WORKSPACE-PERSISTENCE-001` runtime remains byte-frozen from v1.0.6.15. GitHub Actions job `93315001000` failed because the historical v1.0.6.12 Qt fixture lacked `schedule_workspace_save`. v1.0.6.16 corrects verification only.

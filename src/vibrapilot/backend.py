@@ -46,6 +46,12 @@ from .licensing_v2 import (
     load_device_key_material,
 )
 from .task_runtime_store import TaskRuntimeStore
+from .browser_capabilities import (
+    collision_safe_download_path,
+    ensure_task_download_directory,
+    normalize_extension_paths,
+    validate_unpacked_extension_directories,
+)
 
 DISPLAY_APP_NAME = APP.display_name
 APP_NAME = APP.app_name
@@ -129,6 +135,10 @@ def _load_default_settings() -> dict[str, Any]:
 
 DEFAULT_SETTINGS: dict[str, Any] = _load_default_settings()
 DEFAULT_TEST_SEND_LIMIT = int(DEFAULT_SETTINGS["max_test_send_limit"])
+
+# Serializes final-name selection + save_as across Task workers that may share an
+# explicitly configured download directory. No download history/state is stored.
+_DOWNLOAD_SAVE_LOCK = threading.Lock()
 
 
 SELECTORS = {
@@ -1724,11 +1734,17 @@ class AutomationWorker(threading.Thread):
         self._lifecycle_browser_id: int | None = None
         self._lifecycle_context_id: int | None = None
         self._lifecycle_page_ids: set[int] = set()
+        # A FileChooser wrapper is retained only inside the Playwright owner
+        # thread. Qt receives an opaque request ID and returns local paths through
+        # the command queue, so no Playwright object crosses thread boundaries.
+        self._pending_file_chooser = None
+        self._pending_file_chooser_request_id: str | None = None
+        self._pending_file_chooser_page_id: int | None = None
 
     def emit(self, kind: str, payload: dict[str, Any]) -> None:
         payload["slot_id"] = self.state.slot_id
         event = (kind, payload)
-        critical = {"item", "security", "browser", "login", "done", "license_invalid"}
+        critical = {"item", "security", "browser", "login", "done", "license_invalid", "download", "browser_file_chooser"}
         if kind not in critical:
             try:
                 self.ui_queue.put_nowait(event)
@@ -1818,6 +1834,21 @@ class AutomationWorker(threading.Thread):
     def request_focus(self) -> None:
         self.control_queue.put(("focus", {}))
 
+    def request_file_chooser_selection(
+        self, request_id: str, paths: list[str] | None, *, cancelled: bool = False
+    ) -> None:
+        """Queue a user-selected browser upload response without touching Playwright."""
+        self.control_queue.put(
+            (
+                "filechooser_response",
+                {
+                    "request_id": str(request_id),
+                    "paths": list(paths or []),
+                    "cancelled": bool(cancelled),
+                },
+            )
+        )
+
     def request_close(self) -> None:
         self.close_event.set()
         self.stop_event.set()
@@ -1867,6 +1898,7 @@ class AutomationWorker(threading.Thread):
 
     def _mark_browser_unavailable(self, reason: str = "") -> None:
         """Clear browser/login readiness once for an external lifecycle loss."""
+        self._clear_pending_file_chooser(reason or "Browser session closed.", log_event=True)
         was_login_verified = self.login_verified_event.is_set()
         with self._browser_lifecycle_lock:
             was_available = self._browser_lifecycle_state != "CLOSED"
@@ -1951,6 +1983,11 @@ class AutomationWorker(threading.Thread):
 
         def page_closed(_page=None) -> None:
             self._lifecycle_page_ids.discard(id(page))
+            if self._pending_file_chooser_page_id == id(page):
+                self._clear_pending_file_chooser(
+                    "Pending browser file selection was cancelled because its page closed.",
+                    log_event=True,
+                )
             if (
                 self._context_transitioning
                 or self.close_event.is_set()
@@ -1974,6 +2011,159 @@ class AutomationWorker(threading.Thread):
             self._mark_browser_unavailable("The controlled browser page was closed manually.")
 
         page.on("close", page_closed)
+
+    def _clear_pending_file_chooser(self, reason: str = "", *, log_event: bool = False) -> None:
+        request_id = self._pending_file_chooser_request_id
+        self._pending_file_chooser = None
+        self._pending_file_chooser_request_id = None
+        self._pending_file_chooser_page_id = None
+        if request_id and log_event:
+            self.log(
+                reason or "Pending browser file selection was cancelled because the browser state changed.",
+                "WARNING",
+            )
+
+    def _handle_file_chooser(self, page, chooser) -> None:
+        """Publish a site-initiated file chooser request without selecting files automatically."""
+        if self._pending_file_chooser_request_id:
+            self._clear_pending_file_chooser(
+                "A newer browser file selection request replaced the previous pending request.",
+                log_event=True,
+            )
+        request_id = uuid.uuid4().hex
+        try:
+            multiple = bool(chooser.is_multiple())
+        except Exception:
+            multiple = False
+        directory = False
+        try:
+            element = chooser.element
+            directory = (
+                element.get_attribute("webkitdirectory") is not None
+                or element.get_attribute("directory") is not None
+            )
+        except Exception:
+            directory = False
+
+        self._pending_file_chooser = chooser
+        self._pending_file_chooser_request_id = request_id
+        self._pending_file_chooser_page_id = id(page)
+        self.emit(
+            "browser_file_chooser",
+            {
+                "request_id": request_id,
+                "multiple": multiple,
+                "directory": directory,
+            },
+        )
+
+    def _apply_file_chooser_selection(self, payload: dict[str, Any]) -> None:
+        request_id = str(payload.get("request_id", ""))
+        if not request_id or request_id != self._pending_file_chooser_request_id:
+            self.log("Ignored a stale browser file selection response.", "WARNING")
+            return
+        chooser = self._pending_file_chooser
+        if chooser is None:
+            self._clear_pending_file_chooser()
+            return
+        if bool(payload.get("cancelled", False)):
+            self._clear_pending_file_chooser()
+            self.log("Browser file selection was cancelled by the user.")
+            return
+
+        paths = [Path(str(value)).expanduser().resolve() for value in payload.get("paths", []) if str(value).strip()]
+        try:
+            multiple = bool(chooser.is_multiple())
+        except Exception:
+            multiple = False
+        directory = False
+        try:
+            element = chooser.element
+            directory = (
+                element.get_attribute("webkitdirectory") is not None
+                or element.get_attribute("directory") is not None
+            )
+        except Exception:
+            directory = False
+
+        if not paths:
+            self._clear_pending_file_chooser()
+            self.log("Browser file selection was cancelled by the user.")
+            return
+        if directory:
+            if len(paths) != 1 or not paths[0].is_dir():
+                self._clear_pending_file_chooser()
+                self.log("Browser directory selection was rejected because the selected directory is no longer available.", "ERROR")
+                return
+            files_arg: str | list[str] = str(paths[0])
+        else:
+            if any(not path.is_file() for path in paths):
+                self._clear_pending_file_chooser()
+                self.log("Browser file selection was rejected because a selected file is no longer available.", "ERROR")
+                return
+            if not multiple and len(paths) != 1:
+                self._clear_pending_file_chooser()
+                self.log("Browser file selection rejected multiple files for a single-file input.", "ERROR")
+                return
+            files_arg = [str(path) for path in paths] if multiple else str(paths[0])
+
+        try:
+            chooser.set_files(files_arg)
+        except Exception as exc:
+            self._clear_pending_file_chooser()
+            self.log(
+                f"Browser file selection failed ({exc.__class__.__name__}).",
+                "ERROR",
+            )
+            return
+        selected_count = len(paths)
+        self._clear_pending_file_chooser()
+        self.log(
+            "Browser directory selected for upload."
+            if directory
+            else f"Browser file selection applied ({selected_count} file{'s' if selected_count != 1 else ''})."
+        )
+
+    def _handle_download(self, download) -> None:
+        suggested = str(getattr(download, "suggested_filename", "") or "download")
+        self.emit(
+            "download",
+            {"status": "started", "filename": suggested},
+        )
+        if not bool(self.settings.get("accept_downloads", DEFAULT_SETTINGS["accept_downloads"])):
+            self.emit(
+                "download",
+                {
+                    "status": "failed",
+                    "filename": suggested,
+                    "message": "Accept Downloads is disabled in Browser Settings.",
+                },
+            )
+            return
+        try:
+            directory = ensure_task_download_directory(
+                self.settings, self.state.slot_id, APP_DATA_DIR
+            )
+            with _DOWNLOAD_SAVE_LOCK:
+                destination = collision_safe_download_path(directory, suggested)
+                download.save_as(str(destination))
+            self.emit(
+                "download",
+                {
+                    "status": "saved",
+                    "filename": destination.name,
+                    "directory": str(directory),
+                },
+            )
+        except Exception as exc:
+            self.emit(
+                "download",
+                {
+                    "status": "failed",
+                    "filename": suggested,
+                    "message": f"{exc.__class__.__name__}: {exc}",
+                },
+            )
 
     def is_browser_ready(self) -> bool:
         """Return the thread-safe lifecycle truth exposed to the UI."""
@@ -2264,6 +2454,9 @@ class AutomationWorker(threading.Thread):
                 if command == "focus":
                     self.bring_browser_to_front()
                     self.refresh_login_verification(force_emit=True)
+                    continue
+                if command == "filechooser_response":
+                    self._apply_file_chooser_selection(payload)
                     continue
                 if command == "start":
                     if self.processing_event.is_set():
@@ -2854,12 +3047,7 @@ class AutomationWorker(threading.Thread):
                 "extension_paths", DEFAULT_SETTINGS["extension_paths"]
             )
         ).strip()
-        extension_paths: list[str] = []
-        if extension_paths_raw:
-            for part in re.split(r"[;\n]+", extension_paths_raw):
-                part = part.strip()
-                if part:
-                    extension_paths.append(str(Path(part).expanduser().resolve()))
+        extension_paths = normalize_extension_paths(extension_paths_raw)
         if extensions_enabled:
             if not bool(
                 self.settings.get(
@@ -2886,11 +3074,11 @@ class AutomationWorker(threading.Thread):
                     "Chrome extension side-loading requires bundled/custom Chromium. "
                     "Disable Google Chrome Channel or provide a compatible Chromium executable."
                 )
-            if not extension_paths:
-                raise RuntimeError(
-                    "Extension Loading is enabled but no extension directory was configured."
-                )
-            joined_extensions = ",".join(extension_paths)
+            try:
+                extension_paths = validate_unpacked_extension_directories(extension_paths_raw)
+            except ValueError as exc:
+                raise RuntimeError(str(exc)) from exc
+            joined_extensions = ",".join(str(path) for path in extension_paths)
             browser_args.extend(
                 [
                     f"--disable-extensions-except={joined_extensions}",
@@ -2989,17 +3177,13 @@ class AutomationWorker(threading.Thread):
         if ignored_default_args:
             launch_args["ignore_default_args"] = ignored_default_args
 
-        downloads_path = str(
-            self.settings.get(
-                "downloads_path", DEFAULT_SETTINGS["downloads_path"]
+        if bool(
+            self.settings.get("accept_downloads", DEFAULT_SETTINGS["accept_downloads"])
+        ):
+            dl_dir = ensure_task_download_directory(
+                self.settings, self.state.slot_id, APP_DATA_DIR
             )
-        ).strip()
-        if downloads_path:
-            dl_dir = Path(downloads_path).expanduser()
-            if not dl_dir.is_absolute():
-                dl_dir = APP_DATA_DIR / dl_dir
-            dl_dir.mkdir(parents=True, exist_ok=True)
-            launch_args["downloads_path"] = str(dl_dir.resolve())
+            launch_args["downloads_path"] = str(dl_dir)
 
         traces_dir_text = str(
             self.settings.get("traces_dir", DEFAULT_SETTINGS["traces_dir"])
@@ -3556,6 +3740,10 @@ class AutomationWorker(threading.Thread):
 
         if not using_precreated_persistent_context:
             if self.context:
+                self._clear_pending_file_chooser(
+                    "Pending browser file selection was cancelled because the browser context changed.",
+                    log_event=True,
+                )
                 self._context_transitioning = True
                 try:
                     self.context.close()
@@ -3765,6 +3953,8 @@ class AutomationWorker(threading.Thread):
             page.on("request", request_handler)
             page.on("response", response_handler)
             page.on("requestfailed", request_failed_handler)
+            page.on("download", self._handle_download)
+            page.on("filechooser", lambda chooser, attached_page=page: self._handle_file_chooser(attached_page, chooser))
 
         self._attach_browser_lifecycle_events()
         self.context.on("page", attach_page_events)
@@ -3930,6 +4120,10 @@ class AutomationWorker(threading.Thread):
 
         if self.persistent_context_mode:
             old_initial_url = self.initial_url
+            self._clear_pending_file_chooser(
+                "Pending browser file selection was cancelled because the browser context recycled.",
+                log_event=True,
+            )
             self._context_transitioning = True
             try:
                 try:
@@ -4745,6 +4939,10 @@ class AutomationWorker(threading.Thread):
 
     def cleanup(self) -> None:
         self.log("Closing browser resources.")
+        self._clear_pending_file_chooser(
+            "Pending browser file selection was cancelled because the Task browser closed.",
+            log_event=False,
+        )
         closed_ids: set[int] = set()
         for obj in (self.context, self.browser):
             try:

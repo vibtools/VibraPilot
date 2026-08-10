@@ -1,3 +1,13 @@
+## v1.0.6.17 browser capability surface
+
+- `src/vibrapilot/browser_capabilities.py` — download-path/filename and unpacked-extension validation helpers.
+- `src/vibrapilot/backend.py` — Playwright download/filechooser lifecycle integration and backend extension validation.
+- `src/vibrapilot/qt_app.py` — Task Downloads action, native chooser UI, event rendering, save-time extension validation.
+- `config/verification/v1.0.6.17_browser_capabilities_scope.json` — machine-readable scope lock.
+- `tests/test_v10617_browser_capabilities.py` — regression contract.
+
+No new database table, settings key or application page is added.
+
 ## v1.0.6.16 verification surface
 
 - `config/verification/v1.0.6.16_workspace_persistence_verification_fix_scope.json`

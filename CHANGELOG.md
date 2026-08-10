@@ -1,3 +1,16 @@
+## v1.0.6.17 — Browser capabilities — 2026-08-09
+
+### Added
+- Durable browser download lifecycle using Playwright `Download.save_as()` with safe filenames and non-destructive collision handling.
+- Blank Download Directory now uses a durable per-Task VibraPilot-managed download folder; explicit configured paths remain unchanged.
+- Existing Task card now includes **Downloads** to open the effective Task download directory.
+- Generic page file-chooser bridge for explicit user-selected single files, multiple files, or directory upload when requested by the webpage.
+- Request-ID protection and lifecycle cleanup prevent stale file-chooser responses from crossing Tasks/pages.
+- Unpacked extension directories now validate `manifest.json` existence and JSON object structure at Browser Settings save and browser launch boundaries.
+
+### Preserved
+- No Browser Settings keys/defaults changed. No database/workspace schema changed. No automatic upload, Chrome Web Store automation, master workflow engine, Razorpay selector/Send change, licensing change, managed-profile change or new application page.
+
 ## v1.0.6.16 — Workspace persistence verification / CI fix — 2026-08-09
 
 ### Fixed

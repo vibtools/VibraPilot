@@ -1,3 +1,7 @@
+## v1.0.6.17 browser-capability compatibility
+
+Existing `accept_downloads`, `downloads_path`, `extensions_enabled` and `extension_paths` settings retain their keys. Blank download paths now resolve to a durable managed per-Task folder; explicit paths keep prior semantics. Browser uploads require a webpage-triggered file chooser and explicit user selection. Unpacked extensions remain persistent-context Chromium capabilities; branded Chrome side-loading restrictions remain enforced.
+
 ## v1.0.6.16 verification compatibility
 
 The v1.0.6.15 workspace runtime contract is unchanged. The historical Qt lifecycle fixture now models the workspace-save callback introduced by v1.0.6.15.

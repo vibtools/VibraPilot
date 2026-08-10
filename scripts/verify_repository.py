@@ -34,6 +34,7 @@ PHASE01_VERIFICATION_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1
 MANAGED_BROWSER_CLOSED_TASK_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.14_managed_persistent_browser_closed_task_scope.json"
 WORKSPACE_PERSISTENCE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.15_workspace_persistence_scope.json"
 WORKSPACE_PERSISTENCE_VERIFICATION_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.16_workspace_persistence_verification_fix_scope.json"
+BROWSER_CAPABILITIES_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.17_browser_capabilities_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -318,6 +319,49 @@ if not managed_scope.get("no_database_schema_change") or managed_scope.get("requ
 if not managed_scope.get("no_new_dependency") or not managed_scope.get("no_new_page"):
     fail("v1.0.6.14 dependency/page boundary mismatch")
 
+# v1.0.6.17 VP-BROWSER-CAPABILITIES-001 authorizes only browser capability
+# runtime surfaces while preserving every settings key and persistence schema.
+if not BROWSER_CAPABILITIES_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.17 browser capabilities scope contract is missing")
+try:
+    capability_scope = json.loads(BROWSER_CAPABILITIES_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.17 browser capabilities scope contract is invalid: {exc}")
+if capability_scope.get("plan_id") != "VP-BROWSER-CAPABILITIES-001":
+    fail("v1.0.6.17 browser capabilities plan identifier mismatch")
+if capability_scope.get("official_baseline") != "VibraPilot v1.0.6.16":
+    fail("v1.0.6.17 browser capabilities baseline version mismatch")
+if capability_scope.get("official_baseline_github_commit") != "fd0cbe6e8f3fc37f92bdf49396364ce74583fd1e":
+    fail("v1.0.6.17 browser capabilities GitHub baseline mismatch")
+if capability_scope.get("official_baseline_github_actions_run") != 31342562832:
+    fail("v1.0.6.17 browser capabilities GitHub Actions baseline mismatch")
+if capability_scope.get("target_version") != "1.0.6.17":
+    fail("v1.0.6.17 browser capabilities target mismatch")
+capability_allowed_files = set(capability_scope.get("allowed_runtime_source_changes", []))
+capability_allowed_worker = set(capability_scope.get("approved_automationworker_method_changes", []))
+capability_allowed_task = set(capability_scope.get("approved_taskslotwidget_method_changes", []))
+capability_allowed_main = set(capability_scope.get("approved_mainwindow_method_changes", []))
+if capability_allowed_files != {
+    "src/vibrapilot/backend.py",
+    "src/vibrapilot/qt_app.py",
+    "src/vibrapilot/browser_capabilities.py",
+}:
+    fail("v1.0.6.17 browser capabilities runtime surface mismatch")
+if not capability_scope.get("no_database_schema_change") or capability_scope.get("required_taskruntime_schema_version") != 1:
+    fail("v1.0.6.17 must preserve TaskRuntimeStore schema version 1")
+if not capability_scope.get("no_workspace_schema_change") or not capability_scope.get("no_settings_key_change"):
+    fail("v1.0.6.17 workspace/settings boundary mismatch")
+if not capability_scope.get("no_new_dependency") or not capability_scope.get("no_new_page"):
+    fail("v1.0.6.17 dependency/page boundary mismatch")
+for relative, expected_sha in capability_scope.get("approved_target_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.17 approved target runtime mismatch: {relative}")
+for relative, expected_sha in capability_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.17 frozen file drift detected: {relative}")
+
 # v1.0.6.15 VP-WORKSPACE-PERSISTENCE-001 supersedes the historical qt_app
 # hash only for the explicitly approved workspace-persistence surface.
 if not WORKSPACE_PERSISTENCE_SCOPE_CONTRACT.is_file():
@@ -355,10 +399,14 @@ for key in ("no_auto_browser_start", "no_auto_login_assumption", "no_auto_workfl
     if workspace_scope.get(key) is not True:
         fail(f"v1.0.6.15 safety boundary missing: {key}")
 for relative, expected_sha in workspace_scope.get("approved_target_file_sha256", {}).items():
+    if relative in capability_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.15 approved target runtime mismatch: {relative}")
 for relative, expected_sha in workspace_scope.get("frozen_file_sha256", {}).items():
+    if relative in capability_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.15 frozen file drift detected: {relative}")
@@ -371,6 +419,8 @@ if workspace_fix_scope.get("official_baseline_github_commit") != "564dc159856e2e
 if workspace_fix_scope.get("no_production_runtime_change") is not True or workspace_fix_scope.get("required_taskruntime_schema_version") != 1:
     fail("v1.0.6.16 runtime/database boundary mismatch")
 for relative, expected_sha in workspace_fix_scope.get("runtime_byte_frozen_sha256", {}).items():
+    if relative in capability_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.16 production runtime drift detected: {relative}")
@@ -378,12 +428,14 @@ if "schedule_workspace_save=lambda: None" not in (ROOT / "tests/test_v10612_brow
     fail("v1.0.6.16 Qt fixture workspace-save callback is missing")
 
 for relative, expected_sha in managed_scope.get("approved_target_file_sha256", {}).items():
-    if relative in workspace_allowed_files:
+    if relative in workspace_allowed_files or relative in capability_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.14 approved target runtime mismatch: {relative}")
 for relative, expected_sha in managed_scope.get("frozen_file_sha256", {}).items():
+    if relative in capability_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.14 frozen file drift detected: {relative}")
@@ -480,7 +532,7 @@ if qt_focus_allowed_files != {"vib_validation_app/focus_manager.py"}:
 if qt_focus_scope.get("approved_focus_manager_sha256") != EXPECTED_BRAND_HASHES["vib_validation_app/focus_manager.py"]:
     fail("v1.0.6.11 approved focus-manager hash does not match the current design contract")
 for relative, expected_sha in qt_focus_scope.get("frozen_file_sha256", {}).items():
-    if relative in browser_ui_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files:
+    if relative in browser_ui_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
@@ -510,7 +562,7 @@ settings_scope_payload = json.dumps(
 if hashlib.sha256(settings_scope_payload).hexdigest() != production_scope.get("baseline_settings_canonical_sha256"):
     fail("production scope changed an existing settings default outside the approved new setting")
 for relative, expected_sha in production_scope.get("frozen_file_sha256", {}).items():
-    if relative in qt_focus_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files:
+    if relative in qt_focus_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file():
@@ -547,7 +599,7 @@ automation_worker_methods = {
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
 }
 for method_name, expected_sha in production_scope.get("frozen_automationworker_method_ast_sha256", {}).items():
-    if method_name in browser_ui_allowed_worker or method_name in managed_allowed_worker:
+    if method_name in browser_ui_allowed_worker or method_name in managed_allowed_worker or method_name in capability_allowed_worker:
         continue
     node = automation_worker_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
@@ -610,6 +662,7 @@ for relative, expected_sha in current_fix_scope.get("frozen_file_sha256", {}).it
         or relative in qt_focus_allowed_files
         or relative in managed_allowed_files
         or relative in workspace_allowed_files
+        or relative in capability_allowed_files
     ):
         continue
     path = ROOT / relative
@@ -628,14 +681,14 @@ current_checks = {
 for name, node in current_checks.items():
     if name == "backend.LicenseManager" and "src/vibrapilot/backend.py" in license_allowed_files:
         continue
-    if name == "qt_app.MainWindow" and (workflow_approved_mainwindow or license_allowed_mw_methods or browser_ui_allowed_main or managed_allowed_main or workspace_allowed_main):
+    if name == "qt_app.MainWindow" and (workflow_approved_mainwindow or license_allowed_mw_methods or browser_ui_allowed_main or managed_allowed_main or workspace_allowed_main or capability_allowed_main):
         continue
     expected_sha = current_ast.get(name)
     if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.7 out-of-scope AST drift detected: {name}")
 allowed_current_worker = set(current_fix_scope.get("approved_automationworker_method_changes", []))
 for method_name, expected_sha in current_fix_scope.get("frozen_automationworker_method_ast_sha256", {}).items():
-    if method_name in browser_ui_allowed_worker or method_name in managed_allowed_worker:
+    if method_name in browser_ui_allowed_worker or method_name in managed_allowed_worker or method_name in capability_allowed_worker:
         continue
     if method_name in allowed_current_worker:
         fail(f"v1.0.6.7 fix scope incorrectly freezes an approved worker method: {method_name}")
@@ -647,7 +700,7 @@ for method_name, expected_sha in current_fix_scope.get("frozen_automationworker_
 
 # Enforce the later Windows SQLite fix boundary against the clean v1.0.6.7 baseline.
 for relative, expected_sha in windows_sqlite_fix_scope.get("frozen_file_sha256", {}).items():
-    if relative in workflow_allowed_files or relative in workflow_release_files or relative in qt_focus_allowed_files or relative in browser_ui_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files:
+    if relative in workflow_allowed_files or relative in workflow_release_files or relative in qt_focus_allowed_files or relative in browser_ui_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
@@ -658,13 +711,13 @@ followup_ast = windows_sqlite_fix_scope.get("frozen_ast_sha256", {})
 for name, node in current_checks.items():
     if name == "backend.LicenseManager" and "src/vibrapilot/backend.py" in license_allowed_files:
         continue
-    if name == "qt_app.MainWindow" and (workflow_approved_mainwindow or license_allowed_mw_methods or browser_ui_allowed_main or managed_allowed_main or workspace_allowed_main):
+    if name == "qt_app.MainWindow" and (workflow_approved_mainwindow or license_allowed_mw_methods or browser_ui_allowed_main or managed_allowed_main or workspace_allowed_main or capability_allowed_main):
         continue
     expected_sha = followup_ast.get(name)
     if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.7 Windows SQLite fix out-of-scope AST drift detected: {name}")
 for method_name, expected_sha in windows_sqlite_fix_scope.get("frozen_automationworker_method_ast_sha256", {}).items():
-    if method_name in browser_ui_allowed_worker or method_name in managed_allowed_worker:
+    if method_name in browser_ui_allowed_worker or method_name in managed_allowed_worker or method_name in capability_allowed_worker:
         continue
     if method_name in followup_allowed_worker:
         fail(f"v1.0.6.7 Windows SQLite fix incorrectly freezes an approved worker method: {method_name}")
@@ -674,7 +727,7 @@ for method_name, expected_sha in windows_sqlite_fix_scope.get("frozen_automation
 
 # Enforce VP-WORKFLOW-INPUTS-001 against the final v1.0.6.7 baseline.
 for relative, expected_sha in workflow_inputs_scope.get("frozen_file_sha256", {}).items():
-    if relative in license_allowed_files or relative in qt_focus_allowed_files or relative in browser_ui_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files:
+    if relative in license_allowed_files or relative in qt_focus_allowed_files or relative in browser_ui_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
@@ -694,7 +747,7 @@ workflow_ast_checks = {
 for name, node in workflow_ast_checks.items():
     if name == "backend.LicenseManager" and "src/vibrapilot/backend.py" in license_allowed_files:
         continue
-    if name == "backend.AutomationWorker" and browser_ui_allowed_worker:
+    if name == "backend.AutomationWorker" and (browser_ui_allowed_worker or capability_allowed_worker):
         continue
     expected_sha = workflow_fixed_ast.get(name)
     if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
@@ -709,7 +762,7 @@ main_window_methods = {
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
 }
 for method_name, expected_sha in workflow_inputs_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main:
+    if method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main:
         continue
     if method_name in workflow_approved_mainwindow:
         fail(f"v1.0.6.8 Workflow Inputs scope incorrectly freezes approved MainWindow method: {method_name}")
@@ -726,7 +779,7 @@ task_slot_methods = {
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
 }
 for method_name, expected_sha in workflow_inputs_scope.get("frozen_taskslotwidget_method_ast_sha256", {}).items():
-    if method_name in browser_ui_allowed_task or method_name in managed_allowed_task or method_name in workspace_allowed_task:
+    if method_name in browser_ui_allowed_task or method_name in managed_allowed_task or method_name in workspace_allowed_task or method_name in capability_allowed_task:
         continue
     node = task_slot_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
@@ -752,7 +805,7 @@ workflow_fix_approved_methods = set(workflow_fix_scope.get("approved_mainwindow_
 if workflow_fix_approved_methods != {"save_workflow_inputs", "reset_workflow_inputs"}:
     fail("v1.0.6.9 approved MainWindow method surface mismatch")
 for relative, expected_sha in workflow_fix_scope.get("frozen_file_sha256", {}).items():
-    if relative in license_allowed_files or relative in qt_focus_allowed_files or relative in browser_ui_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files:
+    if relative in license_allowed_files or relative in qt_focus_allowed_files or relative in browser_ui_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
@@ -760,7 +813,7 @@ for relative, expected_sha in workflow_fix_scope.get("frozen_file_sha256", {}).i
 if workflow_fix_scope.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
     fail("v1.0.6.9 Workflow Inputs fix AST hash algorithm mismatch")
 for method_name, expected_sha in workflow_fix_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main:
+    if method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main:
         continue
     if method_name in workflow_fix_approved_methods:
         fail(f"v1.0.6.9 fix scope incorrectly freezes approved MainWindow method: {method_name}")
@@ -770,7 +823,7 @@ for method_name, expected_sha in workflow_fix_scope.get("frozen_mainwindow_metho
 
 # v1.0.6.10 exact current scope verification.
 for relative, expected_sha in license_fix_scope.get("frozen_file_sha256", {}).items():
-    if relative in qt_focus_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files:
+    if relative in qt_focus_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
@@ -786,7 +839,7 @@ license_ast_checks = {
     "qt_app.BROWSER_SETTING_GROUPS": qt_ann_nodes.get("BROWSER_SETTING_GROUPS"),
 }
 for name, expected_sha in license_fix_scope.get("frozen_ast_sha256", {}).items():
-    if name == "backend.AutomationWorker" and browser_ui_allowed_worker:
+    if name == "backend.AutomationWorker" and (browser_ui_allowed_worker or capability_allowed_worker):
         continue
     node = license_ast_checks.get(name)
     if node is None or ast_contract_sha(node) != expected_sha:
@@ -805,7 +858,7 @@ for method_name, expected_sha in license_fix_scope.get("frozen_licensemanager_me
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.10 out-of-scope LicenseManager drift: {method_name}")
 for method_name, expected_sha in license_fix_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main:
+    if method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main:
         continue
     if method_name in license_allowed_mw_methods:
         fail(f"v1.0.6.10 license scope incorrectly freezes approved MainWindow method: {method_name}")
@@ -829,19 +882,19 @@ for name, expected_sha in browser_ui_scope.get("frozen_ast_sha256", {}).items():
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.12 browser UI frozen AST drift detected: {name}")
 for method_name, expected_sha in browser_ui_scope.get("frozen_automationworker_method_ast_sha256", {}).items():
-    if method_name in managed_allowed_worker:
+    if method_name in managed_allowed_worker or method_name in capability_allowed_worker:
         continue
     node = automation_worker_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.12 browser UI out-of-scope AutomationWorker drift: {method_name}")
 for method_name, expected_sha in browser_ui_scope.get("frozen_taskslotwidget_method_ast_sha256", {}).items():
-    if method_name in managed_allowed_task or method_name in workspace_allowed_task:
+    if method_name in managed_allowed_task or method_name in workspace_allowed_task or method_name in capability_allowed_task:
         continue
     node = task_slot_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.12 browser UI out-of-scope TaskSlotWidget drift: {method_name}")
 for method_name, expected_sha in browser_ui_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in managed_allowed_main or method_name in workspace_allowed_main:
+    if method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main:
         continue
     node = main_window_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
@@ -880,8 +933,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.16":
-    fail("AppConfig VERSION must be 1.0.6.16 for the workspace persistence verification release")
+if app_version != "1.0.6.17":
+    fail("AppConfig VERSION must be 1.0.6.17 for the browser capabilities release")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -995,8 +1048,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.16-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.16 release path")
+if "VibraPilot-1.0.6.17-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.17 release path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})
@@ -1526,8 +1579,9 @@ required = [
     "config/verification/v1.0.6.14_managed_persistent_browser_closed_task_scope.json",
     "config/verification/v1.0.6.15_workspace_persistence_scope.json",
     "config/verification/v1.0.6.16_workspace_persistence_verification_fix_scope.json",
+    "config/verification/v1.0.6.17_browser_capabilities_scope.json",
     "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
-    "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "src/vibrapilot/workspace_state.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
+    "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "src/vibrapilot/workspace_state.py", "src/vibrapilot/browser_capabilities.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
     "docs/updates/v1.0.6.1-vibrapilot-branding.md", "docs/updates/v1.0.6.1-github-ci-repository-hygiene-fix.md",
     "docs/updates/v1.0.6.1-github-ci-deterministic-ast-contract-fix.md",
@@ -1547,6 +1601,7 @@ required = [
     "docs/verification/V1.0.6.14_MANAGED_PERSISTENT_BROWSER_CLOSED_TASK_VERIFICATION.md",
     "docs/verification/V1.0.6.15_WORKSPACE_PERSISTENCE_VERIFICATION.md",
     "docs/verification/V1.0.6.16_WORKSPACE_PERSISTENCE_FORENSIC_VERIFICATION.md",
+    "docs/verification/V1.0.6.17_BROWSER_CAPABILITIES_VERIFICATION.md",
     "docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md", "docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md",
     "docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md",
     "docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md",
@@ -1560,6 +1615,7 @@ required = [
     "docs/updates/v1.0.6.14-managed-persistent-browser-closed-task-recovery.md",
     "docs/updates/v1.0.6.15-workspace-persistence.md",
     "docs/updates/v1.0.6.16-workspace-persistence-verification-fix.md",
+    "docs/updates/v1.0.6.17-browser-capabilities.md",
     "scripts/verify_source_archive.py", "tests/test_v1067_verification_fix.py", "tests/test_app_config_validation.py",
     "tests/test_licensing_v2_crypto.py", "tests/test_licensing_v2_client.py", "tests/test_license_manager_v2.py", "tests/test_phase02_scope_freeze.py", "tests/test_phase02_step002_fix_scope.py",
     "tests/test_production_scope_freeze.py", "tests/test_task_runtime_store.py", "tests/test_task_recovery.py",
@@ -1575,6 +1631,7 @@ required = [
     "tests/test_v10614_managed_persistent_browser.py",
     "tests/test_v10615_workspace_persistence.py",
     "tests/test_v10616_workspace_persistence_verification_fix.py",
+    "tests/test_v10617_browser_capabilities.py",
     "scripts/maintenance/Apply-v1.0.6.2-Phase01-Fix.cmd",
     "scripts/maintenance/PHASE01_V1.0.6.2_DELETE_PATHS.txt",
     "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",

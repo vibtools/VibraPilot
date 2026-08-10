@@ -1,3 +1,7 @@
+## v1.0.6.17 — Browser capabilities
+
+Production feature release for `VP-BROWSER-CAPABILITIES-001`. The v1.0.6.16 workspace-persistence verification baseline is preserved outside the explicitly approved browser capability surfaces. No settings-key, TaskRuntimeStore-schema, WorkspaceState-schema or dependency change is included.
+
 ## v1.0.6.16 — Workspace persistence verification fix
 
 Patch release preserving v1.0.6.15 production runtime byte-for-byte while correcting CI/test-harness compatibility and documentation formatting.

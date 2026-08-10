@@ -66,8 +66,14 @@ class ProductionScopeFreezeTest(unittest.TestCase):
         browser_data = json.loads(current_browser_scope.read_text(encoding="utf-8")) if current_browser_scope.is_file() else {}
         current_phase_scope = ROOT / "config/verification/v1.0.6.14_managed_persistent_browser_closed_task_scope.json"
         phase_data = json.loads(current_phase_scope.read_text(encoding="utf-8")) if current_phase_scope.is_file() else {}
-        approved_worker = set(browser_data.get("approved_automationworker_method_changes", [])) | set(phase_data.get("approved_automationworker_method_changes", []))
-        current_allowed = set(phase_data.get("allowed_runtime_source_changes", []))
+        capability_scope = ROOT / "config/verification/v1.0.6.17_browser_capabilities_scope.json"
+        capability_data = json.loads(capability_scope.read_text(encoding="utf-8")) if capability_scope.is_file() else {}
+        approved_worker = (
+            set(browser_data.get("approved_automationworker_method_changes", []))
+            | set(phase_data.get("approved_automationworker_method_changes", []))
+            | set(capability_data.get("approved_automationworker_method_changes", []))
+        )
+        current_allowed = set(phase_data.get("allowed_runtime_source_changes", [])) | set(capability_data.get("allowed_runtime_source_changes", []))
         for relative, expected in CONTRACT["frozen_file_sha256"].items():
             if current_focus_scope.is_file() and relative == "vib_validation_app/focus_manager.py":
                 continue

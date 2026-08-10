@@ -1,3 +1,10 @@
+## v1.0.6.17 — VP-BROWSER-CAPABILITIES-001 — 2026-08-09
+
+Implemented the approved browser-capabilities phase against the verified v1.0.6.16 baseline commit `fd0cbe6e8f3fc37f92bdf49396364ce74583fd1e` and GitHub Actions run `31342562832`. Runtime changes are limited to `backend.py`, `qt_app.py` and new `browser_capabilities.py`.
+
+Detailed note: `docs/updates/v1.0.6.17-browser-capabilities.md`
+Verification: `docs/verification/V1.0.6.17_BROWSER_CAPABILITIES_VERIFICATION.md`
+
 ## v1.0.6.16 — Workspace persistence verification / CI fix — 2026-08-09
 
 Re-verified v1.0.6.15 against Windows CMD and GitHub Actions job `93315001000`. The only executable CI failure was a historical v1.0.6.12 Qt test fixture missing the new `MainWindow.schedule_workspace_save` callback. Production runtime and database implementation are unchanged.

@@ -1,3 +1,7 @@
+## v1.0.6.17 browser capabilities
+
+The current candidate adds durable browser downloads, user-controlled website file chooser handling and unpacked extension manifest validation while preserving the managed browser, workspace, Closed Task, licensing and Razorpay/Test Mode contracts. See `updates/v1.0.6.17-browser-capabilities.md` and `verification/V1.0.6.17_BROWSER_CAPABILITIES_VERIFICATION.md`.
+
 ## v1.0.6.16 verification fix
 
 The v1.0.6.15 workspace runtime is unchanged; v1.0.6.16 fixes the historical Qt fixture and records forensic CI verification.
@@ -8,7 +12,7 @@ The current candidate restores normal active Task cards, selected page and safe 
 
 # VibraPilot Documentation
 
-This documentation accompanies **VibraPilot v1.0.6.14 — Managed Persistent Browser + Closed Task Recovery candidate**.
+This documentation accompanies **VibraPilot v1.0.6.17 — Browser Capabilities candidate**.
 
 Start with:
 

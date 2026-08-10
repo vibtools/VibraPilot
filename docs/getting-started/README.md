@@ -1,3 +1,7 @@
+## v1.0.6.17 acceptance
+
+After normal automated tests, use controlled pages on Windows to verify durable download files survive browser/app close, same-name downloads do not overwrite, native single/multiple/directory browser upload selection reaches only the originating chooser, cancellation/stale chooser handling is safe, and a valid unpacked extension loads only through the supported persistent Chromium-compatible path.
+
 ## v1.0.6.16 acceptance
 
 Run repository verifier, pytest and unittest on Windows; the historical browser lifecycle Qt test must construct successfully while v1.0.6.15 workspace behavior stays unchanged.
