@@ -1,3 +1,13 @@
+# VibraPilot Documentation — v1.0.6.24 PR-07 Candidate
+
+Current release baseline: **v1.0.6.23 / PR-06**. Current development candidate: **v1.0.6.24 / PR-07 Workflow Showcase Page**.
+
+PR-07 exposes source-controlled built-in workflow metadata through a Workflows page and delegates activation to the existing PR-06 atomic switch service. Production still contains only `share_invite`; PR-08 dynamic Workflow Inputs remain not started.
+
+Candidate documents:
+- `updates/v1.0.6.24-pr07-workflow-showcase.md`
+- `verification/V1.0.6.24_PR07_WORKFLOW_SHOWCASE.md`
+
 # VibraPilot Documentation
 
 ## Current release

@@ -32,13 +32,13 @@ class FeatureParityTest(unittest.TestCase):
 
     def test_primary_pages_exist(self):
         text=(ROOT/'src/vibrapilot/qt_app.py').read_text(encoding='utf-8')
-        for page in ['Dashboard','Tasks','Reports','Live Logs','App Settings','Browser Settings','About']:
+        for page in ['Dashboard','Tasks','Workflows','Workflow Inputs','Reports','Live Logs','App Settings','Browser Settings','About']:
             self.assertIn(page,text)
 
 
     def test_settings_navigation_order(self):
         text=(ROOT/'src/vibrapilot/qt_app.py').read_text(encoding='utf-8')
-        self.assertIn('NAV_SECTIONS = ["Dashboard", "Tasks", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]', text)
+        self.assertIn('NAV_SECTIONS = ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]', text)
 
     def test_browser_settings_page_and_runtime_markers(self):
         ui=(ROOT/'src/vibrapilot/qt_app.py').read_text(encoding='utf-8')

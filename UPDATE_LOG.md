@@ -1,3 +1,7 @@
+## v1.0.6.24 — PR-07 Workflow Showcase Page — 2026-08-10
+
+Adds a metadata-driven Workflows page for registered built-in workflows and active-state display while keeping PR-06 switching authoritative. Production registry remains `share_invite` only; PR-08 inputs and all Browser/licensing/CAPTCHA/schema work stay out of scope.
+
 ## v1.0.6.23 — PR-06 Workflow State Persistence + Atomic Switch/Restart — 2026-08-10
 
 PR-06 promotes the existing locally verified workflow-state implementation. VibraPilot now persists one active built-in workflow, fails closed on invalid persisted identity, injects that identity into workers, and provides an atomic application-level switch/restart service for later Workflow UI.

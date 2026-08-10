@@ -1,3 +1,9 @@
+# Versioning — PR-07 Candidate
+
+- Current release baseline: **v1.0.6.23 / PR-06**.
+- Current development candidate: **v1.0.6.24 / PR-07 Workflow Showcase Page**.
+- v1.0.6.24 is not RELEASE COMPLETE until owner UI acceptance, exact GitHub publication and Windows/Python 3.12 CI PASS.
+
 ## Current baseline classification — 2026-08-10
 
 - **Official Release Baseline:** v1.0.6.23 / PR-06 Workflow State + Atomic Switch/Restart.
@@ -50,7 +56,7 @@ VibraPilot uses a four-segment production release version for hardening/configur
 
 Current release: **1.0.6.23**
 
-Version **1.0.6.13** is the verification/CI-stability correction anchored to uploaded v1.0.6.12 archive SHA-256 `becd6add21d377e98e458ce856c9c3baa710a113459bde0c737507c122c2a9b5` and GitHub v1.0.6.12 commit `a9cfec319285db2fb9fbff8d4bf0ede8ac87686b`.
+Version **1.0.6.13** is the verification/CI-stability correction anchored to uploaded v1.0.6.12 archive SHA-256 `becd6add21d377e98e458ce856c9c3baa710a113459bde0c737507c122c2a9b5` and GitHub v1.0.6.12 commit `a9cfec319285db2fb9fbff8d4bf0ede8ac87686b`. The v1.0.6.12 Phase-01 browser lifecycle runtime is byte-frozen in this correction; no production runtime source file changes.
 
 It authorizes **no production runtime source changes**. The v1.0.6.12 `backend.py`, `qt_app.py`, `task_runtime_store.py`, Browser Settings defaults, licensing, selectors, workflow and persistence schema are frozen. The only functional correction is to the Windows concurrency verification harness and its scope/metadata/documentation.
 

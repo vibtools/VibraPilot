@@ -1,3 +1,11 @@
+# VibraPilot v1.0.6.24 â€” PR-07 Workflow Showcase Page
+
+## Current development candidate
+
+PR-07 adds a top-level **Workflows** page that renders only source-controlled built-in workflow metadata, displays the authoritative active workflow and delegates valid inactive-workflow activation to the existing PR-06 `request_workflow_switch()` service.
+
+Production still contains only **Share Invite**. No fake/demo workflow, dynamic Workflow Inputs, schema redesign, Browser/licensing/CAPTCHA change or plugin discovery is introduced. The current release baseline remains v1.0.6.23 / PR-06 until PR-07 owner UI acceptance, GitHub publication and Windows/Python 3.12 CI closure.
+
 # VibraPilot v1.0.6.23 â€” PR-06 Workflow State Persistence + Atomic Switch/Restart
 
 ## Current release
@@ -46,207 +54,42 @@ VibraPilot now restores the user's normal active workspace after restart without
 
 ## v1.0.6.14 Managed persistent browser + Closed Task recovery
 
-VibraPilot now uses its existing Playwright persistent-context engine as the default browser-session model. With a blank profile path, each Task owns a dedicated application-managed browser profile under the durable Windows per-user VibraPilot data root; an explicit `VIB_TOOLS_DATA_DIR` remains authoritative. The application rejects the user's normal Google Chrome `User Data` tree, preserves per-Task profile isolation, retains shared-profile collision protection, and safely migrates a legacy VibraPilot-managed profile only when the new destination does not already exist. `restore_previous_session` remains disabled, and browser/workflow/Send never auto-start.
-
-The Tasks page also adds **Open Closed Tasks**. **Close Task** now persists the Task snapshot before removing its card, using the existing `TaskRuntimeStore` schema and the same run ID. Reopening closed Tasks restores the original slot ID, uploaded recipient records, Target URL, current index, success/failed/remaining progress, send-limit usage, manual-review state and result continuity while keeping the browser closed. The stable slot ID therefore reconnects the restored Task to the same managed browser profile without deleting or copying browser-profile data. No permanent-delete feature is introduced.
-
-Phase-01 browser Open/Close lifecycle, Test Mode/security checks, Razorpay Share Invite selectors/Send flow, licensing, reporting, Workflow Inputs and SQLite schema version 1 remain preserved. Browser history persistence and live Chrome profile continuity require the v1.0.6.14 Windows acceptance gate before this candidate is frozen as the next Official Baseline.
-
-
-**VibraPilot v1.0.6.13** is the verification/CI-stability correction built from the exact user-frozen v1.0.6.12 archive SHA-256 `becd6add21d377e98e458ce856c9c3baa710a113459bde0c737507c122c2a9b5` and GitHub v1.0.6.12 commit `a9cfec319285db2fb9fbff8d4bf0ede8ac87686b`. The v1.0.6.12 Phase-01 browser lifecycle runtime is byte-frozen in this correction; no production runtime source file changes.
-
-## v1.0.6.13 Phase-01 verification / CI stability correction
-
-GitHub Actions run `31331345666` proved the v1.0.6.12 repository verifier, dependency installation, full pytest suite and all Phase-01 browser lifecycle tests green. The only failing step was the second, standard-library `unittest` pass: the four-worker SQLite correctness stress test used a fixed 15-second completion threshold, and a hosted Windows runner exceeded that wall-clock threshold while threads were still making durable progress. The assertion then exited while a writer still held the SQLite file, creating a secondary `WinError 32` during temporary-directory cleanup.
-
-v1.0.6.13 corrects only that verification harness: the concurrency test now uses a bounded 60-second deadlock guard and cleanup-tolerant temporary directory semantics. It remains a correctness/isolation test rather than an artificial storage-throughput SLA. `TaskRuntimeStore`, Phase-01 browser runtime, licensing, Browser Settings, Workflow Inputs, selectors and Task workflow are unchanged.
-
-The uploaded v1.0.6.12 development archive also contains runtime/cache/private-development material, so it is valid as the forensic input baseline but not as a clean public source artifact. v1.0.6.13 release-source packaging must exclude runtime/cache paths, and public source must exclude the private `project/` workspace.
-
-## v1.0.6.12 Browser UI/lifecycle hardening
-
-Task browser state is now modeled as **Closed â†’ Opening â†’ Open â†’ Closing â†’ Closed**. The worker owns Playwright lifecycle truth and maps active-page close, context close and browser disconnect events back to the Task UI without requiring the Qt thread to inspect Playwright Page/Browser wrappers. The Task browser action changes deterministically between **Open Browser**, **Opening...**, **Close Browser** and **Closing...** while **Close Task** remains a separate destructive Task action.
-
-Manual browser closure clears login verification, removes stale Browser Ready state from the Dashboard, and preserves the Task/data so the browser can be opened again. The existing browser auto-restart policy remains authoritative for unexpected closure when enabled. Successful Activation-to-Workspace transition now fits and centers the workspace inside the current screen's available geometry instead of expanding from the compact activation window's old top-left position.
-
-This phase does **not** enable managed persistent profiles, change Browser Settings defaults, add downloads/uploads/extensions, change Razorpay selectors/Send behavior, or alter Licora API v2. Windows live browser-lifecycle verification remains the final platform acceptance gate before v1.0.6.12 becomes the next Official Baseline Freeze.
-
-## v1.0.6.11 Qt focus lifecycle correction
-
-The focus-ring manager now validates that a Python PySide6 wrapper still owns a live C++ QWidget before applying dynamic properties, repolishing styles or showing a delayed tooltip. Stale focused-widget references are cleared when Qt begins widget destruction, while valid keyboard and mouse focus behavior remains exactly the same. This directly addresses the Windows runtime `libshiboken: Internal C++ object ... already deleted` traceback seen during Activation-to-Workspace and other widget-lifecycle transitions.
-
-## v1.0.6.10 License login durability and recovery
-
-On Windows, protected licensing state now migrates from the historical install-relative `AppData/license.json` into a durable per-user `%LOCALAPPDATA%\Vib Tools\VibraPilot` location unless an explicit `VIB_TOOLS_DATA_DIR` deployment is configured. A separate DPAPI-protected device-identity record preserves the P-256 private key and stable device ID across clean source/application folders and session-cache corruption.
-
-When the production Licora server reports `DEVICE_KEY_MISMATCH` or `DEVICE_REVOKED`, VibraPilot performs one restart-safe device-ID recovery attempt with the existing P-256 key. If a stale active device already fills the license limit, the client stops and gives an explicit Licora stale-device cleanup message instead of looping or silently consuming slots. Confirmed logout deactivation rotates the now-revoked device ID before the next login, while a new login cannot overtake the background deactivation request. Temporary network/rate-limit/server-response failures no longer force an otherwise locally valid access-token session to logout.
-
-
-## v1.0.6.9 Workflow Inputs verification/fix
-
-The v1.0.6.9 verification pass found no selector, browser, task, licensing or workflow-engine drift in v1.0.6.8. The four Workflow Inputs remain settings-backed values only; because backend behavior was explicitly frozen in `VP-WORKFLOW-INPUTS-001`, this release does not add a new browser consumer for `default_full_name`, `default_number`, `fallback_name` or `update_click_count`.
-
-Two page-local error paths were corrected: a failed **Save Workflow Inputs** write no longer leaves unsaved values in `SettingsManager.data`, and a failed **Reset Workflow Inputs** write is caught, rolls the four keys back to their exact pre-reset values, refreshes the page, and reports the error. `default_target_url` remains in App Settings and no workflow selector is added.
-
-## Workflow Inputs separation
-
-`VP-WORKFLOW-INPUTS-001` adds a dedicated **Workflow Inputs** page after Tasks. The page owns the existing `default_full_name`, `default_number`, `fallback_name` and `update_click_count` values through the existing `SettingsManager` keys. `default_target_url` remains in App Settings. No workflow selector is shown while only one real workflow exists, and the new `workflow_inputs.py` module contains form metadata only.
-
-## Windows SQLite concurrency verification
-
-The v1.0.6.7 verification baseline includes a follow-up Windows concurrency correction for the local SQLite task runtime store. In-process writers are serialized before SQLite's WAL writer lock, and per-recipient item/result/progress persistence uses one atomic transaction on the worker hot path. This keeps `PRAGMA synchronous` at SQLite's durable default instead of weakening crash durability to improve test speed.
-
-## Application areas
-
-- **License Activation** â€” device-bound Licora API v2 activation and periodic server revalidation.
-- **Dashboard** â€” task, runtime, license and usage overview.
-- **Tasks** â€” independent browser task slots, data loading and processing controls.
-- **Workflow Inputs** â€” workflow/form values kept separate from application and browser configuration.
-- **Reports** â€” searchable results with CSV/Excel export.
-- **Live Logs** â€” operational log viewer, save and clear actions.
-- **App Settings** â€” safety, application, task-processing and licensing/network settings.
-- **Browser Settings** â€” advanced persisted Playwright/Chromium controls.
-- **About** â€” product, support and runtime information.
-
-## Secure Licora API v2
-
-Public licensing configuration is centralized in:
-
-```text
-config/AppConfig/licensing_public.py
-```
-
-It contains only non-secret values: `https://mxflow.shop`, App ID `vibrapilot`, the four `/api/v2/` endpoint paths, the expected signing-key ID and the **server RSA public signing key** used for local access-token verification.
-
-The client flow is:
-
-```text
-P-256 device key â†’ activate â†’ RS256 access token + rotating refresh token
-                 â†’ status â†’ refresh/rotate â†’ status â†’ deactivate
-```
-
-VibraPilot signs API v2 requests with the locally generated P-256 device private key. The server private signing key never leaves Licora. Sensitive local licensing material is protected with Windows DPAPI. By default on Windows, session state is persisted atomically in `%LOCALAPPDATA%\Vib Tools\VibraPilot\license.json` and the durable P-256 identity in `device_identity.json`; an explicit `VIB_TOOLS_DATA_DIR` remains authoritative. The historical install-relative `AppData/license.json` is migration input only. The P-256 device identity is persistent across logout, license switching and restart; session tokens and the protected license are cleared on logout.
-
-The active source contains **no Licora API v1 master/shared API key** and no `/api/verify.php` desktop authentication flow. See `docs/guides/LICENSING.md`.
-
-## Production runtime hardening
-
-`VP-PROD-MT-LR-001` adds a local SQLite-backed task runtime store (`AppData/task_runtime.sqlite3`) and keeps each task identified by its own `run_id`, recipient set and result ledger. Processing remains sequential inside each task; `batch_size` defines checkpoint boundaries and does **not** introduce parallel recipient sending. `auto_save_interval` is now interpreted in seconds, with `0` disabling timed autosave while finalized recipient outcomes are still persisted immediately.
-
-Production behavior now includes:
-
-- input reconciliation for source/valid/invalid/duplicate/accepted rows;
-- atomic task/checkpoint persistence and restart recovery without automatic sending;
-- explicit manual-review handling for ambiguous post-Send outcomes;
-- correct item/time Browser Context recycling after successful or failed finalized recipients;
-- deterministic worker shutdown that retains live worker references until cleanup finishes;
-- a bounded 4096-event UI queue and a maximum 250 events processed per UI timer tick;
-- one authoritative current outcome per `run_id + item_index`, with full export backed by the runtime ledger;
-- Reports filtering by Task;
-- a default maximum of 4 simultaneously active task workers; and
-- a persistent-profile collision guard when multiple tasks would claim the same shared profile.
-
-The v1.0.6.5 production-hardening milestone itself added no permanent top-level page; its recovery flow remains in Tasks plus transient dialogs. v1.0.6.8 later adds only the approved Workflow Inputs configuration page.
-
-## v1.0.6.7 forensic corrections
-
-The v1.0.6.7 verification pass corrects four operational defects without redesigning the v1.0.6.5 production architecture: the Task-card stylesheet classmethod now binds correctly at startup, saturated critical UI events can exit during an explicit worker stop/close, the conservative pre-Send manual-review marker is immediately represented in the authoritative result ledger, and the Task metric explicitly labels the counter as **Send Attempts / Limit**.
-
-Source baseline ZIPs can be checked with:
-
-```powershell
-python scripts/verify_source_archive.py path\to\VibraPilot-source.zip
-```
-
-The verifier rejects `AppData/`, `FailedData/`, `Reports/`, `Logs/`, private `project/`, Python caches and unsafe ZIP paths. Applying a delta to an existing working installation does **not** delete runtime `AppData`; the exclusion rule applies to distributable source baseline/release archives.
-
-## Production scope freeze
-
-The approved production boundary is machine-checked by `config/verification/production_mt_lr_v1.0.6.5_scope.json`. It identifies the exact v1.0.6.4 baseline archive, approved runtime surface and parameters, and freezes out-of-scope files/settings plus canonical AST contracts for `LicenseManager`, `SELECTORS`, `ActivationPage` and `BROWSER_SETTING_GROUPS`. The Phase-02 licensing scope manifests remain historical evidence.
-
-The existing site-specific authorized Share Invite workflow is unchanged: no selector redesign, Send-flow redesign, stealth/anti-bot implementation, licensing-protocol change or browser-engine replacement is included in this release.
-
-## AppConfig architecture
-
-Public/non-secret application configuration lives under:
-
-```text
-config/AppConfig/
-â”œâ”€â”€ app.py
-â”œâ”€â”€ about.py
-â”œâ”€â”€ support.py
-â”œâ”€â”€ social.py
-â””â”€â”€ licensing_public.py
-```
-
-`src/vibrapilot/app_config.py` validates those modules and exposes read-only runtime objects including `APP`, `ABOUT`, `SUPPORT`, social links and `LICENSING`.
-
-## Development
-
-Requires Python 3.12.
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python -m playwright install chromium
-python scripts/verify_repository.py
-python -m pytest -q
-python run.py
-```
-
-`cryptography` is required for P-256 request proofs and RS256 token verification.
-
-## Windows build
-
-Use 64-bit Python 3.12 on Windows:
-
-```powershell
-python build.py
-```
-
-The builder produces the `VibraPilot` PyInstaller ONEDIR application and release archive under `release/`.
-
-## Change and audit history
-
-- Cumulative release history: `CHANGELOG.md`
-- Concise update log: `UPDATE_LOG.md`
-- Versioning discipline: `VERSIONING.md`
-- v1.0.6.9 Workflow Inputs verification/fix note: `docs/updates/v1.0.6.9-workflow-inputs-verification-fix.md`
-- v1.0.6.9 Workflow Inputs forensic verification: `docs/verification/V1.0.6.9_WORKFLOW_INPUTS_FORENSIC_VERIFICATION.md`
-- v1.0.6.8 Workflow Inputs note: `docs/updates/v1.0.6.8-workflow-inputs-separation.md`
-- v1.0.6.8 Workflow Inputs verification: `docs/verification/V1.0.6.8_WORKFLOW_INPUTS_VERIFICATION.md`
-- v1.0.6.7 verification/fix note: `docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md`
-- v1.0.6.7 forensic verification: `docs/verification/V1.0.6.7_VP_PROD_MT_LR_FORENSIC_VERIFICATION.md`
-- v1.0.6.5 production-hardening note: `docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md`
-- v1.0.6.5 production verification: `docs/verification/V1.0.6.5_PRODUCTION_RUNTIME_VERIFICATION.md`
-- v1.0.6.4 verification/fix note: `docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md`
-- v1.0.6.4 forensic verification: `docs/verification/PHASE02_STEP002_V1.0.6.4_FORENSIC_VERIFICATION.md`
-- Historical v1.0.6.3 Phase-02 note: `docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md`
-- Historical v1.0.6.3 verification: `docs/verification/PHASE02_STEP002_V1.0.6.3_VERIFICATION.md`
-- Licensing contract: `docs/guides/LICENSING.md`
-- AppConfig architecture: `docs/configuration/APPCONFIG.md`
-- Public backend/CI contract: `docs/verification/BACKEND_CONTRACT.md`
-
-Historical Phase-01 and v1.0.6.1 notes remain under `docs/updates/` and `docs/verification/`.
-
-## Verification
-
-```powershell
-python scripts/verify_repository.py
-python -m pytest -q
-python -m unittest discover -s tests -p "test_*.py" -v
-```
-
-`pyproject.toml` configures pytest to import from `src`. The unittest modules now bootstrap the repository `src` layout themselves, so the same direct unittest command works in Command Prompt and PowerShell without shell-specific `PYTHONPATH` syntax.
-
-The verifier checks the frozen Vib Tools design source, backend parity contract, production scope hashes/settings, AppConfig/static metadata consistency, Secure API v2 public-key/endpoint invariants, secret hygiene, safety behavior, branding/icons and repository structure.
-
-Public documentation belongs under `docs/`. The local `project/` tree and runtime `AppData/`, `Logs/`, `Reports/` and `FailedData/` trees are private/gitignored and are not release-source inputs.
-
-## License
-
-GPL-3.0-only. See `LICENSE` and `NOTICE`.
-
-Maintained by **Vib Tools** â€” https://vib.tools/
-
+VibraPilot now uses its existing Playwright persistent-context engine as the default browser-session model. With a blašÈ›Ùš[H]XXÚ\ÚÈİÛœÈHYXØ]Y\XØ][Û‹[X[˜YÙYœ›İÜÙ\ˆ›Ùš[H[™\ˆH\˜X›HÚ[™İÜÈ\‹]\Ù\ˆšXœ˜T[İ]H›ÛİÈ[ˆ^XÚ]’P—ÕÓÓ×ÑUWÑT˜™[XZ[œÈ]]Üš]]]™KˆH\XØ][Ûˆ™Z™XİÈH\Ù\‰ÜÈ›Ü›X[ÛÛÙÛHÚ›ÛYH\Ù\ˆ]X™YK™\Ù\™\È\‹U\ÚÈ›Ùš[H\ÛÛ][Û‹™]Z[œÈÚ\™Y\›Ùš[HÛÛ\Ú[Ûˆ›İXİ[Û‹[™ØY™[HZYÜ˜]\ÈHYØXŞHšXœ˜T[İ[X[˜YÙY›Ùš[HÛ›HÚ[ˆH™]È\İ[˜][ÛˆÙ\È›İ[™XYH^\İˆ™\İÜ™WÜ™]š[İ\×ÜÙ\ÜÚ[Û˜™[XZ[œÈ\ØX›Y[™œ›İÜÙ\‹İÛÜšÙ›İËÔÙ[™™]™\ˆ]]Ë\İ\‚‚•H\ÚÜÈYÙH[ÛÈYÈ
+Š“Ü[ˆÛÜÙY\ÚÜÊŠ‹ˆ
+ŠÛÜÙH\ÚÊŠˆ›İÈ\œÚ\İÈH\ÚÈÛ˜\Úİ™Y›Ü™H™[[İš[™È]ÈØ\™\Ú[™ÈH^\İ[™È\ÚÔ[[YTİÜ™XØÚ[XH[™HØ[YH[ˆQˆ™[Ü[š[™ÈÛÜÙY\ÚÜÈ™\İÜ™\ÈHÜšYÚ[˜[ÛİQ\ØYY™XÚ\Y[™XÛÜ™Ë\™Ù]T“İ\œ™[[™^İXØÙ\ÜËÙ˜Z[YÜ™[XZ[š[™È›ÙÜ™\ÜËÙ[™[[Z]\ØYÙKX[X[\™]šY]Èİ]H[™™\İ[ÛÛ[Z]HÚ[HÙY\[™ÈHœ›İÜÙ\ˆÛÜÙYˆHİX›HÛİQ\™Y›Ü™H™XÛÛ›™XİÈH™\İÜ™Y\ÚÈÈHØ[YHX[˜YÙYœ›İÜÙ\ˆ›Ùš[HÚ]İ][][™ÈÜˆÛÜZ[™Èœ›İÜÙ\‹\›Ùš[H]Kˆ›È\›X[™[Y[]H™X]\™H\È[›ÙXÙY‚‚”\ÙKLHœ›İÜÙ\ˆÜ[‹ĞÛÜÙHY™XŞXÛK\İ[ÙKÜÙXİ\š]HÚXÚÜË˜^›Üœ^HÚ\™H[š]HÙ[XİÜœËÔÙ[™›İËXÙ[œÚ[™Ë™\Ü[™ËÛÜšÙ›İÈ[œ]È[™ÔS]HØÚ[XH™\œÚ[ÛˆH™[XZ[ˆ™\Ù\™Yˆœ›İÜÙ\ˆ\İÜH\œÚ\İ[˜ÙH[™]™HÚ›ÛYH›Ùš[HÛÛ[Z]H™\]Z\™HHŒKŒ‹ŒMÚ[™İÜÈXØÙ\[˜ÙHØ]H™Y›Ü™H\ÈØ[™Y]H\Èœ›Ş™[ˆ\ÈH™^Ù™šXÚX[˜\Ù[[™K‚‚‚ŠŠ•šXœ˜T[İŒKŒ‹ŒLÊŠˆ\ÈH™\šYšXØ][Û‹ĞÒK\İXš[]HÛÜœ™Xİ[ÛˆZ[œ›ÛHH^Xİ\Ù\‹Yœ›Ş™[ˆŒKŒ‹ŒLˆ\˜Ú]™HÒKLMˆ™XÙ˜YŒYÍÍÙNNMNÙNM˜ÎXÌØ˜XMÌLLLLÍNX™LÍÌÍÍLØÌLŒ˜Ì˜NXX[™Ú]XˆŒKŒ‹ŒLˆÛÛ[Z]NXÙ™XÌÌNLYŒ™˜Y˜™™™ŒYNXÎÍ˜˜ˆHŒKŒ‹ŒLˆ\ÙKLHœ›İÜÙ\ˆY™XŞXÛH[[YH\È]KYœ›Ş™[ˆ[ˆ\ÈÛÜœ™Xİ[ÛÈ›È›ÙXİ[Ûˆ[[YHÛİ\˜ÙHš[HÚ[™Ù\Ë‚‚ˆÈÈŒKŒ‹ŒLÈ\ÙKLH™\šYšXØ][ÛˆÈÒHİXš[]HÛÜœ™Xİ[Û‚‚‘Ú]XˆXİ[ÛœÈ[ˆÌLÌÌLÍM˜›İ™YHŒKŒ‹ŒLˆ™\ÜÚ]ÜH™\šYšY\‹\[™[˜ŞH[œİ[][Û‹[]\İİZ]H[™[\ÙKLHœ›İÜÙ\ˆY™XŞXÛH\İÈÜ™Y[‹ˆHÛ›H˜Z[[™Èİ\Ø\ÈHÙXÛÛ™İ[™\™[Xœ˜\H[š]\İ\ÜÎˆH›İ\‹]ÛÜšÙ\ˆÔS]HÛÜœ™Xİ™\ÜÈİ™\ÜÈ\İ\ÙYHš^YMK\ÙXÛÛ™ÛÛ\][Ûˆ™\ÚÛ[™HÜİYÚ[™İÜÈ[›™\ˆ^ÙYYY]Ø[XÛØÚÈ™\ÚÛÚ[H™XYÈÙ\™Hİ[XZÚ[™È\˜X›H›ÙÜ™\ÜËˆH\ÜÙ\[Ûˆ[ˆ^]YÚ[HHÜš]\ˆİ[[HÔS]Hš[KÜ™X][™ÈHÙXÛÛ™\HÚ[‘\œ›ÜˆÌ˜\š[™È[\Ü˜\KY\™XİÜHÛX[\‚‚ŒKŒ‹ŒLÈÛÜœ™XİÈÛ›H]™\šYšXØ][Ûˆ\›™\ÜÎˆHÛÛ˜İ\œ™[˜ŞH\İ›İÈ\Ù\ÈH›İ[™YŒ\ÙXÛÛ™XYØÚÈİX\™[™ÛX[\]Û\˜[[\Ü˜\H\™XİÜHÙ[X[XÜËˆ]™[XZ[œÈHÛÜœ™Xİ™\ÜËÚ\ÛÛ][Ûˆ\İ˜]\ˆ[ˆ[ˆ\YšXÚX[İÜ˜YÙK]›İYÚ]ÓKˆ\ÚÔ[[YTİÜ™X\ÙKLHœ›İÜÙ\ˆ[[YKXÙ[œÚ[™Ëœ›İÜÙ\ˆÙ][™ÜËÛÜšÙ›İÈ[œ]ËÙ[XİÜœÈ[™\ÚÈÛÜšÙ›İÈ\™H[˜Ú[™ÙY‚‚•H\ØYYŒKŒ‹ŒLˆ]™[ÜY[\˜Ú]™H[ÛÈÛÛZ[œÈ[[YKØØXÚKÜš]˜]KY]™[ÜY[X]\šX[ÛÈ]\È˜[Y\ÈH›Ü™[œÚXÈ[œ]˜\Ù[[™H]›İ\ÈHÛX[ˆX›XÈÛİ\˜ÙH\Y˜XİˆŒKŒ‹ŒLÈ™[X\ÙK\Ûİ\˜ÙHXÚØYÚ[™È]\İ^ÛYH[[YKØØXÚH]Ë[™X›XÈÛİ\˜ÙH]\İ^ÛYHHš]˜]H›Ú™XİØÛÜšÜÜXÙK‚‚ˆÈÈŒKŒ‹ŒLˆœ›İÜÙ\ˆRKÛY™XŞXÛH\™[š[™Â‚•\ÚÈœ›İÜÙ\ˆİ]H\È›İÈ[Ù[Y\È
+ŠÛÜÙY8¡¤ˆÜ[š[™È8¡¤ˆÜ[ˆ8¡¤ˆÛÜÚ[™È8¡¤ˆÛÜÙY
+Š‹ˆHÛÜšÙ\ˆİÛœÈ^]ÜšYÚY™XŞXÛH][™X\ÈXİ]™K\YÙHÛÜÙKÛÛ^ÛÜÙH[™œ›İÜÙ\ˆ\ØÛÛ›™Xİ]™[È˜XÚÈÈH\ÚÈRHÚ]İ]™\]Z\š[™ÈH]™XYÈ[œÜXİ^]ÜšYÚYÙKĞœ›İÜÙ\ˆÜ˜\\œËˆH\ÚÈœ›İÜÙ\ˆXİ[ÛˆÚ[™Ù\È]\›Z[š\İXØ[H™]ÙY[ˆ
+Š“Ü[ˆœ›İÜÙ\ŠŠ‹
+Š“Ü[š[™Ë‹‹ŠŠ‹
+ŠÛÜÙHœ›İÜÙ\ŠŠˆ[™
+ŠÛÜÚ[™Ë‹‹ŠŠˆÚ[H
+ŠÛÜÙH\ÚÊŠˆ™[XZ[œÈHÙ\\˜]H\İXİ]™H\ÚÈXİ[Û‹‚‚“X[X[œ›İÜÙ\ˆÛÜİ\™HÛX\œÈÙÚ[ˆ™\šYšXØ][Û‹™[[İ™\Èİ[Hœ›İÜÙ\ˆ™XYHİ]Hœ›ÛHH\Ú›Ø\™[™™\Ù\™\ÈH\ÚËÙ]HÛÈHœ›İÜÙ\ˆØ[ˆ™HÜ[™YYØZ[‹ˆH^\İ[™Èœ›İÜÙ\ˆ]]Ë\™\İ\ÛXŞH™[XZ[œÈ]]Üš]]]™H›Üˆ[™^XİYÛÜİ\™HÚ[ˆ[˜X›YˆİXØÙ\ÜÙ[Xİ]˜][Û‹]ËUÛÜšÜÜXÙH˜[œÚ][Ûˆ›İÈš]È[™Ù[\œÈHÛÜšÜÜXÙH[œÚYHHİ\œ™[ØÜ™Y[‰ÜÈ]˜Z[X›HÙ[ÛY]H[œİXYÙˆ^[™[™Èœ›ÛHHÛÛ\XİXİ]˜][ÛˆÚ[™İÉÜÈÛÜ[YÜÚ][Û‹‚‚•\È\ÙHÙ\È
+Š››İ
+Šˆ[˜X›HX[˜YÙY\œÚ\İ[›Ùš[\ËÚ[™ÙHœ›İÜÙ\ˆÙ][™ÜÈY˜][ËYİÛ›ØYËİ\ØYËÙ^[œÚ[ÛœËÚ[™ÙH˜^›Üœ^HÙ[XİÜœËÔÙ[™™Z]š[Ü‹Üˆ[\ˆXÛÜ˜HTHŒ‹ˆÚ[™İÜÈ]™Hœ›İÜÙ\‹[Y™XŞXÛH™\šYšXØ][Ûˆ™[XZ[œÈHš[˜[]›Ü›HXØÙ\[˜ÙHØ]H™Y›Ü™HŒKŒ‹ŒLˆ™XÛÛY\ÈH™^Ù™šXÚX[˜\Ù[[™Hœ™Y^™K‚‚ˆÈÈŒKŒ‹ŒLH]›Øİ\ÈY™XŞXÛHÛÜœ™Xİ[Û‚‚•H›Øİ\Ë\š[™ÈX[˜YÙ\ˆ›İÈ˜[Y]\È]H]ÛˆTÚYMˆÜ˜\\ˆİ[İÛœÈH]™HÊÊÈUÚYÙ]™Y›Ü™H\Z[™È[˜[ZXÈ›Ü\Y\Ë™\Û\Ú[™Èİ[\ÈÜˆÚİÚ[™ÈH[^YYÛÛ\ˆİ[H›Øİ\ÙY]ÚYÙ]™Y™\™[˜Ù\È\™HÛX\™YÚ[ˆ]™YÚ[œÈÚYÙ]\İXİ[Û‹Ú[H˜[YÙ^X›Ø\™[™[İ\ÙH›Øİ\È™Z]š[Üˆ™[XZ[œÈ^XİHHØ[YKˆ\È\™XİHY™\ÜÙ\ÈHÚ[™İÜÈ[[YHXœÚX›ÚÙ[ˆ[\›˜[ÊÊÈØš™Xİ‹‹ˆ[™XYH[]Y˜XÙX˜XÚÈÙY[ˆ\š[™ÈXİ]˜][Û‹]ËUÛÜšÜÜXÙH[™İ\ˆÚYÙ][Y™XŞXÛH˜[œÚ][ÛœË‚‚ˆÈÈŒKŒ‹ŒLXÙ[œÙHÙÚ[ˆ\˜Xš[]H[™™XÛİ™\B‚“ÛˆÚ[™İÜË›İXİYXÙ[œÚ[™Èİ]H›İÈZYÜ˜]\Èœ›ÛHH\İÜšXØ[[œİ[\™[]]™H\]KÛXÙ[œÙKšœÛÛ˜[ÈH\˜X›H\‹]\Ù\ˆ	SĞĞSTUIWšXˆÛÛ×šXœ˜T[İØØ][Ûˆ[›\ÜÈ[ˆ^XÚ]’P—ÕÓÓ×ÑUWÑT˜\Ş[Y[\ÈÛÛ™šYİ\™YˆHÙ\\˜]HTK\›İXİY]šXÙKZY[]H™XÛÜ™™\Ù\™\ÈHLMˆš]˜]HÙ^H[™İX›H]šXÙHQXÜ›ÜÜÈÛX[ˆÛİ\˜ÙKØ\XØ][Ûˆ›Û\œÈ[™Ù\ÜÚ[Û‹XØXÚHÛÜœ\[Û‹‚‚•Ú[ˆH›ÙXİ[ÛˆXÛÜ˜HÙ\™\ˆ™\ÜÈU’PÑWÒÑVWÓRTÓPUÒÜˆU’PÑWÔ‘U“ÒÑQšXœ˜T[İ\™›Ü›\ÈÛ™H™\İ\\ØY™H]šXÙKRQ™XÛİ™\H][\Ú]H^\İ[™ÈLMˆÙ^KˆYˆHİ[HXİ]™H]šXÙH[™XYHš[ÈHXÙ[œÙH[Z]HÛY[İÜÈ[™Ú]™\È[ˆ^XÚ]XÛÜ˜Hİ[KY]šXÙHÛX[\Y\ÜØYÙH[œİXYÙˆÛÜ[™ÈÜˆÚ[[HÛÛœİ[Z[™ÈÛİËˆÛÛ™š\›YYÙÛİ]XXİ]˜][Ûˆ›İ]\ÈH›İË\™]›ÚÙY]šXÙHQ™Y›Ü™HH™^ÙÚ[‹Ú[HH™]ÈÙÚ[ˆØ[››İİ™\ZÙHH˜XÚÙÜ›İ[™XXİ]˜][Ûˆ™\]Y\İˆ[\Ü˜\H™]ÛÜšËÜ˜]K[[Z]ÜÙ\™\‹\™\ÜÛœÙH˜Z[\™\È›ÈÛ™Ù\ˆ›Ü˜ÙH[ˆİ\Ú\ÙHØØ[H˜[YXØÙ\ÜË]ÚÙ[ˆÙ\ÜÚ[ÛˆÈÙÛİ]‚‚‚ˆÈÈŒKŒ‹HÛÜšÙ›İÈ[œ]È™\šYšXØ][Û‹Ùš^‚•HŒKŒ‹H™\šYšXØ][Ûˆ\ÜÈ›İ[™›ÈÙ[XİÜ‹œ›İÜÙ\‹\ÚËXÙ[œÚ[™ÈÜˆÛÜšÙ›İËY[™Ú[™HšY[ˆŒKŒ‹ˆH›İ\ˆÛÜšÙ›İÈ[œ]È™[XZ[ˆÙ][™ÜËX˜XÚÙY˜[Y\ÈÛ›NÈ™XØ]\ÙH˜XÚÙ[™™Z]š[ÜˆØ\È^XÚ]Hœ›Ş™[ˆ[ˆ”UÓÔ’Ñ“ÕËRS”UËLX\È™[X\ÙHÙ\È›İYH™]Èœ›İÜÙ\ˆÛÛœİ[Y\ˆ›ÜˆY˜][Ù[Û˜[YXY˜][Û[X™\˜˜[˜XÚ×Û˜[YXÜˆ\]WØÛXÚ×ØÛİ[‚‚•ÛÈYÙK[ØØ[\œ›Üˆ]ÈÙ\™HÛÜœ™XİYˆH˜Z[Y
+Š”Ø]™HÛÜšÙ›İÈ[œ]ÊŠˆÜš]H›ÈÛ™Ù\ˆX]™\È[œØ]™Y˜[Y\È[ˆÙ][™ÜÓX[˜YÙ\‹™]X[™H˜Z[Y
+Š”™\Ù]ÛÜšÙ›İÈ[œ]ÊŠˆÜš]H\ÈØ]YÚ›ÛÈH›İ\ˆÙ^\È˜XÚÈÈZ\ˆ^Xİ™K\™\Ù]˜[Y\Ë™Yœ™\Ú\ÈHYÙK[™™\ÜÈH\œ›Ü‹ˆY˜][İ\™Ù]İ\›™[XZ[œÈ[ˆ\Ù][™ÜÈ[™›ÈÛÜšÙ›İÈÙ[XİÜˆ\ÈYY‚‚ˆÈÈÛÜšÙ›İÈ[œ]ÈÙ\\˜][Û‚‚˜”UÓÔ’Ñ“ÕËRS”UËLXYÈHYXØ]Y
+Š•ÛÜšÙ›İÈ[œ]ÊŠˆYÙHY\ˆ\ÚÜËˆHYÙHİÛœÈH^\İ[™ÈY˜][Ù[Û˜[YXY˜][Û[X™\˜˜[˜XÚ×Û˜[YX[™\]WØÛXÚ×ØÛİ[˜[Y\È›İYÚH^\İ[™ÈÙ][™ÜÓX[˜YÙ\˜Ù^\ËˆY˜][İ\™Ù]İ\›™[XZ[œÈ[ˆ\Ù][™ÜËˆ›ÈÛÜšÙ›İÈÙ[XİÜˆ\ÈÚİÛˆÚ[HÛ›HÛ™H™X[ÛÜšÙ›İÈ^\İË[™H™]ÈÛÜšÙ›İ×Ú[œ]ËœX[Ù[HÛÛZ[œÈ›Ü›HY]Y]HÛ›K‚‚ˆÈÈÚ[™İÜÈÔS]HÛÛ˜İ\œ™[˜ŞH™\šYšXØ][Û‚‚•HŒKŒ‹È™\šYšXØ][Ûˆ˜\Ù[[™H[˜ÛY\ÈH›ÛİË]\Ú[™İÜÈÛÛ˜İ\œ™[˜ŞHÛÜœ™Xİ[Ûˆ›ÜˆHØØ[ÔS]H\ÚÈ[[YHİÜ™Kˆ[‹\›ØÙ\ÜÈÜš]\œÈ\™HÙ\šX[^™Y™Y›Ü™HÔS]IÜÈĞSÜš]\ˆØÚË[™\‹\™XÚ\Y[][KÜ™\İ[Ü›ÙÜ™\ÜÈ\œÚ\İ[˜ÙH\Ù\ÈÛ™H]ÛZXÈ˜[œØXİ[ÛˆÛˆHÛÜšÙ\ˆİ]ˆ\ÈÙY\ÈQÓPHŞ[˜Ú›Û›İ\Ø]ÔS]IÜÈ\˜X›HY˜][[œİXYÙˆÙXZÙ[š[™ÈÜ˜\Ú\˜Xš[]HÈ[\›İ™H\İÜYY‚‚ˆÈÈ\XØ][Ûˆ\™X\Â‚‹H
+Š“XÙ[œÙHXİ]˜][ÛŠŠˆ8 %]šXÙKX›İ[™XÛÜ˜HTHŒˆXİ]˜][Ûˆ[™\š[ÙXÈÙ\™\ˆ™]˜[Y][Û‹‚‹H
+Š‘\Ú›Ø\™
+Šˆ8 %\ÚË[[YKXÙ[œÙH[™\ØYÙHİ™\šY]Ë‚‹H
+Š•\ÚÜÊŠˆ8 %[™\[™[œ›İÜÙ\ˆ\ÚÈÛİË]HØY[™È[™›ØÙ\ÜÚ[™ÈÛÛ›ÛË‚‹H
+Š•ÛÜšÙ›İÈ[œ]ÊŠˆ8 %ÛÜšÙ›İËÙ›Ü›H˜[Y\ÈÙ\Ù\\˜]Hœ›ÛH\XØ][Ûˆ[™œ›İÜÙ\ˆÛÛ™šYİ\˜][Û‹‚‹H
+Š”™\ÜÊŠˆ8 %ÙX\˜ÚX›H™\İ[ÈÚ]ÔÕ‹Ñ^Ù[^Ü‚‹H
+Š“]™HÙÜÊŠˆ8 %Ü\˜][Û˜[ÙÈšY]Ù\‹Ø]™H[™ÛX\ˆXİ[ÛœË‚‹H
+Š\Ù][™ÜÊŠˆ8 %ØY™]K\XØ][Û‹\ÚË\›ØÙ\ÜÚ[™È[™XÙ[œÚ[™ËÛ™]ÛÜšÈÙ][™ÜË‚‹H
+Šœ›İÜÙ\ˆÙ][™ÜÊŠˆ8 %Y˜[˜ÙY\œÚ\İY^]ÜšYÚĞÚ›ÛZ][HÛÛ›ÛË‚‹H
+ŠX›İ]
+Šˆ8 %›ÙXİİ\Ü[™[[YH[™›Ü›X][Û‹‚‚ˆÈÈÙXİ\™HXÛÜ˜HTHŒ‚‚”X›XÈXÙ[œÚ[™ÈÛÛ™šYİ\˜][Ûˆ\ÈÙ[˜[^™Y[‚‚˜^˜ÛÛ™šYËĞ\ÛÛ™šYËÛXÙ[œÚ[™×ÜX›XËœB˜‚’]ÛÛZ[œÈÛ›H›Û‹\ÙXÜ™]˜[Y\ÎˆÎ‹ËÛ^›İËœÚÜ\QšXœ˜\[İH›İ\ˆØ\KİŒ‹Ø[™Ú[]ËH^XİYÚYÛš[™ËZÙ^HQ[™H
+ŠœÙ\™\ˆ”ĞHX›XÈÚYÛš[™ÈÙ^JŠˆ\ÙY›ÜˆØØ[XØÙ\ÜË]ÚÙ[ˆ™\šYšXØ][Û‹‚‚•HÛY[›İÈ\Î‚‚˜^”LMˆ]šXÙHÙ^H8¡¤ˆXİ]˜]H8¡¤ˆ”ÌMˆXØÙ\ÜÈÚÙ[ˆ
+È›İ][™È™Yœ™\ÚÚÙ[‚ˆ8¡¤ˆİ]\È8¡¤ˆ™Yœ™\ÚÜ›İ]H8¡¤ˆİ]\È8¡¤ˆXXİ]˜]B˜‚•šXœ˜T[İÚYÛœÈTHŒˆ™\]Y\İÈÚ]HØØ[HÙ[™\˜]YLMˆ]šXÙHš]˜]HÙ^KˆHÙ\™\ˆš]˜]HÚYÛš[™ÈÙ^H™]™\ˆX]™\ÈXÛÜ˜KˆÙ[œÚ]]™HØØ[XÙ[œÚ[™ÈX]\šX[\È›İXİYÚ]Ú[™İÜÈTKˆHY˜][ÛˆÚ[™İÜËÙ\ÜÚ[Ûˆİ]H\È\œÚ\İY]ÛZXØ[H[ˆ	SĞĞSTUIWšXˆÛÛ×šXœ˜T[İXÙ[œÙKšœÛÛ˜[™H\˜X›HLMˆY[]H[ˆ]šXÙWÚY[]KšœÛÛ˜È[ˆ^XÚ]’P—ÕÓÓ×ÑUWÑT˜™[XZ[œÈ]]Üš]]]™KˆH\İÜšXØ[[œİ[\™[]]™H\]KÛXÙ[œÙKšœÛÛ˜\ÈZYÜ˜][Ûˆ[œ]Û›KˆHLMˆ]šXÙHY[]H\È\œÚ\İ[XÜ›ÜÜÈÙÛİ]XÙ[œÙHİÚ]Ú[™È[™™\İ\ÈÙ\ÜÚ[ÛˆÚÙ[œÈ[™H›İXİYXÙ[œÙH\™HÛX\™YÛˆÙÛİ]‚‚•HXİ]™HÛİ\˜ÙHÛÛZ[œÈ
+Š››ÈXÛÜ˜HTHŒHX\İ\‹ÜÚ\™YTHÙ^JŠˆ[™›ÈØ\Kİ™\šYKœ\ÚİÜ]][XØ][Ûˆ›İËˆÙYHØÜËÙİZY\ËÓPÑS”ÒS‘Ë›Y‚‚ˆÈÈ›ÙXİ[Ûˆ[[YH\™[š[™Â‚˜”T“ÑSUS‹LXYÈHØØ[ÔS]KX˜XÚÙY\ÚÈ[[YHİÜ™H
+\]Kİ\Ú×Ü[[YKœÜ[]LØ
+H[™ÙY\ÈXXÚ\ÚÈY[YšYYH]ÈİÛˆ[—ÚY™XÚ\Y[Ù][™™\İ[YÙ\‹ˆ›ØÙ\ÜÚ[™È™[XZ[œÈÙ\]Y[X[[œÚYHXXÚ\ÚÎÈ˜]ÚÜÚ^™XYš[™\ÈÚXÚÜÚ[›İ[™\šY\È[™Ù\È
+Š››İ
+Šˆ[›ÙXÙH\˜[[™XÚ\Y[Ù[™[™Ëˆ]]×ÜØ]™WÚ[\˜[\È›İÈ[\œ™]Y[ˆÙXÛÛ™ËÚ]\ØX›[™È[YY]]ÜØ]™HÚ[Hš[˜[^™Y™XÚ\Y[İ]ÛÛY\È\™Hİ[\œÚ\İY[[YYX][K‚‚”›ÙXİ[Ûˆ™Z]š[Üˆ›İÈ[˜ÛY\Î‚‚‹H[œ]™XÛÛ˜Ú[X][Ûˆ›ÜˆÛİ\˜ÙKİ˜[YÚ[˜[YÙ\XØ]KØXØÙ\Y›İÜÎÂ‹H]ÛZXÈ\ÚËØÚXÚÜÚ[\œÚ\İ[˜ÙH[™™\İ\™XÛİ™\HÚ]İ]]]ÛX]XÈÙ[™[™ÎÂ‹H^XÚ]X[X[\™]šY]È[™[™È›Üˆ[XšYİ[İ\ÈÜİTÙ[™İ]ÛÛY\ÎÂ‹HÛÜœ™Xİ][Kİ[YHœ›İÜÙ\ˆÛÛ^™XŞXÛ[™ÈY\ˆİXØÙ\ÜÙ[Üˆ˜Z[Yš[˜[^™Y™XÚ\Y[ÎÂ‹H]\›Z[š\İXÈÛÜšÙ\ˆÚ]İÛˆ]™]Z[œÈ]™HÛÜšÙ\ˆ™Y™\™[˜Ù\È[[ÛX[\š[š\Ú\ÎÂ‹HH›İ[™YM‹Y]™[RH]Y]YH[™HX^[][HL]™[È›ØÙ\ÜÙY\ˆRH[Y\ˆXÚÎÂ‹HÛ™H]]Üš]]]™Hİ\œ™[İ]ÛÛYH\ˆ[—ÚY
+È][WÚ[™^Ú][^Ü˜XÚÙYHH[[YHYÙ\Â‹H™\ÜÈš[\š[™ÈH\ÚÎÂ‹HHY˜][X^[][HÙˆÚ[][[™[İ\ÛHXİ]™H\ÚÈÛÜšÙ\œÎÈ[™‹HH\œÚ\İ[\›Ùš[HÛÛ\Ú[ÛˆİX\™Ú[ˆ][\H\ÚÜÈÛİ[ÛZ[HHØ[YHÚ\™Y›Ùš[K‚‚•HŒKŒ‹H›ÙXİ[Û‹Z\™[š[™ÈZ[\İÛ™H]Ù[ˆYY›È\›X[™[Ü[]™[YÙNÈ]È™XÛİ™\H›İÈ™[XZ[œÈ[ˆ\ÚÜÈ\È˜[œÚY[X[ÙÜËˆŒKŒ‹]\ˆYÈÛ›HH\›İ™YÛÜšÙ›İÈ[œ]ÈÛÛ™šYİ\˜][ÛˆYÙK‚‚ˆÈÈŒKŒ‹È›Ü™[œÚXÈÛÜœ™Xİ[ÛœÂ‚•HŒKŒ‹È™\šYšXØ][Ûˆ\ÜÈÛÜœ™XİÈ›İ\ˆÜ\˜][Û˜[Y™XİÈÚ]İ]™Y\ÚYÛš[™ÈHŒKŒ‹H›ÙXİ[Ûˆ\˜Ú]Xİ\™NˆH\ÚËXØ\™İ[\ÚY]Û\ÜÛY]Ù›İÈš[™ÈÛÜœ™XİH]İ\\Ø]\˜]YÜš]XØ[RH]™[ÈØ[ˆ^]\š[™È[ˆ^XÚ]ÛÜšÙ\ˆİÜØÛÜÙKHÛÛœÙ\˜]]™H™KTÙ[™X[X[\™]šY]ÈX\šÙ\ˆ\È[[YYX][H™\™\Ù[Y[ˆH]]Üš]]]™H™\İ[YÙ\‹[™H\ÚÈY]šXÈ^XÚ]HX™[ÈHÛİ[\ˆ\È
+Š”Ù[™][\ÈÈ[Z]
+Š‹‚‚”Ûİ\˜ÙH˜\Ù[[™H’TÈØ[ˆ™HÚXÚÙYÚ]‚‚˜İÙ\œÚ[œ]ÛˆØÜš\Ëİ™\šYWÜÛİ\˜ÙWØ\˜Ú]™KœH]×šXœ˜T[İ\Ûİ\˜ÙKš\˜‚•H™\šYšY\ˆ™Z™XİÈ\]KØ˜Z[Y]KØ™\ÜËØÙÜËØš]˜]H›Ú™XİØ]ÛˆØXÚ\È[™[œØY™H’T]Ëˆ\Z[™ÈH[HÈ[ˆ^\İ[™ÈÛÜšÚ[™È[œİ[][ÛˆÙ\È
+Š››İ
+Šˆ[]H[[YH\]XÈH^Û\Ú[Ûˆ[H\Y\ÈÈ\İšX]X›HÛİ\˜ÙH˜\Ù[[™KÜ™[X\ÙH\˜Ú]™\Ë‚‚ˆÈÈ›ÙXİ[ÛˆØÛÜHœ™Y^™B‚•H\›İ™Y›ÙXİ[Ûˆ›İ[™\H\ÈXXÚ[™KXÚXÚÙYHÛÛ™šYËİ™\šYšXØ][Û‹Ü›ÙXİ[Û—Û]Û—İŒKŒ‹WÜØÛÜKšœÛÛ˜ˆ]Y[YšY\ÈH^XİŒKŒ‹˜\Ù[[™H\˜Ú]™K\›İ™Y[[YHİ\™˜XÙH[™\˜[Y]\œË[™œ™Y^™\Èİ][Ù‹\ØÛÜHš[\ËÜÙ][™ÜÈ\ÈØ[›ÛšXØ[TÕÛÛ˜XİÈ›ÜˆXÙ[œÙSX[˜YÙ\˜ÑSPÕÔ”ØXİ]˜][Û”YÙX[™”“ÕÔÑT—ÔÑUS‘×ÑÔ“ÕTØˆH\ÙKLˆXÙ[œÚ[™ÈØÛÜHX[šY™\İÈ™[XZ[ˆ\İÜšXØ[]šY[˜ÙK‚‚•H^\İ[™ÈÚ]K\ÜXÚYšXÈ]]Üš^™YÚ\™H[š]HÛÜšÙ›İÈ\È[˜Ú[™ÙYˆ›ÈÙ[XİÜˆ™Y\ÚYÛ‹Ù[™Y›İÈ™Y\ÚYÛ‹İX[Ø[KX›İ[\[Y[][Û‹XÙ[œÚ[™Ë\›İØÛÛÚ[™ÙHÜˆœ›İÜÙ\‹Y[™Ú[™H™\XÙ[Y[\È[˜ÛYY[ˆ\È™[X\ÙK‚‚ˆÈÈ\ÛÛ™šYÈ\˜Ú]Xİ\™B‚”X›XËÛ›Û‹\ÙXÜ™]\XØ][ÛˆÛÛ™šYİ\˜][Ûˆ]™\È[™\‚‚˜^˜ÛÛ™šYËĞ\ÛÛ™šYËÂ¸¥'8¥ 8¥ \œB¸¥'8¥ 8¥ X›İ]œB¸¥'8¥ 8¥ İ\ÜœB¸¥'8¥ 8¥ ÛØÚX[œB¸¥%8¥ 8¥ XÙ[œÚ[™×ÜX›XËœB˜‚˜Ü˜ËİšXœ˜\[İØ\ØÛÛ™šYËœX˜[Y]\ÈÜÙH[Ù[\È[™^ÜÙ\È™XY[Û›H[[YHØš™XİÈ[˜ÛY[™ÈTP“ÕUÕTÔ•ÛØÚX[[šÜÈ[™PÑS”ÒS‘Ø‚‚ˆÈÈ]™[ÜY[‚”™\]Z\™\È]ÛˆËŒL‹‚‚˜İÙ\œÚ[œ]Ûˆ[H™[ˆ™[‚‹—™[—ØÜš\×Xİ]˜]KœÌBœ]Ûˆ[H\[œİ[\ˆ™\]Z\™[Y[Ëœ]Ûˆ[H^]ÜšYÚ[œİ[Ú›ÛZ][Bœ]ÛˆØÜš\Ëİ™\šYWÜ™\ÜÚ]ÜKœBœ]Ûˆ[H]\İ\Bœ]Ûˆ[‹œB˜‚˜Ü\ÙÜ˜\X\È™\]Z\™Y›ÜˆLMˆ™\]Y\İ›ÛÙœÈ[™”ÌMˆÚÙ[ˆ™\šYšXØ][Û‹‚‚ˆÈÈÚ[™İÜÈZ[‚•\ÙHXš]]ÛˆËŒLˆÛˆÚ[™İÜÎ‚‚˜İÙ\œÚ[œ]ÛˆZ[œB˜‚•HZ[\ˆ›ÙXÙ\ÈHšXœ˜T[İR[œİ[\ˆÓ‘QTˆ\XØ][Ûˆ[™™[X\ÙH\˜Ú]™H[™\ˆ™[X\ÙKØ‚‚ˆÈÈÚ[™ÙH[™]Y]\İÜB‚‹Hİ[][]]™H™[X\ÙH\İÜNˆÒS‘ÑSÑË›Y‹HÛÛ˜Ú\ÙH\]HÙÎˆTUWÓÑË›Y‹H™\œÚ[Ûš[™È\ØÚ\[™Nˆ‘T”ÒSÓ’S‘Ë›Y‹HŒKŒ‹HÛÜšÙ›İÈ[œ]È™\šYšXØ][Û‹Ùš^›İNˆØÜËİ\]\ËİŒKŒ‹K]ÛÜšÙ›İËZ[œ]Ë]™\šYšXØ][Û‹Yš^›Y‹HŒKŒ‹HÛÜšÙ›İÈ[œ]È›Ü™[œÚXÈ™\šYšXØ][ÛˆØÜËİ™\šYšXØ][Û‹ÕŒKŒ‹WÕÓÔ’Ñ“Õ×ÒS”U×Ñ“Ô‘S”ÒP×Õ‘T’Q’PĞUSÓ‹›Y‹HŒKŒ‹ÛÜšÙ›İÈ[œ]È›İNˆØÜËİ\]\ËİŒKŒ‹]ÛÜšÙ›İËZ[œ]Ë\Ù\\˜][Û‹›Y‹HŒKŒ‹ÛÜšÙ›İÈ[œ]È™\šYšXØ][ÛˆØÜËİ™\šYšXØ][Û‹ÕŒKŒ‹ÕÓÔ’Ñ“Õ×ÒS”U×Õ‘T’Q’PĞUSÓ‹›Y‹HŒKŒ‹È™\šYšXØ][Û‹Ùš^›İNˆØÜËİ\]\ËİŒKŒ‹Ë]œ\›Ù[][‹]™\šYšXØ][Û‹Yš^›Y‹HŒKŒ‹È›Ü™[œÚXÈ™\šYšXØ][ÛˆØÜËİ™\šYšXØ][Û‹ÕŒKŒ‹×Õ”Ô“ÑÓUÓ—Ñ“Ô‘S”ÒP×Õ‘T’Q’PĞUSÓ‹›Y‹HŒKŒ‹H›ÙXİ[Û‹Z\™[š[™È›İNˆØÜËİ\]\ËİŒKŒ‹K\›ÙXİ[Û‹[][K]\ÚË[Û™Ë\[‹\İXš[]K›Y‹HŒKŒ‹H›ÙXİ[Ûˆ™\šYšXØ][ÛˆØÜËİ™\šYšXØ][Û‹ÕŒKŒ‹WÔ“ÑPÕSÓ—Ô•S•SQWÕ‘T’Q’PĞUSÓ‹›Y‹HŒKŒ‹™\šYšXØ][Û‹Ùš^›İNˆØÜËİ\]\ËİŒKŒ‹\\ÙKL‹\İ\L‹]™\šYšXØ][Û‹Yš^›Y‹HŒKŒ‹›Ü™[œÚXÈ™\šYšXØ][ÛˆØÜËİ™\šYšXØ][Û‹ÔTÑL—ÔÕT—ÕŒKŒ‹Ñ“Ô‘S”ÒP×Õ‘T’Q’PĞUSÓ‹›Y‹H\İÜšXØ[ŒKŒ‹ŒÈ\ÙKLˆ›İNˆØÜËİ\]\ËİŒKŒ‹ŒË\\ÙKL‹\İ\L‹\ÙXİ\™K[XÙ[œÚ[™Ë›Y‹H\İÜšXØ[ŒKŒ‹ŒÈ™\šYšXØ][ÛˆØÜËİ™\šYšXØ][Û‹ÔTÑL—ÔÕT—ÕŒKŒ‹Œ×Õ‘T’Q’PĞUSÓ‹›Y‹HXÙ[œÚ[™ÈÛÛ˜XİˆØÜËÙİZY\ËÓPÑS”ÒS‘Ë›Y‹H\ÛÛ™šYÈ\˜Ú]Xİ\™NˆØÜËØÛÛ™šYİ\˜][Û‹ĞTÓÓ‘’QË›Y‹HX›XÈ˜XÚÙ[™ĞÒHÛÛ˜XİˆØÜËİ™\šYšXØ][Û‹ĞPÒÑS‘ĞÓÓ•PÕ›Y‚’\İÜšXØ[\ÙKLH[™ŒKŒ‹ŒH›İ\È™[XZ[ˆ[™\ˆØÜËİ\]\ËØ[™ØÜËİ™\šYšXØ][Û‹Ø‚‚ˆÈÈ™\šYšXØ][Û‚‚˜İÙ\œÚ[œ]ÛˆØÜš\Ëİ™\šYWÜ™\ÜÚ]ÜKœBœ]Ûˆ[H]\İ\Bœ]Ûˆ[H[š]\İ\ØÛİ™\ˆ\È\İÈ\\İÊ‹œHˆ]‚˜‚˜\›Ú™XİÛ[ÛÛ™šYİ\™\È]\İÈ[\Üœ›ÛHÜ˜ØˆH[š]\İ[Ù[\È›İÈ›Ûİİ˜\H™\ÜÚ]ÜHÜ˜Ø^[İ][\Ù[™\ËÛÈHØ[YH\™Xİ[š]\İÛÛ[X[™ÛÜšÜÈ[ˆÛÛ[X[™›Û\[™İÙ\”Ú[Ú]İ]Ú[\ÜXÚYšXÈUÓ”UŞ[^‚‚•H™\šYšY\ˆÚXÚÜÈHœ›Ş™[ˆšXˆÛÛÈ\ÚYÛˆÛİ\˜ÙK˜XÚÙ[™\š]HÛÛ˜Xİ›ÙXİ[ÛˆØÛÜH\Ú\ËÜÙ][™ÜË\ÛÛ™šYËÜİ]XÈY]Y]HÛÛœÚ\İ[˜ŞKÙXİ\™HTHŒˆX›XËZÙ^KÙ[™Ú[[˜\šX[ËÙXÜ™]YÚY[™KØY™]H™Z]š[Ü‹œ˜[™[™ËÚXÛÛœÈ[™™\ÜÚ]ÜHİXİ\™K‚‚”X›XÈØİ[Y[][Ûˆ™[Û™ÜÈ[™\ˆØÜËØˆHØØ[›Ú™XİØ™YH[™[[YH\]KØÙÜËØ™\ÜËØ[™˜Z[Y]KØ™Y\È\™Hš]˜]KÙÚ]YÛ›Ü™Y[™\™H›İ™[X\ÙK\Ûİ\˜ÙH[œ]Ë‚‚ˆÈÈXÙ[œÙB‚‘ÔLËŒ[Û›KˆÙYHPÑS”ÑX[™“ÕPÑX‚‚“XZ[Z[™YH
+Š•šXˆÛÛÊŠˆ8 %Î‹ËİšX‹ÛÛËÂ‚

@@ -372,9 +372,7 @@ def test_clear_policy_is_explicit_and_preserve_paths_are_not_deleted():
         assert forbidden_delete not in switch_boundary
 
 
-def test_no_pr07_workflow_page_or_fake_production_workflow_is_added():
-    qt = (ROOT / "src/vibrapilot/qt_app.py").read_text(encoding="utf-8")
-    assert 'NAV_SECTIONS = ["Dashboard", "Tasks", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]' in qt
+def test_later_pr07_ui_does_not_add_fake_production_workflow():
     registry = (ROOT / "src/vibrapilot/workflow/registry.py").read_text(encoding="utf-8")
     assert "other_workflow" not in registry
     assert "return (SHARE_INVITE_MANIFEST,)" in registry

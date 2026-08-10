@@ -1,3 +1,9 @@
+# Project Structure — v1.0.6.24 PR-07 Candidate
+
+PR-07 adds no new production module. `src/vibrapilot/qt_app.py` now exposes a Workflows page between Tasks and Workflow Inputs. Workflow engine/state/registry/runtime modules remain unchanged from v1.0.6.23.
+
+Current top-level UI pages: Dashboard, Tasks, **Workflows**, Workflow Inputs, Reports, Live Logs, App Settings, Browser Settings, About.
+
 # Project Structure — v1.0.6.23 PR-06 Release
 
 ```text

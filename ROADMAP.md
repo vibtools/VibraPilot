@@ -1,3 +1,10 @@
+# VibraPilot Roadmap — PR-07 Candidate
+
+- Current release baseline: **v1.0.6.23 / PR-06 — RELEASE COMPLETE**.
+- Current development candidate: **v1.0.6.24 / PR-07 Workflow Showcase Page**.
+- PR-07 scope: UI exposure of source-controlled built-in workflow metadata + existing PR-06 activation service trigger.
+- PR-08 Dynamic Workflow Inputs: **NOT STARTED**.
+
 # VibraPilot Roadmap — Current View
 
 ## Current identities

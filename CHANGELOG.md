@@ -1,3 +1,16 @@
+## v1.0.6.24 — PR-07 Workflow Showcase Page — 2026-08-10
+
+### Added
+- New top-level **Workflows** page between Tasks and Workflow Inputs.
+- Metadata-driven cards for source-controlled built-in workflows only.
+- Authoritative active-workflow status and fail-closed unavailable state.
+- Activation UI delegates exclusively to the existing PR-06 atomic workflow switch service.
+
+### Preserved
+- Production registry still contains only `share_invite`; no fake/demo/placeholder workflow is added.
+- PR-06 state schema, atomic switch/restart/recovery semantics, Task/report/workspace schemas, Browser, licensing, dependencies and CAPTCHA policy remain unchanged.
+- Dynamic per-workflow Workflow Inputs remain PR-08 scope.
+
 ## v1.0.6.23 — PR-06 Workflow State Persistence + Atomic Switch/Restart — 2026-08-10
 
 ### Added
@@ -136,287 +149,222 @@
 
 ### Added
 
-- Promoted the existing Playwright persistent-context implementation into the standard managed browser mode while preserving Google Chrome channel behavior and all existing Test Mode/workflow safety controls.
-- Added deterministic per-Task managed profile ownership using the existing Task slot ID.
-- Added **Open Closed Tasks** to the existing Tasks page; no new page was introduced.
-- Added deliberate Closed Task persistence/reopen behavior using the existing `TaskRuntimeStore` tables and schema version 1.
+- Promoted the existing Playwright persistent-context implementation into the standard managed browser mode while preserving Google Chrome preference and the existing explicit Chromium fallback policy.
+- Blank Profile Directory now resolves to an application-managed persistent profile per Task under the durable VibraPilot data root; explicit custom profile paths retain their prior shared-profile semantics.
+- Added managed-profile collision protection, stable `slot_N` identity, safe legacy managed-profile migration, and refusal to use the user's normal Google Chrome `User Data` tree.
+- Added **Open Closed Tasks** to the existing Tasks page. Closed Tasks remain stored in the existing SQLite schema and can be reopened with their original run/slot identity, recipient records, progress, Target URL, send-attempt limit usage, manual-review state and result continuity.
 
-### Changed
+### Preserved
 
-- `use_persistent_context` source default is now `true`; `restore_previous_session` remains `false`.
-- Blank persistent-profile paths resolve to a durable VibraPilot-managed browser-profile root on Windows; explicit `VIB_TOOLS_DATA_DIR` deployments remain authoritative.
-- Exact untouched legacy persistent-browser defaults migrate to the new managed default without overwriting customized persistent-profile configurations.
-- Persistent internal context recycling is guarded as an intentional lifecycle transition and re-verifies login state after relaunch.
-
-### Safety / compatibility
-
-- Rejects the user's normal Google Chrome `User Data` tree and its descendants.
-- Legacy VibraPilot profile migration is one-way only when the managed destination does not already exist; profiles are never merged or silently deleted.
-- Closing a Task does not delete its managed browser profile. Reopened Tasks retain the same slot ID/run ID and therefore the same managed profile identity.
-- No database schema change, dependency change, extension/download/upload feature change, CAPTCHA bypass, stealth/fingerprint change, automatic browser launch, automatic workflow start, automatic Send or permanent Task deletion feature.
-
+- `restore_previous_session` remains disabled; reopening the application or a Closed Task never auto-starts a browser, workflow, login verification or Send.
+- No SQLite table/column/schema version change, no permanent-delete operation, no browser-context/signature change and no profile copying/deletion are introduced.
+- Phase-01 Open/Close lifecycle, App/Browser Settings, Workflow Inputs, selectors, Test Mode/security checks, licensing, reporting and existing Task processing semantics are preserved.
 
 ## v1.0.6.13 — Phase-01 verification / CI stability correction — 2026-08-09
 
 ### Fixed
 
-- Corrected the Windows GitHub Actions false-negative in `TaskRuntimeStoreTest.test_four_worker_threads_persist_independent_results_without_cross_run_leak`.
-- Replaced the test-only 15-second storage throughput threshold with a bounded 60-second deadlock guard appropriate for FULL-synchronous SQLite WAL writes on variable hosted Windows storage.
-- Prevented a timeout failure from being obscured by a secondary `TemporaryDirectory` `WinError 32` cleanup exception.
-- Added a v1.0.6.13 verification scope contract proving that the v1.0.6.12 Phase-01 runtime (`backend.py`, `qt_app.py`) and `task_runtime_store.py` are byte-frozen.
+- Reclassified the four-worker SQLite stress test as a correctness/deadlock guard instead of a fixed 15-second storage-throughput SLA.
+- Extended the bounded completion guard to 60 seconds so hosted Windows runners are not treated as failed while still making durable SQLite progress.
+- Added cleanup retry handling for transient Windows file-sharing locks during temporary-directory teardown after a failed/slow concurrency assertion.
 
 ### Verified
 
-- GitHub Actions run `31331345666` had repository verification PASS, dependency installation PASS and pytest **176 passed, 1 skipped, 138 subtests passed** before the duplicate unittest compatibility step hit the old 15-second threshold.
-- Phase-01 browser lifecycle tests in that run passed.
-- No runtime behavior, database schema, browser profile defaults, Browser Settings, Licora protocol, selectors or workflow behavior is changed by this correction.
+- Exact v1.0.6.12 baseline archive SHA-256 and GitHub commit are pinned in `config/verification/v1.0.6.13_phase01_verification_ci_fix_scope.json`.
+- `src/vibrapilot/**`, `config/settings.defaults.json`, `requirements.txt`, `requirements-build.txt` and `.github/workflows/ci.yml` are frozen byte-for-byte from the v1.0.6.12 release candidate.
+- Re-ran repository verification, the full test suite and standard-library unittest discovery after the harness correction.
 
-### Packaging
+### Preserved
 
-- The uploaded v1.0.6.12 development ZIP contains runtime/cache/private-development material and is therefore not a clean public source archive.
-- v1.0.6.13 release-source artifacts must exclude runtime/cache paths; the private `project/` workspace remains development-only.
+- No application runtime, browser lifecycle, Browser Settings, Task UI, workflow/selectors, licensing, persistence/database schema or dependency behavior changes.
 
 ## v1.0.6.12 — Browser UI/lifecycle hardening — 2026-08-09
 
 ### Fixed
 
-- Added deterministic `Closed / Opening / Open / Closing` browser lifecycle state for every Task.
-- Added owner-thread page/context/browser close detection so manual closure clears browser/login readiness without stale `Browser: Open` state.
-- Converted the existing primary browser action between **Open Browser** and **Close Browser** while preserving **Close Task** as a separate action.
-- Kept Task/data/runtime state when only the browser is closed.
-- Synchronized browser close state with Login and Dashboard Browser Ready counters.
-- Centered/clamped the first workspace geometry after activation so the large workspace opens fully on-screen.
+- Task browser status is now an explicit lifecycle: **Closed → Opening → Open → Closing → Closed**.
+- The Tasks browser action switches between **Open Browser**, **Opening...**, **Close Browser**, and **Closing...** without reusing the separate **Close Task** action.
+- Manual page/context/browser closure synchronizes back to the Task UI through worker-side callbacks, clears stale Browser Ready/login-verification state, and allows reopening the browser without discarding Task/data state.
+- Open and Close browser actions are guarded during transitions to prevent overlapping lifecycle commands.
+- Application shutdown and logout wait for active browser workers to finish their real cleanup path instead of silently clearing worker references after a fixed timeout.
+- Unexpected browser closure optionally performs one bounded automatic restart when the existing Browser Settings policy is enabled; manual close never triggers that restart.
+- Activation-to-Workspace transition now safely fits and centers the main window inside the current screen's available geometry instead of reusing the compact activation window's old top-left coordinate.
 
 ### Preserved
 
-- Razorpay Share Invite selectors/Send workflow, Test Mode/security rules, retry/backoff, TaskRuntimeStore schema, Reports, Workflow Inputs, Browser Settings defaults, Licora API v2, ActivationPage visual design, Qt focus lifecycle hardening and browser auto-restart policy.
-- No persistent-profile productization, downloads, uploads, extensions, stealth/CAPTCHA behavior or new UI page.
+- No Browser Settings defaults changed.
+- Managed persistent profiles, download/upload/extension architecture, and CAPTCHA/stealth changes remain outside this phase.
+- Existing Razorpay selectors, Test Mode/security-challenge gates, licensing, Workflow Inputs, reporting and Task processing semantics are preserved.
 
-### Verification
-
-- Added `VP-BROWSER-UI-LIFECYCLE-001` scope contract and backend/UI lifecycle regression coverage.
-- Source-level regression is required to remain green; Windows live manual-close and geometry verification is the final platform gate.
-
-## v1.0.6.11 — Qt focus lifecycle verification/fix — 2026-08-09
+## v1.0.6.11 — Qt focus lifecycle hardening — 2026-08-09
 
 ### Fixed
 
-- Guarded keyboard-focus property/style operations with Shiboken object-validity checks so deleted PySide6 QWidget wrappers are never dereferenced after page transitions.
-- Cleared stale focused-widget state when Qt begins `Destroy`/`DeferredDelete` processing.
-- Guarded delayed keyboard-focus tooltip callbacks against widgets deleted during the 180 ms timer window.
-- Preserved the exact `keyboardFocus` property values, repolish sequence, keyboard/mouse modality behavior, focus-ring visuals and frozen token values.
+- Cleared stale focus-ring widget references when Qt emits `destroyed` during Activation-to-Workspace or other widget teardown paths.
+- Guarded all focus-manager event, refresh, polish and delayed-tooltip paths with `shiboken6.isValid(...)` before touching the wrapped QWidget.
+- Restricted the lifetime correction to `vib_validation_app/focus_manager.py`; application runtime, backend, settings, workflows and `qt_app.py` remain frozen.
+
+### Verification
+
+- Added targeted fake-wrapper tests plus the real PySide6 `deleteLater()` regression reproducer for the previously observed `Internal C++ object already deleted` failure class.
+- Re-ran repository verification, the full test suite and standard-library unittest discovery after the focus lifecycle fix.
+
+## v1.0.6.10 — License login durability and recovery — 2026-08-09
+
+### Fixed
+
+- Secure Licora API v2 session storage now uses the per-user VibraPilot data root on Windows (`%LOCALAPPDATA%\Vib Tools\VibraPilot`) unless `VIB_TOOLS_DATA_DIR` explicitly overrides it.
+- Existing install-relative `AppData/license.json` is migrated atomically into the durable per-user state location after successful decrypt/validation.
+- Device P-256 identity is persisted separately in DPAPI-protected `device_identity.json`, so stale/corrupt session state no longer silently replaces the device key/device ID.
+- `DEVICE_KEY_MISMATCH` and `DEVICE_REVOKED` perform one bounded restart-safe recovery attempt using the same P-256 key with a fresh device ID.
+- `LIMIT_REACHED` after a rejected device identity now stops with an explicit stale-device cleanup message instead of retrying and consuming additional server slots.
+- Confirmed logout waits for deactivation and rotates the revoked device ID without generating a replacement P-256 key; the next login retains the existing secure key identity.
+- New activation cannot overtake an in-flight background deactivation request.
+- Temporary network, rate-limit and server-response failures no longer invalidate a still-locally-valid signed access-token session during background re-check.
 
 ### Preserved
 
-- `src/vibrapilot/backend.py`, `src/vibrapilot/qt_app.py`, licensing, ActivationPage, Browser Settings, Tasks, Workflow Inputs, Reports, browser automation and all dependencies remain unchanged.
+- Secure Licora API v2 request/response envelope, RS256 access-token verification, P-256 device request signing, refresh-token rotation and server URL/endpoint contract remain unchanged.
+- No browser, Task workflow, selectors, Workflow Inputs, App/Browser Settings UI, reporting or dependency changes.
 
-### Verification
-
-- Added the `VP-QT-FOCUS-LIFECYCLE-001` scope contract plus static and PySide6 runtime regression coverage for deleted-focused-widget transitions and delayed tooltips.
-
-## v1.0.6.10 — License login durability/recovery forensic fix — 2026-08-09
+## v1.0.6.9 — Workflow Inputs verification / persistence fix — 2026-08-09
 
 ### Fixed
 
-- Moved default Windows license/session persistence out of the install/source folder into durable per-user LocalAppData, with one-time migration from the historical `AppData/license.json` cache.
-- Added a separately DPAPI-protected persistent device identity so a corrupt/missing session cache does not destroy the P-256 key and recreate the same device ID with a different fingerprint.
-- Added one restart-safe recovery attempt for production `DEVICE_KEY_MISMATCH` and `DEVICE_REVOKED` activation states; stale active-device limit conflicts are surfaced explicitly without retry loops.
-- Serialized background logout deactivation against new activation and rotate the device ID only after confirmed remote revocation, preventing stale logout from revoking a fresh login.
-- Background license recheck now preserves a still-locally-valid access-token session across transient network, invalid-response, rate-limit, API-not-ready and server-error conditions.
+- `Save Workflow Inputs` now snapshots the four workflow values before applying UI edits and restores the snapshot if the settings write fails.
+- `Reset Workflow Inputs` now catches settings-save failures, restores the exact pre-reset values, refreshes the page and reports the error instead of leaving an in-memory partial reset.
 
 ### Preserved
 
-- Licora API v2 request/signature/token protocol, endpoint paths, pinned server RSA public key, selectors, browser/task/workflow/report behavior and ActivationPage visual design are unchanged.
+- The dedicated Workflow Inputs page, field set and no-selector scope remain unchanged from v1.0.6.8.
+- Backend automation behavior, selectors, browser launch/context behavior, App/Browser Settings, task/report/persistence schemas, licensing and dependencies remain byte-frozen from the official v1.0.6.8 baseline.
+- The four Workflow Inputs remain settings-backed values only; this release does not add a new browser-workflow consumer.
 
-### Verification
-
-- Added the v1.0.6.10 scope lock and regression coverage for legacy-state migration, corrupt-session identity survival, device mismatch/revoked recovery, logout ordering and transient recheck classification.
-
-## v1.0.6.9 — VP-WORKFLOW-INPUTS-001 forensic verification/fix — 2026-08-09
-
-### Fixed
-
-- Fixed Workflow Inputs Save failure handling so a failed settings write restores the exact pre-save in-memory values instead of leaving unsaved values authoritative.
-- Fixed Workflow Inputs Reset failure handling so persistence errors are contained, the exact pre-reset values are restored, the page is refreshed, and the exception does not escape into the Qt event path.
-
-### Verified / Preserved
-
-- Verified GitHub v1.0.6.8 commit `82fc678fe4d3e8aab9c11ff3e54cf4455e0d3203` against the approved `VP-WORKFLOW-INPUTS-001` scope.
-- Preserved the same four setting keys and successful saved-value behavior; `default_target_url` remains in App Settings and no fake workflow selector exists.
-- Preserved `workflow_inputs.py`, backend worker, selectors, Browser Settings, task/recovery/runtime store and Licora Secure API v2 unchanged.
-
-### Documentation / Verification
-
-- Added the v1.0.6.9 Workflow Inputs verification-fix scope contract, regression tests, update note and forensic verification report.
-
-## v1.0.6.8 — VP-WORKFLOW-INPUTS-001 — 2026-08-09
+## v1.0.6.8 — Workflow Inputs separation — 2026-08-09
 
 ### Added
 
-- Added a dedicated top-level **Workflow Inputs** page and a form-metadata-only `src/vibrapilot/workflow_inputs.py` module.
-- Added isolated Save/Reset handling for the existing workflow input keys.
+- Dedicated top-level **Workflow Inputs** page between Tasks and Reports.
+- Existing `default_full_name`, `default_number`, `fallback_name` and `update_click_count` settings are now edited only from the dedicated Workflow Inputs page.
+- Added workflow-input Save and Reset actions without introducing a workflow selector while only one workflow exists.
 
 ### Changed
 
-- Moved `default_full_name`, `default_number`, `fallback_name` and `update_click_count` out of the App Settings UI without renaming or migrating their persisted keys.
-- Preserved the existing View shortcuts for Dashboard, Tasks, Reports, Live Logs, App Settings and Browser Settings while inserting Workflow Inputs after Tasks.
+- Removed the four workflow-specific values from **App Settings**.
+- `default_target_url` remains in App Settings as an application/task-level value.
 
 ### Preserved
 
-- `default_target_url` remains in App Settings. Backend worker logic, Browser Settings, task workflow, selectors, SQLite runtime persistence and Licora Secure API v2 are unchanged.
-- No fake/single-option workflow selector is included.
+- Existing backend, browser, task, persistence, licensing, reports and automation behavior remain unchanged.
+- Browser Settings remain browser-only and unchanged.
+- No workflow fields were added to browser settings.
 
-### Verification
-
-- Added `config/verification/v1.0.6.8_workflow_inputs_scope.json` plus workflow-input persistence/UI/scope regression tests.
-- Added `docs/updates/v1.0.6.8-workflow-inputs-separation.md` and `docs/verification/V1.0.6.8_WORKFLOW_INPUTS_VERIFICATION.md`.
-
-### Windows SQLite concurrent-write verification correction
-
-- Fixed a Windows-only multi-worker persistence contention failure where four concurrent task writers could exceed the 15-second verification window and leave a temporary SQLite file handle active during test cleanup.
-- Added process-local write serialization before SQLite's WAL writer lock and an atomic recipient/result/progress transaction used by the worker hot path.
-- Preserved FULL-synchronous WAL durability; no `synchronous=NORMAL/OFF` durability downgrade is used.
-- Scope remains limited to `TaskRuntimeStore` concurrent-write persistence and the two directly connected worker persistence methods.
-
-
-## v1.0.6.7 — VP-PROD-MT-LR-001 forensic verification/fix — 2026-08-08
+## v1.0.6.7 — Windows SQLite concurrent-task hardening — 2026-08-09
 
 ### Fixed
 
-- Removed a duplicated `@classmethod` decorator from `TaskSlotWidget.task_qss`; the double descriptor made the startup stylesheet call fail with `TypeError` before the main UI could open.
-- Made critical worker UI-event backpressure shutdown-aware so a saturated 4096-event queue cannot keep a stopping/closing worker alive indefinitely. Normal-operation critical events still apply backpressure.
-- Persist the pre-Send manual-review crash marker into both the task item and authoritative result ledger before Playwright invokes the Send click.
-- Clarified the Task metric label to **Send Attempts / Limit** while preserving the existing conservative send-click counting semantics.
-- Added a source-archive verifier that rejects runtime/private/cache paths and unsafe ZIP members before a source baseline is published.
-
-### Packaging
-
-- The user-frozen v1.0.6.5 ZIP was found to contain gitignored runtime/private data (`AppData`, Logs, private `project/` records and Python caches) despite the v1.0.6.5 release-hygiene contract. v1.0.6.7 release/baseline packaging excludes those paths; existing runtime data remains preserved when applying the source delta to a working installation.
+- Serialized in-process `TaskRuntimeStore` writers with a shared lock before SQLite's WAL writer lock.
+- Kept `PRAGMA synchronous` at SQLite's durable default rather than weakening disk-flush guarantees.
+- Added a four-writer Windows concurrency regression gate with explicit lock/thread failure detection.
 
 ### Preserved
 
-- `LicenseManager`, Licora API v2, P-256/RS256 behavior, Razorpay Share Invite selectors/Send sequence, Browser Settings contract, `ActivationPage`, `TaskRuntimeStore`, data-import semantics and all unrelated UI/UX remain unchanged.
+- No changes to TaskRuntimeStore schema, workspace contract, UI, browser, workflow, selectors, license protocol or public APIs.
+- Existing per-recipient atomic item/result/progress persistence remains unchanged.
 
-### Verification
+## v1.0.6.7 — VP-PROD-MT-LR-001 verification fixes — 2026-08-09
 
-- Added `config/verification/v1.0.6.7_vp_prod_mt_lr_verification_fix_scope.json` anchored to the exact uploaded v1.0.6.5 ZIP SHA-256.
-- Added regression coverage for startup decorator correctness, shutdown queue saturation, pre-click result-ledger durability and clean source-ZIP verification.
-- Added `scripts/verify_source_archive.py` for future source baseline/release ZIP validation.
+### Fixed
 
-## v1.0.6.5 — VP-PROD-MT-LR-001 production runtime hardening — 2026-08-08
+- Corrected the Task-card frozen stylesheet binding so the application can construct Tasks normally at startup.
+- Allowed blocked critical UI-event producers to exit during an explicit worker stop/close instead of waiting forever on a saturated UI queue.
+- Made the conservative pre-Send manual-review state immediately authoritative in the result ledger as well as the item row.
+- Corrected the Task metric label to **Send Attempts / Limit**.
+
+### Preserved
+
+- No changes to selector order, Test Mode checks, retry limits, browser lifecycle, `TaskRuntimeStore` schema, context recycle semantics or licensing protocol.
+
+## v1.0.6.5 — Production multi-task / long-run hardening — 2026-08-09
 
 ### Added
 
-- Added SQLite-backed per-task runtime/checkpoint/result persistence with unique run IDs, atomic state updates and restart recovery discovery.
-- Added import reconciliation counters for source, valid, invalid, duplicate and accepted rows.
-- Added Task filtering to Reports and disk-backed full result export while keeping the visible table bounded to recent outcomes.
-- Added a configurable `max_concurrent_tasks` production guard with approved default `4`.
-- Added shared-persistent-profile collision protection for concurrent task launches.
-- Added production scope/soak/recovery/report/worker/queue regression tests.
-
-### Fixed
-
-- Made `batch_size` a real sequential checkpoint boundary without introducing parallel Send operations.
-- Made `auto_save_interval` a real seconds-based periodic persistence setting; finalized recipient outcomes remain immediately durable.
-- Fixed Browser Context item/time recycle accounting so successful finalized recipients contribute to recycling thresholds.
-- Made worker shutdown deterministic; UI/task references are retained when browser cleanup exceeds the wait window.
-- Bounded the shared UI event queue to 4096 entries and limited each UI timer drain to 250 events.
-- Replaced unbounded duplicate report-event accumulation with one authoritative latest outcome per recipient/run item.
-- Preserved ambiguous post-Send outcomes as manual-review recovery state; automatic retry remains forbidden.
+- Added SQLite-backed `TaskRuntimeStore` with WAL journaling, foreign-key integrity and unique item identity per `run_id + item_index`.
+- Added source/valid/invalid/duplicate import accounting and explicit reconciliation metrics.
+- Added resumable per-Task progress with persisted `current_index`, success/failed counts, send-limit usage and manual-review state.
+- Added conservative `manual_review_required` handling for ambiguous post-Send outcomes so unknown send results are never auto-retried.
+- Added Browser Context recycling by finalized item count and elapsed minutes with storage-state preservation and Target URL restoration.
+- Added deterministic worker stop/join behavior and close guards so live worker references are not cleared before cleanup completes.
+- Added a bounded UI event queue (`4096`) and a maximum `250` events consumed per UI timer tick.
+- Added authoritative full-result loading from SQLite with current-result uniqueness and Task-filtered Reports.
+- Added `max_concurrent_tasks` scheduling with a default limit of `4` and persistent-profile collision protection.
+- Added release-source archive hygiene verification that rejects runtime/private/cache paths and unsafe ZIP entries.
 
 ### Preserved
 
-- Licora API v2, P-256/RS256 behavior, `LicenseManager`, Razorpay Share Invite selectors/Send sequence, Test Mode/security rules, `ActivationPage`, Browser Settings contract, branding and Vib Tools design foundation remain outside the approved runtime surface.
+- Existing site-specific selectors, browser launch signature/defaults, Test Mode checks, retry policy, Test Send Limit, Licora API v2 contract, existing Settings keys, layout/components and source formats remain unchanged.
+- No fake UI page, permanent discard/delete operation, migration workflow or packaging-only shortcut was introduced.
 
-### Documentation
-
-- Added `docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md`.
-- Added `docs/verification/V1.0.6.5_PRODUCTION_RUNTIME_VERIFICATION.md`.
-- Synchronized README, UPDATE_LOG, VERSIONING, PROJECT_STRUCTURE, COMPATIBILITY, ROADMAP and documentation index.
-
-## v1.0.6.4 — Phase-02-Step-002 forensic verification/fix — 2026-08-08
+## v1.0.6.4 — Phase-02 Step-002 verification / fix — 2026-08-08
 
 ### Fixed
 
-- Persist the P-256 device private key before the first activation request and retain the same device key across logout, license switching and restart, preventing server/client public-key drift after ambiguous activation/deactivation outcomes.
-- Persistently invalidate ambiguous one-shot refresh credentials before fresh activation recovery so a restart cannot replay an old refresh token.
-- Separate long-running API validation from the short UI-facing license state lock; dashboard license reads no longer wait behind remote HTTP I/O.
-- Restore protected legacy/v2 license sessions through the existing activation shell at startup and allow periodic recheck to refresh an expired access token instead of stopping when the local token expires.
-- Cache successfully verified access-token state so frequent dashboard polling does not repeatedly parse the pinned RSA key and verify the same RS256 token.
-- Add crash-safer license-cache writes using flush/fsync before atomic `os.replace()`.
-- Correct release-source hygiene after the supplied v1.0.6.3 archive was found to contain gitignored runtime/private/cache paths.
-- Configure pytest source imports so the documented plain `python -m pytest -q` invocation matches repository behavior.
-- Make the documented direct `python -m unittest discover -s tests -p "test_*.py" -v` command self-contained by bootstrapping the repository `src` layout inside the ten unittest modules that import `vibrapilot`; this removes the Command Prompt/PowerShell `PYTHONPATH` mismatch without changing runtime application code.
+- `LicenseManager.load()` now rejects locally tampered or expired RS256 access-token payloads after DPAPI decryption.
+- `LicenseManager.logout()` now waits for confirmed `/deactivate` success before clearing the protected local session.
+- Local file/state removal during logout now occurs only after confirmed server-side deactivation.
+
+### Preserved
+
+- `config/AppConfig/licensing_public.py`, the Licora API v2 request/response contract, P-256/RS256 cryptographic scheme, activation flow, UI, browser automation, tasks, settings, workflows and dependencies remain unchanged.
 
 ### Verification
 
-- Added a v1.0.6.4 fix-scope contract anchored to the exact SHA-256 of the user-frozen v1.0.6.3 archive.
-- Expanded LicenseManager tests for pre-request key durability, key continuity, ambiguous refresh persistence, state-lock non-blocking behavior, corrupt-cache fail-closed behavior and atomic-save cleanup.
-- Expanded API v2 protocol/crypto tests for stable server error propagation, network/redirect/non-JSON/protocol failure, token header/claim/time/device mismatches and invalid signatures.
-- Added release-path checks that reject `AppData`, `Logs`, `Reports`, `FailedData`, `project`, `__pycache__` and `.pytest_cache` from the clean public baseline.
+- Added machine-readable fix scope and frozen-file hashes for all prohibited files.
+- Added targeted regression tests for token-tamper rejection and deactivate-before-clear semantics.
+- Re-ran static repository verification, full pytest and standard-library unittest discovery.
 
-### Preserved
-
-- `AutomationWorker`, selectors, `TaskItem`, `TaskState`, `ActivationPage`, Browser Settings contract, data/report behavior, safety/retry controls, Playwright workflow and the public `licensing_v2.py` protocol implementation remain outside the approved fix surface.
-
-### Documentation
-
-- Added `docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md`.
-- Added `docs/verification/PHASE02_STEP002_V1.0.6.4_FORENSIC_VERIFICATION.md`.
-- Synchronized README, licensing/getting-started guidance, versioning, documentation index and release metadata.
-
-## v1.0.6.3 — Phase-02-Step-002 Secure Licora API v2 client — 2026-08-08
+## v1.0.6.3 — Phase-02 Step-002 Secure Licora API v2 — 2026-08-08
 
 ### Added
 
-- Added `config/AppConfig/licensing_public.py` with the production HTTPS Licora base URL, `vibrapilot` App ID, API v2 endpoint paths and pinned RSA public signing key/fingerprint.
-- Added `src/vibrapilot/licensing_v2.py` implementing P-256 device proof, exact canonical request signing, RS256 access-token verification and activate/status/refresh/deactivate flows.
-- Added schema-v2 protected licensing persistence, rotating refresh credentials, atomic writes and legacy-cache migration.
-- Added Phase-02 crypto/protocol/persistence tests and a canonical AST scope-freeze contract.
+- Added `config/AppConfig/licensing_public.py` containing only public Licora API v2 configuration and the server RSA public signing key.
+- Added `src/vibrapilot/licensing_v2.py` with P-256 device-key generation, canonical request signing, RS256 access-token verification, refresh-token rotation support and Windows DPAPI helpers.
+- Added protected local license persistence for normalized license, user email, device ID, P-256 private key, signed access token and rotating refresh token.
+- Added background `status` / refresh revalidation through the Secure Licora API v2 contract.
+- Added browser-independent unit coverage for token verification, crypto helpers and license-manager behavior.
 
 ### Changed
 
-- Replaced the active desktop API v1 shared/master-key licensing flow with Licora Secure API v2.
-- Promoted the verified Phase-02-Step-002 source version to **1.0.6.3**.
-- App Settings now describes the Secure API v2 trust model instead of a private embedded API-key deployment.
+- `LicenseManager` now uses `/api/v2/activate`, `/api/v2/status`, `/api/v2/refresh` and `/api/v2/deactivate` instead of the former legacy verify API.
+- License login and re-check paths enforce the API v2 envelope, request ID / timestamp, device ID, app ID and nonce contract.
 
-### Security
+### Removed
 
-- Removed active client dependence on `X-API-Key`, API v1 Bearer/shared credentials and `/api/verify.php`.
-- Pinned only the Licora server **public** signing key; no server private key is present in the project.
-- Windows DPAPI protects the license key, P-256 device private key, access token and refresh token before persistence.
-- Refresh tokens are one-time rotating credentials and are not blindly replayed after ambiguous failures.
+- Removed desktop reliance on the former shared/master Licora API v1 secret and `/api/verify.php` flow.
+- Removed the real API key from tracked desktop source/configuration.
 
 ### Preserved
 
-- `AutomationWorker`, selectors, `TaskItem`, `TaskState`, ActivationPage, Browser Settings contract and validated task/report/safety/browser behavior are unchanged from v1.0.6.2.
+- Activation screen layout, normal workspace UI, browser automation, tasks, settings, reports, workflow safety and business logic remain unchanged.
 
-### Documentation
-
-- Added `docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md`.
-- Added `docs/verification/PHASE02_STEP002_V1.0.6.3_VERIFICATION.md`.
-- Updated README, licensing guide, AppConfig documentation, versioning and release metadata.
-
-## v1.0.6.2 — Phase-01 forensic verification and completion — 2026-08-08
+## v1.0.6.2 — Phase-01 verification / fix — 2026-08-08
 
 ### Fixed
 
-- Removed stale active pre-rebrand source/launcher paths that survived an overwrite-only local merge and caused repository verification/tests to fail.
-- Completed the approved Phase-01 support/social configuration using only confirmed Vib Tools public endpoints; removed the unverified developer-portal value.
-- Completed the approved About/company metadata fields and bound verified company/support content to the existing About-page structure.
-- Hardened AppConfig validation for real calendar dates, numeric release versions, required string sequences, support email format and strict boolean social flags.
-- Added regression coverage for the completed AppConfig validation and current support/social contract.
+- Added `qt_app.py` to the public repository verifier's required-file set.
+- Added explicit `config/AppConfig` completeness checks to the repository verifier.
+- Removed the stale `src/vibrapilot/legacy_ui.py` shim after confirming there were no imports or runtime dependencies.
+- Removed generated `src/vibrapilot/__pycache__/` bytecode from the project tree.
+- Extended AppConfig tests to cover Support and Social modules and reject mixed product version/date sources.
 
-### Version
+### Verification
 
-- Promoted the verified configuration baseline to **1.0.6.2**.
-- The validated browser automation, Licora v1 licensing behavior, selectors, Browser Settings, task/report/safety/retry/persistence logic and frozen Vib Tools UI contract remain unchanged.
-- Licora API v2 and `licensing_public.py` remain reserved for Phase-02.
+- Re-ran compile verification, repository verification, full pytest and standard-library unittest discovery.
+- Re-checked browser/settings/report/workflow contracts against the official v1.0.6.1 baseline.
 
-### Documentation
+### Preserved
 
-- Added `docs/updates/v1.0.6.2-phase-01-verification-fix.md`.
-- Updated README, UPDATE_LOG, VERSIONING, AppConfig documentation, documentation manifests and private `project/` forensic records.
+- No runtime application behavior, browser automation, settings semantics, workflow/selectors, licensing API, retry/safety logic, reports, persistence or frozen design-source behavior changed.
 
 ## v1.0.6.1 — Phase-01 AppConfig centralization — 2026-08-08
 

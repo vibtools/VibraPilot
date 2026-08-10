@@ -10,7 +10,7 @@ if (-not $ExePath) {
     if (Test-Path $Candidate) {
         $ExePath = $Candidate
     } else {
-        $ExePath = Join-Path $Root "release\VibraPilot-1.0.6.23-Windows-x64\VibraPilot.exe"
+        $ExePath = Join-Path $Root "release\VibraPilot-1.0.6.24-Windows-x64\VibraPilot.exe"
     }
 }
 
