@@ -26,6 +26,7 @@ This documentation accompanies **VibraPilot v1.0.6.19 — Browser Foundation ver
 
 Start with:
 
+- [Chrome Web Store Extension Installation Forensic Fix](forensic/chrome-webstore-extension-install-forensic-fix.md)
 - [Getting Started](getting-started/README.md)
 - [v1.0.6.13 Phase-01 Verification/CI Fix](updates/v1.0.6.13-phase01-verification-ci-fix.md)
 - [v1.0.6.13 Phase-01 Forensic Verification](verification/V1.0.6.13_PHASE01_FORENSIC_VERIFICATION.md)

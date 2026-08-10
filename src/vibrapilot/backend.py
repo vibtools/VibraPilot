@@ -630,8 +630,12 @@ def effective_ignored_default_args(
         for arg in _PLAYWRIGHT_BACKGROUND_THROTTLING_ARGS:
             remove(arg)
 
-    if extensions_enabled:
-        add(_PLAYWRIGHT_DISABLE_EXTENSIONS_ARG)
+    # Keep Chrome's extension subsystem enabled for normal browser use,
+    # including Chrome Web Store installs. ``extensions_enabled`` controls
+    # VibraPilot's explicit unpacked side-loading mode; it must not leave
+    # Playwright's global --disable-extensions default active when that mode
+    # is off.
+    add(_PLAYWRIGHT_DISABLE_EXTENSIONS_ARG)
 
     # Playwright adds --mute-audio automatically for headless Chromium. Make
     # Audio Enabled authoritative by filtering that default when audio is on.

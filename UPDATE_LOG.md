@@ -1,3 +1,11 @@
+## v1.0.6.19 — Chrome Web Store extension installation forensic fix — 2026-08-09
+
+Dedicated forensic tracing confirms that Playwright's default `--disable-extensions` remained active in normal Chrome mode because VibraPilot filtered it only when explicit unpacked-extension loading was enabled. Chromium's installer maps that extension-service-disabled state to `INSTALL_NOT_ENABLED`, displayed by Chrome Web Store as `Installation is not enabled`.
+
+The minimal runtime fix changes only `effective_ignored_default_args()` so the global Playwright disable-extensions switch is always filtered. Existing unpacked extension loading, downloads/uploads, profiles, sandbox, policy, workflow, database schemas, licensing and UI remain unchanged. Real post-fix Chrome Web Store installation and download regression require a fresh Windows browser launch.
+
+Forensic record: `docs/forensic/chrome-webstore-extension-install-forensic-fix.md`
+
 ## v1.0.6.19 — Browser foundation forensic verification/fix — 2026-08-09
 
 Audited the exact uploaded v1.0.6.18 baseline SHA `d18277ea00ae581ede45c8d3e647cd0f41625aeb0d5b8aad71715c19e4e29ae9`. Real Windows evidence confirms Google Chrome Stable, the managed Task profile and the effective `--no-sandbox` command line. It also reveals Playwright runtime `1.60.0` versus the source-required `1.61.0`.

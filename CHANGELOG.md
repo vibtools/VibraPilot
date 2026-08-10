@@ -1,3 +1,15 @@
+## v1.0.6.19 — Chrome Web Store extension-install follow-up — 2026-08-09
+
+### Confirmed root cause
+- Normal VibraPilot Chrome sessions left Playwright's default `--disable-extensions` switch active when explicit unpacked-extension mode was off. Chromium maps that disabled extension-service state to the Chrome Web Store error `Installation is not enabled`.
+
+### Fixed
+- Playwright's global `--disable-extensions` default is now always filtered. `extensions_enabled` remains limited to VibraPilot's explicit unpacked side-loading mode.
+
+### Preserved
+- Download/upload implementation, managed profiles, Chrome policy, sandbox, browser diagnostics, workflow, TaskRuntimeStore/WorkspaceState schemas, licensing and UI are unchanged.
+- Version metadata remains `1.0.6.19`; this is a scope-locked follow-up patch against the official v1.0.6.19 baseline.
+
 ## v1.0.6.19 — Browser foundation verification / diagnostics hardening — 2026-08-09
 
 ### Confirmed

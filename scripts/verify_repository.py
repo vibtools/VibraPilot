@@ -38,6 +38,7 @@ BROWSER_CAPABILITIES_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6
 TASKS_UI_POLISH_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.17_tasks_ui_polish_scope.json"
 BROWSER_FOUNDATION_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.18_browser_foundation_scope.json"
 BROWSER_FOUNDATION_VERIFICATION_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.19_browser_foundation_verification_fix_scope.json"
+CHROME_WEBSTORE_EXTENSION_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.19_chrome_webstore_extension_install_fix_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -443,7 +444,30 @@ for relative, expected_sha in browser_foundation_scope.get("frozen_file_sha256",
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.18 frozen drift: {relative}")
+if not CHROME_WEBSTORE_EXTENSION_FIX_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.19 Chrome Web Store extension fix scope contract is missing")
+chrome_webstore_fix_scope = json.loads(
+    CHROME_WEBSTORE_EXTENSION_FIX_SCOPE_CONTRACT.read_text(encoding="utf-8")
+)
+if chrome_webstore_fix_scope.get("plan_id") != "VP-CHROME-WEBSTORE-EXTENSION-INSTALL-FIX-001":
+    fail("v1.0.6.19 Chrome Web Store extension fix plan mismatch")
+if chrome_webstore_fix_scope.get("official_baseline_archive_sha256") != "731c68b36fd863957be4dc205f48a666b5bf8a36872adf44c834a8e54ec1f685":
+    fail("v1.0.6.19 Chrome Web Store extension fix baseline hash mismatch")
+if chrome_webstore_fix_scope.get("target_version") != "1.0.6.19":
+    fail("v1.0.6.19 Chrome Web Store extension fix target mismatch")
+chrome_webstore_fix_allowed_files = set(
+    chrome_webstore_fix_scope.get("allowed_runtime_source_changes", [])
+)
+if chrome_webstore_fix_allowed_files != {"src/vibrapilot/backend.py"}:
+    fail("v1.0.6.19 Chrome Web Store extension fix runtime surface mismatch")
+if not chrome_webstore_fix_scope.get("preserve_downloads"):
+    fail("Chrome Web Store extension fix must preserve downloads")
+if not chrome_webstore_fix_scope.get("no_policy_change"):
+    fail("Chrome Web Store extension fix must not change Chrome policy")
+
 for relative, expected_sha in browser_foundation_fix_scope.get("approved_target_file_sha256", {}).items():
+    if relative in chrome_webstore_fix_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.19 target runtime mismatch: {relative}")
@@ -451,6 +475,14 @@ for relative, expected_sha in browser_foundation_fix_scope.get("frozen_file_sha2
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.19 frozen drift: {relative}")
+for relative, expected_sha in chrome_webstore_fix_scope.get("approved_target_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"Chrome Web Store extension fix target runtime mismatch: {relative}")
+for relative, expected_sha in chrome_webstore_fix_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"Chrome Web Store extension fix frozen drift: {relative}")
 
 for relative, expected_sha in capability_scope.get("approved_target_file_sha256", {}).items():
     if relative in tasks_ui_allowed_files or relative in browser_foundation_allowed_files:

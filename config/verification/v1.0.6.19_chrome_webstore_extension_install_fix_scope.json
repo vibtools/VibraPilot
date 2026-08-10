@@ -1,0 +1,52 @@
+{
+  "contract_name": "VibraPilot v1.0.6.19 Chrome Web Store extension installation fix scope lock",
+  "plan_id": "VP-CHROME-WEBSTORE-EXTENSION-INSTALL-FIX-001",
+  "official_baseline": "VibraPilot v1.0.6.19",
+  "official_baseline_archive": "VibraPilot_v1.0.6.19_Official_Development_Baseline.zip",
+  "official_baseline_archive_sha256": "731c68b36fd863957be4dc205f48a666b5bf8a36872adf44c834a8e54ec1f685",
+  "baseline_github_commit": "dca5bc8a12185cdbcc31e7dc77057a31038fdd86",
+  "baseline_github_actions_run": 31357174743,
+  "target_version": "1.0.6.19",
+  "version_bump_applied": false,
+  "allowed_runtime_source_changes": [
+    "src/vibrapilot/backend.py"
+  ],
+  "actual_runtime_source_changes": [
+    "src/vibrapilot/backend.py"
+  ],
+  "root_cause": "Playwright default --disable-extensions remains active whenever VibraPilot explicit unpacked extension mode is disabled, globally disabling Chrome extension installation and producing Chromium INSTALL_NOT_ENABLED.",
+  "minimal_fix": "Always filter Playwright default --disable-extensions; keep extensions_enabled limited to explicit unpacked side-loading behavior.",
+  "preserve_downloads": true,
+  "no_policy_change": true,
+  "no_profile_change": true,
+  "no_settings_key_change": true,
+  "no_database_schema_change": true,
+  "no_workspace_schema_change": true,
+  "no_new_dependency": true,
+  "no_new_page": true,
+  "approved_target_file_sha256": {
+    "src/vibrapilot/backend.py": "bb1cbf7aa52cccff95a939e365634ea40b30761b2384fe2912d7ce7530b329b5"
+  },
+  "frozen_file_sha256": {
+    "config/settings.defaults.json": "64c0377a5a84167bdd480b8302d3ca7ac7c9b0db89d56df0d118bf5566444b76",
+    "src/vibrapilot/qt_app.py": "db0b0cc464b2e7e78b8620628e54087cd8135d8c339018392974a3df6c6e5935",
+    "src/vibrapilot/browser_capabilities.py": "8f256cbde7c1674c297547d0b2bf91a8a5641d4d28598833428ada828b76d4df",
+    "src/vibrapilot/browser_diagnostics.py": "b7024e40858cca56e03de574c3c0331f3d6f39cb7ee057eeb713d62c9f465e5b",
+    "src/vibrapilot/task_runtime_store.py": "b4b581c936479a6a3f334170c033bae53f1d216e562cc1aff8b3e54e728dcf26",
+    "src/vibrapilot/workspace_state.py": "7b4af52a304b449504ed1a8b7333ed4738fac08a49cf431acb60e57936219ccd",
+    "src/vibrapilot/licensing_v2.py": "36435d05593785b7ec02310dcf2d031342524e95d5be6212591a09277699a91b",
+    "src/vibrapilot/data_io.py": "ac8adddec1cfc2ba6784562c7f85e18ceb4da6d7906edac3296f79ed48af3c31",
+    "src/vibrapilot/workflow_inputs.py": "095e46558736ae9cf073bd4883a5bd43eefd1b2a1eb3de62156baa863f4a5ce9",
+    "vib_validation_app/focus_manager.py": "a073051b05cbd2442b0bdec0a1251cf8185b54cbb71e755cc25c2ee85ce7f86e"
+  },
+  "verification_tooling_additions": [
+    "scripts/diagnostics/verify_chrome_webstore_extension_runtime.py",
+    "tests/test_v10619_chrome_webstore_extension_install_fix.py"
+  ],
+  "documentation_updates": [
+    "CHANGELOG.md",
+    "UPDATE_LOG.md",
+    "docs/index.md",
+    "docs/forensic/chrome-webstore-extension-install-forensic-fix.md"
+  ]
+}
