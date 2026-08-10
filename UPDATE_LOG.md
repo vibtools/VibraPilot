@@ -1,3 +1,10 @@
+## v1.0.6.20 — PR-04 Share Invite workflow extraction — 2026-08-10
+
+Extracted the current verified Share Invite implementation into the first source-controlled built-in workflow without redesigning its behavior. Added `share_invite/manifest.json`, workflow-local logo, runtime implementation, deterministic built-in registration, parity scope contract and dedicated tests. Existing `AutomationWorker` safety state machine, Test Mode/Send/retry/manual-review behavior, browser lifecycle, UI, schemas, settings, licensing and CAPTCHA policy remain unchanged.
+
+Detailed note: `docs/updates/v1.0.6.20-pr04-share-invite-workflow-extraction.md`
+Verification: `docs/verification/V1.0.6.20_PR04_SHARE_INVITE_WORKFLOW_PARITY.md`
+
 ## v1.0.6.19 — Chrome Web Store extension installation forensic fix — 2026-08-09
 
 Dedicated forensic tracing confirms that Playwright's default `--disable-extensions` remained active in normal Chrome mode because VibraPilot filtered it only when explicit unpacked-extension loading was enabled. Chromium's installer maps that extension-service-disabled state to `INSTALL_NOT_ENABLED`, displayed by Chrome Web Store as `Installation is not enabled`.

@@ -1,3 +1,17 @@
+## v1.0.6.20 — PR-04 Share Invite workflow extraction — 2026-08-10
+
+### Added
+- First source-controlled built-in workflow package under `src/vibrapilot/workflow/share_invite/` with validated manifest and existing VibraPilot logo.
+- Explicit built-in registry factory and minimal runtime workflow protocol.
+- PR-04 machine-readable scope/parity contract and dedicated extraction tests.
+
+### Changed
+- Share Invite-specific browser/session/modal/Send/result methods are encapsulated in `ShareInviteWorkflow`; `AutomationWorker` preserves thin compatibility delegation.
+
+### Preserved
+- Safety-critical retry/manual-review state machine, selectors, Test Mode enforcement, exception identity, task/report/persistence schemas, UI, settings, licensing and Chrome/Playwright behavior are unchanged.
+- CAPTCHA/security-challenge root-cause work remains deferred under PR-02.
+
 ## v1.0.6.19 — Chrome Web Store extension-install follow-up — 2026-08-09
 
 ### Confirmed root cause

@@ -1,3 +1,9 @@
+## PR-04 Share Invite workflow extraction — v1.0.6.20
+
+PR-04 converts the existing verified Share Invite automation into VibraPilot's first source-controlled built-in workflow. The extraction preserves Test Mode, selector order, Send/retry/manual-review semantics, `SecurityChallenge`, existing exceptions and report/data contracts.
+
+**Next after PR-04 release verification:** PR-05 Master Workflow Gate Integration. PR-04 intentionally does not add switching, active-workflow persistence, Workflow UI or dynamic Workflow Inputs.
+
 ## Browser Foundation verification/fix — v1.0.6.19
 
 v1.0.6.18 Windows evidence now confirms actual Google Chrome Stable, managed profile identity and the Sandbox-OFF `--no-sandbox` process command line. v1.0.6.19 hardens evidence correctness and surfaces the detected Playwright `1.60.0` vs required `1.61.0` runtime mismatch.

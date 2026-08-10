@@ -1,0 +1,148 @@
+{
+  "contract_name": "VibraPilot v1.0.6.20 PR-04 Share Invite workflow extraction scope lock",
+  "plan_id": "VP-PR04-SHARE-INVITE-WORKFLOW-EXTRACTION-001",
+  "official_baseline": "VibraPilot v1.0.6.19 \u2014 PR-02 + PR-03 IMPLEMENTATION COMPLETED",
+  "official_baseline_github_commit": "999212b947583927204535f59832f1379d9306f4",
+  "official_baseline_pr01_archive_sha256": "ee2431e3ee4d56697e9127b463ee904806e35853e41abbd2c082b4101f727682",
+  "official_baseline_pr02_pr03_delta_sha256": "f7446da924f963950f48bdc65aa201ac32c7fc32b99776e817e5e5d229665c8c",
+  "target_version": "1.0.6.20",
+  "final_production_line": "1.0.7.0",
+  "ast_hash_algorithm": "canonical-semantic-ast-v2",
+  "allowed_runtime_source_changes": [
+    "src/vibrapilot/backend.py",
+    "src/vibrapilot/workflow/__init__.py",
+    "src/vibrapilot/workflow/contracts.py",
+    "src/vibrapilot/workflow/registry.py",
+    "src/vibrapilot/workflow/manager.py",
+    "src/vibrapilot/workflow/share_invite/__init__.py",
+    "src/vibrapilot/workflow/share_invite/manifest.json",
+    "src/vibrapilot/workflow/share_invite/logo.png",
+    "src/vibrapilot/workflow/share_invite/workflow.py"
+  ],
+  "approved_automationworker_method_changes": [
+    "_share_invite_runtime",
+    "test_mode_banner_ready",
+    "authenticated_test_session_ready",
+    "wait_for_authenticated_test_session",
+    "ensure_authenticated_test_session",
+    "assert_test_mode",
+    "execute_flow",
+    "ensure_share_entry",
+    "share_button_ready",
+    "wait_for_share_button",
+    "share_modal_ready",
+    "close_existing_share_modal",
+    "open_share_modal",
+    "prepare_invite_retry",
+    "fill_invite_email",
+    "input_value_first",
+    "arm_invite_notification_monitor",
+    "submit_share_invite",
+    "wait_invite_result"
+  ],
+  "frozen_automationworker_method_ast_sha256": {
+    "process_item": "4437c86c0083c6bfe8b35a11715bf3ed6d3762202ec3a813476ee4bc168cbd44",
+    "_register_send_click_attempt": "3c957e11bb7094ddc1407afb81a3c86085f6d8c87462f2ff52b00c33861ef276",
+    "process_batch": "260f175fc26eecd1054fe543e801c952ea9d2baca89f22b85efcd4ad7219fa79",
+    "report_row": "1078a592eb6c34fc31fbec3d5a0fb75efd04e6f7853798f3487f5686df1bc71e",
+    "refresh_login_verification": "52c36b41831e15a51d40d4fdb6409596ca8ad426fa453e8e51f8c15e85c63372"
+  },
+  "frozen_backend_ast_sha256": {
+    "SELECTORS": "a0ad30439ca2e935740aa836aa048d529e8528db410e2e4005f01e3f7102754b",
+    "SecurityChallenge": "832dbf21bccb1e5918cd81401a56183b17eef6546dd34fda9953f1c1666e8e19",
+    "SessionVerificationError": "f9a3a68ff6007a6e5eba193ad49dbc02d41107dc90cf22cb59e9cec1c0f52795",
+    "TestModeRequired": "3c18fa55159bc5781e5fd5abd77277205d641c297083a061d029d432f5c5e2d9",
+    "TestSendLimitReached": "99d735a3fa9ae259d99e2fb4e1aa42dea8b17e49e2090457dcdfd2931af935a0",
+    "SendClickOutcomeUncertain": "062d0d75862b30654041178937f4ee5999a0f90985cd296051eef3f3c3c2bd1a",
+    "InviteRejected": "153bd5d1eb41b52ee1d02ee2daf6695e73fc137f8e6159d8bf71480337f145f8"
+  },
+  "share_invite_selector_baseline": {
+    "test_mode_banner": [
+      "[data-testid='test-mode-banner']",
+      ".highlight-test-mode-container [data-testid='test-mode-banner']",
+      ".highlight-test-mode-container .trapezoid"
+    ],
+    "share_button": [
+      "button.Button--small.Button--primary.Button:has(i.i-share-outline)",
+      "button:has(i.i-share-outline):has-text('Share')",
+      "button.Button--primary:has-text('Share')",
+      "button:has-text('Share')"
+    ],
+    "share_modal_title": [
+      "div.modal-header h3.modal-title:has-text('Share Link')",
+      "h3.modal-title:has-text('Share Link')",
+      "text=Share Link"
+    ],
+    "share_modal_close": [
+      "button[data-testid='modal-header-close-btn']",
+      "div.modal-header button.close"
+    ],
+    "share_email": [
+      "form.Form.Share-section input[name='email'][type='email'][placeholder='Email']",
+      "input[name='email'][type='email'][placeholder='Email']",
+      "input[name='email'][type='email']"
+    ],
+    "share_send": [
+      "form.Form.Share-section button[type='submit']:has-text('Send')",
+      "button.Button--Link.Button--transparent.Button[type='submit']:has-text('Send')",
+      "button[type='submit']:has(b:has-text('Send'))",
+      "button[type='submit']:has-text('Send')"
+    ],
+    "invite_success": [
+      "div.Notification.Notification--success[data-testid='Notification--success']",
+      "[data-testid='Notification--success']",
+      ".Notification--success"
+    ],
+    "invite_error": [
+      "[data-testid='Notification--error']",
+      ".Notification--error",
+      ".Notification--danger",
+      ".Notification--warning",
+      ".errorMessage",
+      ".validation-error"
+    ]
+  },
+  "email_regex": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+  "frozen_file_sha256": {
+    "src/vibrapilot/qt_app.py": "db0b0cc464b2e7e78b8620628e54087cd8135d8c339018392974a3df6c6e5935",
+    "src/vibrapilot/workflow_inputs.py": "095e46558736ae9cf073bd4883a5bd43eefd1b2a1eb3de62156baa863f4a5ce9",
+    "src/vibrapilot/browser_capabilities.py": "8f256cbde7c1674c297547d0b2bf91a8a5641d4d28598833428ada828b76d4df",
+    "src/vibrapilot/browser_diagnostics.py": "b7024e40858cca56e03de574c3c0331f3d6f39cb7ee057eeb713d62c9f465e5b",
+    "src/vibrapilot/task_runtime_store.py": "b4b581c936479a6a3f334170c033bae53f1d216e562cc1aff8b3e54e728dcf26",
+    "src/vibrapilot/workspace_state.py": "7b4af52a304b449504ed1a8b7333ed4738fac08a49cf431acb60e57936219ccd",
+    "src/vibrapilot/data_io.py": "ac8adddec1cfc2ba6784562c7f85e18ceb4da6d7906edac3296f79ed48af3c31",
+    "src/vibrapilot/licensing_v2.py": "36435d05593785b7ec02310dcf2d031342524e95d5be6212591a09277699a91b",
+    "config/settings.defaults.json": "64c0377a5a84167bdd480b8302d3ca7ac7c9b0db89d56df0d118bf5566444b76"
+  },
+  "approved_logo_source": "assets/icons/logo.png",
+  "approved_logo_sha256": "09372eb82fd52f744e26b68ae044b6816d55363fc11b93c83e58a88436db8b5e",
+  "no_ui_change": true,
+  "no_database_schema_change": true,
+  "no_workspace_schema_change": true,
+  "no_settings_change": true,
+  "no_browser_configuration_change": true,
+  "no_dependency_change": true,
+  "captcha_out_of_scope": true,
+  "workflow_switching_out_of_scope": true,
+  "active_workflow_persistence_out_of_scope": true,
+  "baseline_extracted_method_semantic_ast_sha256": {
+    "test_mode_banner_ready": "8a22aaa0a50106805d4e35bf03b66081edea3207619efcb85ff139df5feb0f51",
+    "authenticated_test_session_ready": "d446a0bbae3cab11c230a01b796c3f2f6bb89ed7310cc303ede81a7246d4170b",
+    "wait_for_authenticated_test_session": "f7e8e153d4cd6d049663f4a642f981c4c1103d1a4936e65ce4a8d62b0ccc264f",
+    "ensure_authenticated_test_session": "af0e849df96ec504a6dfcbe746ae923de07113c0f0ae99b63a28bb9674a67ef4",
+    "assert_test_mode": "762c0c3ec998c9fee0fe92057ec8b67d2013a40919966b26c14258a69f43e9a5",
+    "execute_flow": "f64d3b930a3e35aeb55348555c958f277fd68cfc8caa219ede41ee957e7d8eb9",
+    "ensure_share_entry": "e9a0833108d57be95695c9073c9143111d45680dff0604de975809c74daf6044",
+    "share_button_ready": "0a081e7fae01a8253780469be3340389443c8793de0f2a0a9e44016a80f7cbc3",
+    "wait_for_share_button": "813ba7cc61f4d579c3b874cb0d0f9b046223de21940f4d93b6a93a82909fb81b",
+    "share_modal_ready": "4ff98c6caf4e725933346d846cba2958bb297e24cc69717799525a842577df2e",
+    "close_existing_share_modal": "1aa1110b45ebae16fb6c8492ef7f9f9ba66dc68137383f2d2ced0baa84c6edb8",
+    "open_share_modal": "c46358eac631b03e293b2a844825a4e9da386af4cbbe6f0dc2f2d40d8240a148",
+    "prepare_invite_retry": "4b3180a3596640187127de9eef61d74b79249017a98bed37c94063ff4d8b71c6",
+    "fill_invite_email": "dbe9364e6186a4a1cc9f00efd695d0f2802b19d14e5a43c1e6968978b5cfa48f",
+    "input_value_first": "a18c09fb734e7da32fb4099a3a8de7cd5c41d9b33730726ff280a36a48d2b891",
+    "arm_invite_notification_monitor": "d4744242f0925aadaf7c9de698f79c60dd88944efe55488d691da7bd77bd4cf5",
+    "submit_share_invite": "c0bc166f7c86dc94f2f7af6d5b3686e0889889692a7e6059d3a55ce4877a0a14",
+    "wait_invite_result": "4fc4caa0cfebaabb1630550b6cc16103b4605e4daa1ea15c7ec2863ddc6cb505"
+  }
+}

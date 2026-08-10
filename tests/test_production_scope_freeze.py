@@ -68,12 +68,19 @@ class ProductionScopeFreezeTest(unittest.TestCase):
         phase_data = json.loads(current_phase_scope.read_text(encoding="utf-8")) if current_phase_scope.is_file() else {}
         capability_scope = ROOT / "config/verification/v1.0.6.17_browser_capabilities_scope.json"
         capability_data = json.loads(capability_scope.read_text(encoding="utf-8")) if capability_scope.is_file() else {}
+        pr04_scope = ROOT / "config/verification/v1.0.6.20_pr04_share_invite_workflow_extraction_scope.json"
+        pr04_data = json.loads(pr04_scope.read_text(encoding="utf-8")) if pr04_scope.is_file() else {}
         approved_worker = (
             set(browser_data.get("approved_automationworker_method_changes", []))
             | set(phase_data.get("approved_automationworker_method_changes", []))
             | set(capability_data.get("approved_automationworker_method_changes", []))
+            | set(pr04_data.get("approved_automationworker_method_changes", []))
         )
-        current_allowed = set(phase_data.get("allowed_runtime_source_changes", [])) | set(capability_data.get("allowed_runtime_source_changes", []))
+        current_allowed = (
+            set(phase_data.get("allowed_runtime_source_changes", []))
+            | set(capability_data.get("allowed_runtime_source_changes", []))
+            | set(pr04_data.get("allowed_runtime_source_changes", []))
+        )
         for relative, expected in CONTRACT["frozen_file_sha256"].items():
             if current_focus_scope.is_file() and relative == "vib_validation_app/focus_manager.py":
                 continue

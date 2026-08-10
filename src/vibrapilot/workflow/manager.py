@@ -1,13 +1,13 @@
-"""Read-only workflow manager foundation for PR-03.
+"""Read-only built-in workflow manager.
 
-The manager resolves registered built-in workflow metadata only. It deliberately
-has no active-workflow persistence, switching, restart, UI, task, or browser side
-effects in this phase.
+The manager resolves source-controlled workflow metadata only. PR-04 exposes the
+Share Invite manifest through the explicit built-in factory while retaining no
+active-workflow persistence, switching, restart, UI, task, or browser side effects.
 """
 from __future__ import annotations
 
 from .contracts import WorkflowManifest
-from .registry import WorkflowRegistry
+from .registry import WorkflowRegistry, create_builtin_registry
 
 
 class WorkflowManager:
@@ -19,6 +19,11 @@ class WorkflowManager:
     @property
     def registry(self) -> WorkflowRegistry:
         return self._registry
+
+    @classmethod
+    def with_builtin_workflows(cls) -> "WorkflowManager":
+        """Create a manager exposing only source-controlled built-in workflows."""
+        return cls(create_builtin_registry())
 
     def list_workflows(self) -> tuple[WorkflowManifest, ...]:
         return self._registry.list_workflows()

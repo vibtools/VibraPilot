@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 QT_PATH = ROOT / "src" / "vibrapilot" / "qt_app.py"
 BACKEND_PATH = ROOT / "src" / "vibrapilot" / "backend.py"
 DEFAULTS_PATH = ROOT / "config" / "settings.defaults.json"
+SHARE_INVITE_PATH = ROOT / "src" / "vibrapilot" / "workflow" / "share_invite" / "workflow.py"
 
 
 def _browser_groups() -> dict[str, list[str]]:
@@ -37,11 +38,13 @@ def _automation_worker_source() -> str:
 
 
 def test_every_browser_ui_setting_has_a_real_runtime_consumer():
-    backend_source = BACKEND_PATH.read_text(encoding="utf-8")
+    runtime_source = BACKEND_PATH.read_text(encoding="utf-8")
+    if SHARE_INVITE_PATH.is_file():
+        runtime_source += "\n" + SHARE_INVITE_PATH.read_text(encoding="utf-8")
     missing = {
         key
         for key in _browser_ui_keys()
-        if key != "browser_slot_default" and f'"{key}"' not in backend_source
+        if key != "browser_slot_default" and f'"{key}"' not in runtime_source
     }
     assert not missing, f"Browser Settings without backend/runtime consumer: {sorted(missing)}"
 

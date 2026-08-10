@@ -55,3 +55,15 @@ class WorkflowRegistry:
 
     def __len__(self) -> int:
         return len(self._manifests)
+
+
+def builtin_workflow_manifests() -> tuple[WorkflowManifest, ...]:
+    """Return the deterministic, source-controlled built-in workflow set."""
+    from .share_invite import SHARE_INVITE_MANIFEST
+
+    return (SHARE_INVITE_MANIFEST,)
+
+
+def create_builtin_registry() -> WorkflowRegistry:
+    """Build a registry containing only VibraPilot's source-controlled workflows."""
+    return WorkflowRegistry(builtin_workflow_manifests())

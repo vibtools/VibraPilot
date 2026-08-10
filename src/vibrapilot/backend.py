@@ -59,6 +59,7 @@ from .browser_diagnostics import (
     persist_browser_diagnostics,
     sanitize_diagnostic_text,
 )
+from .workflow.share_invite import ShareInviteRuntimeErrors, ShareInviteWorkflow
 
 DISPLAY_APP_NAME = APP.display_name
 APP_NAME = APP.app_name
@@ -2514,25 +2515,29 @@ class AutomationWorker(threading.Thread):
             self.stopped_event.set()
             self.emit("done", {"status": self.state.status})
 
+    def _share_invite_runtime(self) -> ShareInviteWorkflow:
+        """Return the fixed built-in Share Invite runtime used by the current app."""
+        runtime = getattr(self, "_share_invite_workflow_runtime", None)
+        if runtime is None:
+            runtime = ShareInviteWorkflow(
+                self,
+                default_settings=DEFAULT_SETTINGS,
+                errors=ShareInviteRuntimeErrors(
+                    security_challenge=SecurityChallenge,
+                    session_verification_error=SessionVerificationError,
+                    test_mode_required=TestModeRequired,
+                    test_send_limit_reached=TestSendLimitReached,
+                    invite_rejected=InviteRejected,
+                ),
+            )
+            self._share_invite_workflow_runtime = runtime
+        return runtime
+
     def test_mode_banner_ready(self, page) -> bool:
-        if not page or page.is_closed():
-            return False
-        if not self.any_visible(
-            page,
-            SELECTORS["test_mode_banner"],
-            timeout=max(0, int(self.settings.get("short_dom_probe_timeout", DEFAULT_SETTINGS["short_dom_probe_timeout"]))),
-        ):
-            return False
-        text = self.first_visible_text(page, SELECTORS["test_mode_banner"]).upper()
-        return "TEST MODE" in text
+        return self._share_invite_runtime().test_mode_banner_ready(page)
 
     def authenticated_test_session_ready(self, page) -> bool:
-        return bool(
-            page
-            and not page.is_closed()
-            and self.test_mode_banner_ready(page)
-            and self.share_button_ready(page)
-        )
+        return self._share_invite_runtime().authenticated_test_session_ready(page)
 
     def refresh_login_verification(self, force_emit: bool = False) -> bool:
         if self.processing_event.is_set() or not self.browser_ready_event.is_set():
@@ -2573,69 +2578,13 @@ class AutomationWorker(threading.Thread):
         return verified
 
     def wait_for_authenticated_test_session(self) -> bool:
-        max_retry = max(0, int(self.settings.get("max_selector_retry", DEFAULT_SETTINGS["max_selector_retry"])))
-        for attempt in range(max_retry + 1):
-            self.detect_security(self.active_page)
-            if self.authenticated_test_session_ready(self.active_page):
-                self.login_verified_event.set()
-                self.emit(
-                    "login",
-                    {
-                        "verified": True,
-                        "message": "Authenticated Test Mode page verified.",
-                    },
-                )
-                return True
-            if attempt < max_retry:
-                self.log(
-                    f"Login/Test Mode verification retry {attempt + 1}/{max_retry}.",
-                    "WARNING",
-                )
-                self.interruptible_sleep(
-                    max(0.2, float(self.settings.get("retry_delay_min", DEFAULT_SETTINGS["retry_delay_min"])))
-                )
-        return False
+        return self._share_invite_runtime().wait_for_authenticated_test_session()
 
     def ensure_authenticated_test_session(self) -> None:
-        if self.authenticated_test_session_ready(self.active_page):
-            self.login_verified_event.set()
-            self.emit(
-                "login",
-                {"verified": True, "message": "Authenticated Test Mode page verified."},
-            )
-            return
-
-        self.log(
-            "Authenticated Test Mode page was not detected on the current tab; opening the configured Target URL.",
-            "WARNING",
-        )
-        self.safe_goto(self.active_page, self.state.target_url)
-        if self.wait_for_authenticated_test_session():
-            return
-
-        self.login_verified_event.clear()
-        if not self.test_mode_banner_ready(self.active_page):
-            raise SessionVerificationError(
-                "Automation blocked: the Test Mode banner was not detected. Complete login and open the Target URL in Test Mode."
-            )
-        raise SessionVerificationError(
-            "Automation blocked: login could not be verified because the authenticated Share page was not detected."
-        )
+        self._share_invite_runtime().ensure_authenticated_test_session()
 
     def assert_test_mode(self, page) -> None:
-        if self.test_mode_banner_ready(page):
-            return
-        self.login_verified_event.clear()
-        self.emit(
-            "login",
-            {
-                "verified": False,
-                "message": "Automation blocked because the Test Mode banner disappeared or was not detected.",
-            },
-        )
-        raise TestModeRequired(
-            "Automation blocked: Test Mode banner is required before every Send operation."
-        )
+        self._share_invite_runtime().assert_test_mode(page)
 
     def process_batch(self) -> None:
         self.processing_event.set()
@@ -4349,239 +4298,37 @@ class AutomationWorker(threading.Thread):
             return
 
     def execute_flow(self, item: TaskItem) -> str:
-        email = item.email.strip()
-        if not email or not EMAIL_RE.fullmatch(email):
-            raise ValueError(
-                "Invite email is blank or invalid; submission was blocked."
-            )
-        if self.stop_event.is_set() or self.close_event.is_set():
-            raise RuntimeError("Processing was stopped.")
-
-        page = self.active_page
-        self.wait_if_paused()
-        self.assert_test_mode(page)
-        self.ensure_share_entry(page)
-        self.open_share_modal(page)
-        self.fill_invite_email(page, email)
-        notification_state = self.arm_invite_notification_monitor(page)
-        self.submit_share_invite(page, email, notification_state)
-        return f"{page.url} | invite=sent"
+        return self._share_invite_runtime().execute_flow(item)
 
     def ensure_share_entry(self, page) -> None:
-        """Use the pre-opened authenticated Test Mode page first; fail closed otherwise."""
-        if self.authenticated_test_session_ready(page):
-            self.login_verified_event.set()
-            return
-        self.log(
-            "Authenticated Share page was not found on the current tab; opening the configured Target URL.",
-            "WARNING",
-        )
-        self.safe_goto(page, self.state.target_url)
-        if not self.wait_for_authenticated_test_session():
-            if not self.test_mode_banner_ready(page):
-                raise TestModeRequired(
-                    "Automation blocked: Test Mode banner was not detected after opening the Target URL."
-                )
-            raise SessionVerificationError(
-                "Automation blocked: authenticated Share page was not detected after login verification retries."
-            )
+        self._share_invite_runtime().ensure_share_entry(page)
 
     def share_button_ready(self, page) -> bool:
-        return self.any_visible(
-            page,
-            SELECTORS["share_button"],
-            timeout=max(0, int(self.settings.get("standard_dom_probe_timeout", DEFAULT_SETTINGS["standard_dom_probe_timeout"]))),
-        )
+        return self._share_invite_runtime().share_button_ready(page)
 
     def wait_for_share_button(self, page) -> bool:
-        max_retry = max(0, int(self.settings.get("max_selector_retry", DEFAULT_SETTINGS["max_selector_retry"])))
-        for attempt in range(max_retry + 1):
-            self.detect_security(page)
-            if self.share_button_ready(page):
-                return True
-            if attempt < max_retry:
-                self.log(
-                    f"Share button lookup retry {attempt + 1}/{max_retry}.", "WARNING"
-                )
-                try:
-                    self.safe_goto(page, self.state.target_url)
-                except Exception as exc:
-                    self.log(f"Target URL retry failed: {exc}", "WARNING")
-                self.interruptible_sleep(
-                    max(0.0, float(self.settings.get("network_error_retry_delay", DEFAULT_SETTINGS["network_error_retry_delay"])))
-                )
-        return False
+        return self._share_invite_runtime().wait_for_share_button(page)
 
     def share_modal_ready(self, page) -> bool:
-        required_groups = (
-            SELECTORS["share_modal_title"],
-            SELECTORS["share_email"],
-            SELECTORS["share_send"],
-        )
-        return all(
-            self.any_visible(
-                page, selectors,
-                timeout=max(0, int(self.settings.get("standard_dom_probe_timeout", DEFAULT_SETTINGS["standard_dom_probe_timeout"]))),
-            )
-            for selectors in required_groups
-        )
+        return self._share_invite_runtime().share_modal_ready(page)
 
     def close_existing_share_modal(self, page) -> None:
-        if not self.any_visible(
-            page,
-            SELECTORS["share_modal_title"],
-            timeout=max(0, int(self.settings.get("modal_state_probe_timeout", DEFAULT_SETTINGS["modal_state_probe_timeout"]))),
-        ):
-            return
-        try:
-            self.click_first(page, SELECTORS["share_modal_close"], "Share modal close")
-            for _ in range(
-                max(0, int(self.settings.get("modal_close_poll_count", DEFAULT_SETTINGS["modal_close_poll_count"])))
-            ):
-                if not self.any_visible(
-                    page,
-                    SELECTORS["share_modal_title"],
-                    timeout=max(0, int(self.settings.get("modal_close_probe_timeout", DEFAULT_SETTINGS["modal_close_probe_timeout"]))),
-                ):
-                    return
-                self.interruptible_sleep(
-                    max(0.0, float(self.settings.get("modal_close_poll_interval", DEFAULT_SETTINGS["modal_close_poll_interval"])))
-                )
-        except Exception as exc:
-            self.log(
-                f"Existing Share modal could not be closed cleanly: {exc}", "WARNING"
-            )
+        self._share_invite_runtime().close_existing_share_modal(page)
 
     def open_share_modal(self, page) -> None:
-        self.close_existing_share_modal(page)
-        self.ensure_share_entry(page)
-        self.click_first(page, SELECTORS["share_button"], "Share")
-
-        max_retry = max(0, int(self.settings.get("max_selector_retry", DEFAULT_SETTINGS["max_selector_retry"])))
-        for attempt in range(max_retry + 1):
-            self.detect_security(page)
-            if self.share_modal_ready(page):
-                self.log(
-                    "Share Link modal opened and all required controls were detected."
-                )
-                return
-            if attempt < max_retry:
-                self.log(
-                    f"Share modal validation retry {attempt + 1}/{max_retry}.",
-                    "WARNING",
-                )
-                self.interruptible_sleep(
-                    max(0.1, float(self.settings.get("retry_delay_min", DEFAULT_SETTINGS["retry_delay_min"])))
-                )
-        raise RuntimeError(
-            "Share Link modal did not expose its title, email input, and Send button."
-        )
+        self._share_invite_runtime().open_share_modal(page)
 
     def prepare_invite_retry(self) -> None:
-        """Return the page to a deterministic state without reloading after a confirmed success."""
-        if (
-            self.stop_event.is_set()
-            or self.close_event.is_set()
-            or not self.active_page
-        ):
-            return
-        try:
-            self.close_existing_share_modal(self.active_page)
-        except Exception:
-            pass
-        if not self.share_button_ready(self.active_page):
-            try:
-                self.safe_goto(self.active_page, self.state.target_url)
-            except Exception as exc:
-                self.log(f"Invite retry recovery navigation failed: {exc}", "WARNING")
+        self._share_invite_runtime().prepare_invite_retry()
 
     def fill_invite_email(self, page, email: str) -> None:
-        """Fill and verify the exact email value so blank or stale submissions cannot proceed."""
-        if not email or not EMAIL_RE.fullmatch(email):
-            raise ValueError(
-                "Invite email is blank or invalid; submission was blocked."
-            )
-        self.fill_first(page, SELECTORS["share_email"], "", "Clear invite email")
-        self.fill_first(page, SELECTORS["share_email"], email, "Invite email")
-        actual = self.input_value_first(
-            page, SELECTORS["share_email"], "Invite email"
-        ).strip()
-        if not actual or actual.casefold() != email.casefold():
-            raise RuntimeError(
-                f"Invite email verification failed before Send. Expected '{email}', found '{actual or '<blank>'}'."
-            )
+        self._share_invite_runtime().fill_invite_email(page, email)
 
     def input_value_first(self, page, selectors: list[str], label: str) -> str:
-        last_error = None
-        for selector in selectors:
-            try:
-                locator = page.locator(selector).first
-                locator.wait_for(
-                    state="visible",
-                    timeout=max(
-                        1000, int(self.settings.get("selector_timeout", DEFAULT_SETTINGS["selector_timeout"]))
-                    ),
-                )
-                return str(
-                    locator.input_value(
-                        timeout=max(
-                            1000, int(self.settings.get("selector_timeout", DEFAULT_SETTINGS["selector_timeout"]))
-                        )
-                    )
-                )
-            except Exception as exc:
-                last_error = exc
-        raise RuntimeError(f"Could not read {label}: {last_error}")
+        return self._share_invite_runtime().input_value_first(page, selectors, label)
 
     def arm_invite_notification_monitor(self, page) -> dict[str, Any]:
-        """Track a new success transition so a stale success node cannot confirm the next email."""
-        try:
-            state = page.evaluate(
-                """
-                () => {
-                    const selector = '[data-testid="Notification--success"]';
-                    const isShown = (el) => !!el && (
-                        el.classList.contains('Notification__show') ||
-                        (getComputedStyle(el).display !== 'none' &&
-                         getComputedStyle(el).visibility !== 'hidden' &&
-                         Number(getComputedStyle(el).opacity || '1') > 0)
-                    );
-                    if (!window.__testerInviteNotificationState) {
-                        window.__testerInviteNotificationState = {seq: 0, shown: false, text: ''};
-                    }
-                    const current = document.querySelector(selector);
-                    const shared = window.__testerInviteNotificationState;
-                    shared.shown = isShown(current);
-                    shared.text = current ? (current.textContent || '').trim() : '';
-                    if (window.__testerInviteNotificationObserver) {
-                        window.__testerInviteNotificationObserver.disconnect();
-                    }
-                    window.__testerInviteNotificationObserver = new MutationObserver(() => {
-                        const el = document.querySelector(selector);
-                        const shown = isShown(el);
-                        const text = el ? (el.textContent || '').trim() : '';
-                        if (shown && (!shared.shown || text !== shared.text)) {
-                            shared.seq += 1;
-                        }
-                        shared.shown = shown;
-                        shared.text = text;
-                    });
-                    window.__testerInviteNotificationObserver.observe(document.documentElement, {
-                        subtree: true,
-                        childList: true,
-                        characterData: true,
-                        attributes: true,
-                        attributeFilter: ['class', 'style']
-                    });
-                    return {seq: shared.seq, shown: shared.shown, text: shared.text};
-                }
-                """
-            )
-            if isinstance(state, dict):
-                return state
-        except Exception as exc:
-            self.log(f"Success notification monitor fallback enabled: {exc}", "WARNING")
-        return {"seq": 0, "shown": False, "text": ""}
+        return self._share_invite_runtime().arm_invite_notification_monitor(page)
 
     def _register_send_click_attempt(self) -> None:
         """Reserve a Send attempt immediately before Playwright invokes click()."""
@@ -4628,77 +4375,12 @@ class AutomationWorker(threading.Thread):
     def submit_share_invite(
         self, page, email: str, notification_state: dict[str, Any]
     ) -> None:
-        self.detect_security(page)
-        self.assert_test_mode(page)
-        actual = self.input_value_first(
-            page, SELECTORS["share_email"], "Invite email"
-        ).strip()
-        if not actual or actual.casefold() != email.casefold():
-            raise RuntimeError(
-                "Blank or mismatched invite submission was blocked immediately before Send."
-            )
-        if self.run_send_count >= self.run_send_limit:
-            raise TestSendLimitReached(
-                f"Maximum Test Mode send limit reached ({self.run_send_limit} Send clicks for this run)."
-            )
-        self.click_first(
-            page,
-            SELECTORS["share_send"],
-            "Send invite",
-            before_click=self._register_send_click_attempt,
-        )
-        self.wait_invite_result(page, notification_state)
-        self.log(
-            "Invite was confirmed by a new success notification; continuing without page reload."
+        self._share_invite_runtime().submit_share_invite(
+            page, email, notification_state
         )
 
     def wait_invite_result(self, page, notification_state: dict[str, Any]) -> None:
-        timeout_ms = max(1000, int(self.settings.get("selector_timeout", DEFAULT_SETTINGS["selector_timeout"])))
-        deadline = time.monotonic() + (timeout_ms / 1000.0)
-        start_seq = int(notification_state.get("seq", 0))
-        was_shown = bool(notification_state.get("shown", False))
-        last_error_text = ""
-
-        while time.monotonic() < deadline:
-            if self.stop_event.is_set() or self.close_event.is_set():
-                raise RuntimeError(
-                    "Invite confirmation wait was cancelled because processing stopped."
-                )
-            self.wait_if_paused()
-            self.detect_security(page)
-
-            try:
-                current = page.evaluate(
-                    """
-                    () => {
-                        const state = window.__testerInviteNotificationState || {seq: 0, shown: false, text: ''};
-                        return {seq: state.seq || 0, shown: !!state.shown, text: state.text || ''};
-                    }
-                    """
-                )
-                if isinstance(current, dict):
-                    current_seq = int(current.get("seq", 0))
-                    current_shown = bool(current.get("shown", False))
-                    if current_seq > start_seq or (not was_shown and current_shown):
-                        return
-            except Exception:
-                if not was_shown and self.any_visible(
-                    page,
-                    SELECTORS["invite_success"],
-                    timeout=max(0, int(self.settings.get("notification_visibility_timeout", DEFAULT_SETTINGS["notification_visibility_timeout"]))),
-                ):
-                    return
-
-            last_error_text = self.first_visible_text(page, SELECTORS["invite_error"])
-            if last_error_text:
-                raise InviteRejected(f"Invite send failed: {last_error_text}")
-            self.interruptible_sleep(
-                max(0.0, float(self.settings.get("notification_poll_interval", DEFAULT_SETTINGS["notification_poll_interval"])))
-            )
-
-        if last_error_text:
-            raise RuntimeError(f"Invite send failed: {last_error_text}")
-        raise RuntimeError("A new success notification was not detected after Send.")
+        self._share_invite_runtime().wait_invite_result(page, notification_state)
 
     def safe_goto(self, page, url: str) -> None:
         if not url.startswith(("http://", "https://")):

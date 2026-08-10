@@ -1,3 +1,13 @@
+## v1.0.6.20 PR-04 workflow extraction surface
+
+- `src/vibrapilot/workflow/share_invite/` — first source-controlled built-in workflow: manifest, existing logo asset and extracted Share Invite runtime implementation.
+- `src/vibrapilot/workflow/{contracts.py,registry.py,manager.py}` — minimal runtime contract plus deterministic built-in registration/resolution; no external discovery.
+- `src/vibrapilot/backend.py` — thin compatibility delegation only for Share Invite-specific methods; safety-critical processing state remains frozen.
+- `config/verification/v1.0.6.20_pr04_share_invite_workflow_extraction_scope.json` — approved scope, frozen hashes and parity contract.
+- `tests/test_v10620_pr04_share_invite_workflow_parity.py` — PR-04 structural/behavioral safety parity coverage.
+
+No new application page, database/workspace schema, setting, browser policy, dependency or workflow-switch state is introduced.
+
 ## v1.0.6.19 browser-foundation verification surface
 
 - `src/vibrapilot/browser_diagnostics.py` — evidence fidelity, redaction and Playwright runtime compatibility classification.

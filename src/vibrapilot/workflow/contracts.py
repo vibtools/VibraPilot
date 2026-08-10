@@ -1,14 +1,15 @@
 """Core contracts for VibraPilot's source-controlled built-in workflows.
 
-PR-03 deliberately defines metadata and validation only. It does not load Python
-from manifests, scan plugin directories, persist an active workflow, or delegate
-runtime automation. Those behaviors belong to later explicitly approved phases.
+The contracts validate source-controlled metadata and the minimal runtime shape
+required by the verified Share Invite extraction. They do not load Python from
+manifests, scan plugin directories, or persist/switch an active workflow.
 """
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
 from pathlib import PurePosixPath
+from typing import Any, Protocol, runtime_checkable
 
 _WORKFLOW_ID_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 _VERSION_RE = re.compile(r"^[0-9]+(?:\.[0-9]+){0,3}$")
@@ -58,8 +59,8 @@ def _relative_asset_path(value: str, field_name: str) -> str:
 class WorkflowManifest:
     """Validated metadata for one source-controlled built-in workflow.
 
-    ``entrypoint`` is an opaque registry-owned identifier. PR-03 never imports a
-    module, evaluates Python, or resolves a path from this value.
+    ``entrypoint`` is an opaque registry-owned identifier. VibraPilot never imports
+    a module, evaluates Python, or resolves a path from this value.
     """
 
     workflow_id: str
@@ -95,3 +96,14 @@ class WorkflowManifest:
         object.__setattr__(self, "version", version)
         object.__setattr__(self, "logo", logo)
         object.__setattr__(self, "entrypoint", entrypoint)
+
+
+@runtime_checkable
+class WorkflowRuntime(Protocol):
+    """Minimum execution contract required by a built-in workflow runtime."""
+
+    manifest: WorkflowManifest
+
+    def execute_flow(self, item: Any) -> str:
+        """Execute the workflow for one existing task item."""
+        ...

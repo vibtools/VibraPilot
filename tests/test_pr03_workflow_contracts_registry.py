@@ -18,6 +18,7 @@ from vibrapilot.workflow import (
 
 ROOT = Path(__file__).resolve().parents[1]
 SCOPE = ROOT / "config" / "verification" / "v1.0.7.0_pr02_pr03_workflow_foundation_scope.json"
+PR04_SCOPE = ROOT / "config" / "verification" / "v1.0.6.20_pr04_share_invite_workflow_extraction_scope.json"
 
 
 def _manifest(workflow_id: str = "alpha") -> WorkflowManifest:
@@ -147,7 +148,13 @@ def test_framework_has_no_external_discovery_or_dynamic_import_apis():
 
 def test_approved_frozen_production_files_are_byte_identical():
     scope = json.loads(SCOPE.read_text(encoding="utf-8"))
+    superseded = set()
+    if PR04_SCOPE.is_file():
+        pr04_scope = json.loads(PR04_SCOPE.read_text(encoding="utf-8"))
+        superseded.update(pr04_scope.get("allowed_runtime_source_changes", []))
     for relative, expected in scope["frozen_file_sha256"].items():
+        if relative in superseded:
+            continue
         assert _sha256(ROOT / relative) == expected, relative
 
 

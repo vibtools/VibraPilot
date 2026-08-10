@@ -1,4 +1,10 @@
-# VibraPilot v1.0.6.19 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.20 — Vib Tools Browser Automation Desktop
+
+## v1.0.6.20 — PR-04 Share Invite workflow extraction
+
+PR-04 moves the verified Share Invite-specific session, selector, modal, Send and result logic behind `src/vibrapilot/workflow/share_invite/` and registers its manifest as VibraPilot's first source-controlled built-in workflow. `AutomationWorker` retains thin compatibility delegation, while its safety-critical `process_item`, `_register_send_click_attempt`, batch and report control paths remain behaviorally frozen.
+
+This release does **not** add workflow switching, active-workflow persistence, a Workflow page, dynamic Workflow Inputs, schema changes, browser changes or CAPTCHA/stealth behavior. Current Share Invite Test Mode, retry, SecurityChallenge, uncertain-Send/manual-review and report/result semantics are preserved.
 
 ## v1.0.6.19 Browser foundation forensic verification/fix
 

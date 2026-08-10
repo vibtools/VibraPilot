@@ -1,3 +1,9 @@
+## v1.0.6.20 — PR-04 Share Invite workflow extraction
+
+Scope-locked fourth-segment production update from the reconciled PR-02/PR-03 v1.0.6.19 baseline at GitHub commit `999212b947583927204535f59832f1379d9306f4`. PR-04 extracts the existing Share Invite implementation behind the built-in workflow framework while preserving the safety-critical worker state machine and all out-of-scope application behavior.
+
+Workflow switching, active-workflow persistence, Workflow UI/dynamic inputs and CAPTCHA changes remain outside this release.
+
 ## v1.0.6.19 — Browser foundation verification/fix
 
 Verification/fix release based on uploaded v1.0.6.18 baseline SHA-256 `d18277ea00ae581ede45c8d3e647cd0f41625aeb0d5b8aad71715c19e4e29ae9`.
@@ -30,7 +36,7 @@ Version **1.0.6.14** is the scope-locked managed-persistent-browser and Closed T
 
 VibraPilot uses a four-segment production release version for hardening/configuration/security maintenance on top of the validated v1.0.6 automation baseline.
 
-Current release candidate: **1.0.6.19**
+Current release candidate: **1.0.6.20**
 
 Version **1.0.6.13** is the verification/CI-stability correction anchored to uploaded v1.0.6.12 archive SHA-256 `becd6add21d377e98e458ce856c9c3baa710a113459bde0c737507c122c2a9b5` and GitHub v1.0.6.12 commit `a9cfec319285db2fb9fbff8d4bf0ede8ac87686b`.
 

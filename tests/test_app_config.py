@@ -24,10 +24,10 @@ class AppConfigTest(unittest.TestCase):
         self.assertEqual(APP.app_id, "vibrapilot")
         self.assertEqual(APP.app_name, "VibraPilot")
         self.assertEqual(APP.display_name, "VibraPilot")
-        self.assertEqual(APP.version, "1.0.6.19")
+        self.assertEqual(APP.version, "1.0.6.20")
         self.assertEqual(APP.owner_name, "Vib Tools")
         self.assertEqual(APP.license_identifier, "GPL-3.0-only")
-        self.assertEqual(APP.updated_date, "2026-08-09")
+        self.assertEqual(APP.updated_date, "2026-08-10")
         self.assertTrue(APP.target_features)
         self.assertTrue(APP.target_users)
 

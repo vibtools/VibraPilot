@@ -1,3 +1,9 @@
+## v1.0.6.20 PR-04 Share Invite workflow extraction
+
+The verified Share Invite implementation is now the first source-controlled built-in workflow under `src/vibrapilot/workflow/share_invite/`. The release preserves the existing Send safety/retry/manual-review behavior and does not enable workflow switching or change browser/UI/schema/CAPTCHA behavior.
+
+See `updates/v1.0.6.20-pr04-share-invite-workflow-extraction.md` and `verification/V1.0.6.20_PR04_SHARE_INVITE_WORKFLOW_PARITY.md`.
+
 ## v1.0.6.19 browser foundation verification/fix
 
 The uploaded v1.0.6.18 baseline contains real Windows launch evidence confirming Google Chrome Stable, the managed profile and `--no-sandbox`, plus a Playwright runtime/version mismatch (`1.60.0` captured vs `1.61.0` required). v1.0.6.19 hardens diagnostics without changing browser policy.
@@ -22,7 +28,7 @@ The current candidate restores normal active Task cards, selected page and safe 
 
 # VibraPilot Documentation
 
-This documentation accompanies **VibraPilot v1.0.6.19 — Browser Foundation verification/fix candidate**.
+This documentation accompanies **VibraPilot v1.0.6.20 — PR-04 Share Invite workflow extraction**.
 
 Start with:
 

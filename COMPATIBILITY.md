@@ -1,3 +1,9 @@
+## v1.0.6.20 PR-04 Share Invite compatibility
+
+PR-04 preserves the existing Share Invite external/runtime behavior while moving workflow-specific implementation ownership behind `ShareInviteWorkflow`. Existing selectors and priority, Test Mode checks, email validation, retry/backoff limits, Test Send Limit, SecurityChallenge handling, post-Send manual-review/no-duplicate-retry behavior, exception identities, TaskItem/report result contracts and persistence schemas remain compatible.
+
+No UI page, App/Browser Settings contract, Chrome/Playwright launch policy, dependency, SQLite schema, licensing protocol, workflow switching or active-workflow persistence changes are introduced.
+
 ## v1.0.6.19 browser-foundation verification compatibility
 
 No dependency declaration, database/workspace schema, settings key, browser launch policy, profile behavior, Task UI, workflow or licensing protocol changes. The required Playwright version remains exactly `1.61.0`; diagnostics now warn when the actual runtime differs. Existing Windows PowerShell/CIM process evidence remains non-fatal.
