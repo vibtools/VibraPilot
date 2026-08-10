@@ -1,0 +1,100 @@
+name: PR-06 Verified Publisher
+
+on:
+  push:
+    branches:
+      - pr06-release-v1.0.6.23
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout staging branch
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Materialize exact verified PR-06 commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="e5763852249d86db35d9838a61f276eada823f08"
+          BRANCH="pr06-release-v1.0.6.23"
+          EXPECTED_PATCH_SHA="4ca1971ba3232f226b75426031407d997350ec6438953a0d1d34df1e8a39b832"
+
+          cat .pr06_publish/part*.patch > /tmp/pr06_public.patch
+          test "$(sha256sum /tmp/pr06_public.patch | awk '{print $1}')" = "$EXPECTED_PATCH_SHA"
+          git apply --check /tmp/pr06_public.patch
+
+          tmp_add=/tmp/pr06_additions
+          mkdir -p "$tmp_add/config/verification" "$tmp_add/docs/updates" "$tmp_add/docs/verification" "$tmp_add/src/vibrapilot/workflow" "$tmp_add/tests"
+          cp config/verification/v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json "$tmp_add/config/verification/"
+          cp docs/updates/v1.0.6.23-pr06-workflow-state-atomic-switch.md "$tmp_add/docs/updates/"
+          cp docs/verification/V1.0.6.23_PR06_WORKFLOW_STATE_ATOMIC_SWITCH.md "$tmp_add/docs/verification/"
+          cp src/vibrapilot/workflow/state.py "$tmp_add/src/vibrapilot/workflow/"
+          cp tests/test_v10623_pr06_workflow_state_atomic_switch.py "$tmp_add/tests/"
+
+          test "$(sha256sum "$tmp_add/config/verification/v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json" | awk '{print $1}')" = "361e5cc44cff1351351870943eb6ee15ee8468f3564888c95d2323f2f0528831"
+          test "$(sha256sum "$tmp_add/docs/updates/v1.0.6.23-pr06-workflow-state-atomic-switch.md" | awk '{print $1}')" = "d94312a88980aec74241c8494e917059e604b692f4899d828640a1ecfe40acac"
+          test "$(sha256sum "$tmp_add/docs/verification/V1.0.6.23_PR06_WORKFLOW_STATE_ATOMIC_SWITCH.md" | awk '{print $1}')" = "249d61baebbb77cc4a5ca9c845a5b094fb6cdc6b3fa886b9b5cdfd91d5b74f2b"
+          test "$(sha256sum "$tmp_add/src/vibrapilot/workflow/state.py" | awk '{print $1}')" = "6e667e89f119927d9df01d3c59edca2f36b691040747cf12568cff08ab067c81"
+          test "$(sha256sum "$tmp_add/tests/test_v10623_pr06_workflow_state_atomic_switch.py" | awk '{print $1}')" = "f19a0397a5a5430017c728ba2dd6b9bf914b206d91ceeddc75d747f9b8d2afe2"
+
+          git reset --hard "$BASE_SHA"
+          git apply /tmp/pr06_public.patch
+          cp -a "$tmp_add/." .
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          python - <<'PY'
+          import subprocess
+          expected = {
+              "CHANGELOG.md",
+              "CITATION.cff",
+              "COMPATIBILITY.md",
+              "PROJECT_STRUCTURE.md",
+              "README.md",
+              "ROADMAP.md",
+              "UPDATE_LOG.md",
+              "VERSIONING.md",
+              "config/AppConfig/app.py",
+              "config/verification/v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json",
+              "docs/docs.manifest.ygit",
+              "docs/index.md",
+              "docs/updates/v1.0.6.23-pr06-workflow-state-atomic-switch.md",
+              "docs/verification/V1.0.6.23_PR06_WORKFLOW_STATE_ATOMIC_SWITCH.md",
+              "pyproject.toml",
+              "scripts/Start-VibraPilot.ps1",
+              "scripts/verify_repository.py",
+              "src/vibrapilot/backend.py",
+              "src/vibrapilot/qt_app.py",
+              "src/vibrapilot/workflow/__init__.py",
+              "src/vibrapilot/workflow/contracts.py",
+              "src/vibrapilot/workflow/manager.py",
+              "src/vibrapilot/workflow/state.py",
+              "tests/test_app_config.py",
+              "tests/test_pr03_workflow_contracts_registry.py",
+              "tests/test_v10617_browser_capabilities.py",
+              "tests/test_v10620_pr04_share_invite_workflow_parity.py",
+              "tests/test_v10622_pr05_master_workflow_gate.py",
+              "tests/test_v10623_pr06_workflow_state_atomic_switch.py",
+              "vibproject.ygit",
+          }
+          actual = set(subprocess.check_output(["git", "diff", "--cached", "--name-only"], text=True).splitlines())
+          if actual != expected:
+              raise SystemExit(f"PR-06 staged path mismatch: missing={sorted(expected-actual)} extra={sorted(actual-expected)}")
+          deleted = subprocess.check_output(["git", "diff", "--cached", "--diff-filter=D", "--name-only"], text=True).splitlines()
+          if deleted:
+              raise SystemExit(f"PR-06 unexpected deletions: {deleted}")
+          if any(path.startswith("project/") or path.startswith(".pr06_publish/") for path in actual):
+              raise SystemExit("private or publisher staging content would enter public commit")
+          PY
+
+          git commit -m "feat: add atomic workflow switching and promote v1.0.6.23"
+          git push --force-with-lease="refs/heads/${BRANCH}:${GITHUB_SHA}" origin "HEAD:${BRANCH}"
