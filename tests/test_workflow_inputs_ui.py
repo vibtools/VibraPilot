@@ -38,7 +38,7 @@ class WorkflowInputsUiTest(unittest.TestCase):
     def test_navigation_adds_real_workflow_inputs_page_without_shifting_existing_shortcuts(self):
         self.assertEqual(
             _assignment("NAV_SECTIONS"),
-            ["Dashboard", "Tasks", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"],
+            ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"],
         )
         self.assertEqual(
             _assignment("VIEW_NAV_SHORTCUTS"),

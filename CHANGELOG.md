@@ -1,3 +1,16 @@
+## v1.0.6.24 — PR-07 Workflow Showcase Page — 2026-08-10
+
+### Added
+- New top-level **Workflows** page between Tasks and Workflow Inputs.
+- Metadata-driven cards for source-controlled built-in workflows only.
+- Authoritative active-workflow status and fail-closed unavailable state.
+- Activation UI delegates exclusively to the existing PR-06 atomic workflow switch service.
+
+### Preserved
+- Production registry still contains only `share_invite`; no fake/demo/placeholder workflow is added.
+- PR-06 state schema, atomic switch/restart/recovery semantics, Task/report/workspace schemas, Browser, licensing, dependencies and CAPTCHA policy remain unchanged.
+- Dynamic per-workflow Workflow Inputs remain PR-08 scope.
+
 ## v1.0.6.23 — PR-06 Workflow State Persistence + Atomic Switch/Restart — 2026-08-10
 
 ### Added

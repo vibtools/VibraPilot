@@ -114,6 +114,7 @@ from .task_runtime_store import TaskRuntimeStore
 from .workflow_inputs import WORKFLOW_INPUT_FIELDS, WORKFLOW_INPUT_KEYS
 from .workspace_state import WorkspaceStateStore
 from .workflow import (
+    WorkflowError,
     WorkflowManager,
     WorkflowStateError,
     WorkflowSwitchBlockedError,
@@ -128,7 +129,7 @@ from .browser_capabilities import (
 )
 
 
-NAV_SECTIONS = ["Dashboard", "Tasks", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]
+NAV_SECTIONS = ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]
 VIEW_NAV_SHORTCUTS = {
     "Dashboard": "Ctrl+1",
     "Tasks": "Ctrl+2",
@@ -2179,6 +2180,7 @@ class MainWindow(QMainWindow):
         icon_name = {
             "Dashboard": "home",
             "Tasks": "refresh",
+            "Workflows": "file",
             "Workflow Inputs": "file",
             "Browser Settings": "search",
             "Reports": "file",
@@ -2226,6 +2228,7 @@ class MainWindow(QMainWindow):
         for name, maker in (
             ("Dashboard", self.make_dashboard_page),
             ("Tasks", self.make_tasks_page),
+            ("Workflows", self.make_workflows_page),
             ("Workflow Inputs", self.make_workflow_inputs_page),
             ("Reports", self.make_reports_page),
             ("Live Logs", self.make_logs_page),
@@ -2259,6 +2262,8 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Viewing: {name}")
         if name == "Dashboard":
             self.update_dashboard()
+        elif name == "Workflows":
+            self.refresh_workflow_showcase()
         elif name == "Workflow Inputs":
             self.refresh_workflow_input_widgets()
         elif name == "Browser Settings":
@@ -2461,6 +2466,206 @@ class MainWindow(QMainWindow):
         outer_lay.addStretch(1)
         root.addWidget(self._scroll_page(outer), 1)
         return page
+
+    def make_workflows_page(self) -> QWidget:
+        """Render the source-controlled built-in workflow catalog for PR-07."""
+        page = page_frame()
+        root = vbox(page, margins=(0, 0, 0, 0), spacing=0)
+        root.addWidget(
+            page_header(
+                "Workflows",
+                "Source-controlled built-in workflows and the authoritative active workflow state.",
+            )
+        )
+
+        outer = QWidget()
+        outer.setObjectName("PageInner")
+        outer_lay = vbox(
+            outer,
+            margins=(CONST.page_padding, CONST.page_padding, CONST.page_padding, CONST.page_padding),
+            spacing=CONST.section_gap,
+        )
+
+        self.workflow_showcase_notice = card()
+        self.workflow_showcase_notice.setObjectName("WorkflowStateNotice")
+        notice_lay = self.workflow_showcase_notice.layout()
+        self.workflow_showcase_notice_title = label("", "CardTitle")
+        self.workflow_showcase_notice_text = label("", "Description")
+        self.workflow_showcase_notice_text.setWordWrap(True)
+        notice_lay.addWidget(self.workflow_showcase_notice_title)
+        notice_lay.addWidget(self.workflow_showcase_notice_text)
+        self.workflow_showcase_notice.hide()
+        outer_lay.addWidget(self.workflow_showcase_notice)
+
+        self.workflow_showcase_host = QWidget()
+        self.workflow_showcase_host.setObjectName("WorkflowShowcaseHost")
+        self.workflow_showcase_layout = vbox(
+            self.workflow_showcase_host, margins=(0, 0, 0, 0), spacing=CONST.content_gap
+        )
+        outer_lay.addWidget(self.workflow_showcase_host)
+        outer_lay.addStretch(1)
+        root.addWidget(self._scroll_page(outer), 1)
+        self.refresh_workflow_showcase()
+        return page
+
+    def _workflow_logo_path(self, manifest: Any) -> Path | None:
+        """Resolve one validated built-in logo without discovery or dynamic loading."""
+        workflow_root = (ROOT_DIR / "src" / "vibrapilot" / "workflow" / manifest.workflow_id).resolve()
+        candidate = (workflow_root / manifest.logo).resolve()
+        try:
+            candidate.relative_to(workflow_root)
+        except ValueError:
+            return None
+        return candidate if candidate.is_file() else None
+
+    def _workflow_card(self, manifest: Any, *, active_workflow_id: str | None, state_available: bool) -> QFrame:
+        panel = card()
+        panel.setObjectName("WorkflowCard")
+        panel.setProperty("workflowId", manifest.workflow_id)
+        lay = panel.layout()
+
+        header = QWidget()
+        header_lay = hbox(header, margins=(0, 0, 0, 0), spacing=CONST.content_gap)
+
+        logo = QLabel()
+        logo.setObjectName("WorkflowLogo")
+        logo.setFixedSize(48, 48)
+        logo.setAlignment(Qt.AlignCenter)
+        logo.setAccessibleName(f"{manifest.name} workflow logo")
+        logo_path = self._workflow_logo_path(manifest)
+        if logo_path is not None:
+            pixmap = QPixmap(str(logo_path))
+            if not pixmap.isNull():
+                logo.setPixmap(pixmap.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            else:
+                logo.setText(manifest.name[:1].upper())
+        else:
+            logo.setText(manifest.name[:1].upper())
+        header_lay.addWidget(logo, 0, Qt.AlignTop)
+
+        identity = QWidget()
+        identity_lay = vbox(identity, margins=(0, 0, 0, 0), spacing=4)
+        identity_lay.addWidget(label(manifest.name, "CardTitle"))
+        description = label(manifest.description, "Description")
+        description.setWordWrap(True)
+        identity_lay.addWidget(description)
+        header_lay.addWidget(identity, 1)
+
+        is_active = bool(state_available and active_workflow_id == manifest.workflow_id)
+        badge = status_badge("ACTIVE" if is_active else "AVAILABLE", "success" if is_active else "info")
+        badge.setObjectName("WorkflowStatusBadge")
+        header_lay.addWidget(badge, 0, Qt.AlignTop | Qt.AlignRight)
+        lay.addWidget(header)
+        lay.addWidget(divider())
+
+        details = QWidget()
+        details_lay = QGridLayout(details)
+        details_lay.setContentsMargins(0, 0, 0, 0)
+        details_lay.setHorizontalSpacing(CONST.content_gap)
+        details_lay.setVerticalSpacing(4)
+        details_lay.addWidget(label("Workflow ID", "Caption"), 0, 0)
+        details_lay.addWidget(label(manifest.workflow_id, "Description"), 0, 1)
+        details_lay.addWidget(label("Version", "Caption"), 1, 0)
+        details_lay.addWidget(label(manifest.version, "Description"), 1, 1)
+        details_lay.setColumnStretch(1, 1)
+        lay.addWidget(details)
+
+        runtime_available = False
+        if state_available:
+            try:
+                self.workflow_catalog.require_runtime_factory(manifest.workflow_id)
+                runtime_available = True
+            except WorkflowError:
+                runtime_available = False
+
+        action_row = QWidget()
+        action_lay = hbox(action_row, margins=(0, 0, 0, 0), spacing=CONST.action_gap)
+        action_lay.addStretch(1)
+        if is_active:
+            action = button("Active", "secondary")
+            action.setObjectName("WorkflowActiveButton")
+            action.setEnabled(False)
+        elif not state_available:
+            action = button("Unavailable", "secondary")
+            action.setObjectName("WorkflowUnavailableButton")
+            action.setEnabled(False)
+        elif not runtime_available:
+            badge.setText("UNAVAILABLE")
+            action = button("Unavailable", "secondary")
+            action.setObjectName("WorkflowUnavailableButton")
+            action.setEnabled(False)
+        else:
+            action = button("Activate", "primary")
+            action.setObjectName("WorkflowActivateButton")
+            action.clicked.connect(
+                lambda _=False, workflow_id=manifest.workflow_id: self._activate_workflow_from_showcase(workflow_id)
+            )
+        action_lay.addWidget(action)
+        lay.addWidget(action_row)
+        return panel
+
+    def refresh_workflow_showcase(self) -> None:
+        """Refresh catalog metadata and persisted active state without repairing it."""
+        if not hasattr(self, "workflow_showcase_layout"):
+            return
+
+        while self.workflow_showcase_layout.count():
+            item = self.workflow_showcase_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        state_available = False
+        active_workflow_id: str | None = None
+        try:
+            state = self.workflow_state_store.load_existing()
+            active_workflow_id = state.active_workflow_id
+            self.active_workflow_id = active_workflow_id
+            self.workflow_state_error = ""
+            state_available = True
+        except WorkflowStateError as exc:
+            self.workflow_state_error = str(exc)
+
+        if state_available:
+            self.workflow_showcase_notice.hide()
+        else:
+            self.workflow_showcase_notice_title.setText("Workflow state unavailable")
+            self.workflow_showcase_notice_text.setText(
+                "Workflow activation is disabled until the persisted workflow state is valid. "
+                + (self.workflow_state_error or "No active workflow state is available.")
+            )
+            self.workflow_showcase_notice.show()
+
+        manifests = self.workflow_catalog.list_workflows()
+        for manifest in manifests:
+            self.workflow_showcase_layout.addWidget(
+                self._workflow_card(
+                    manifest,
+                    active_workflow_id=active_workflow_id,
+                    state_available=state_available,
+                )
+            )
+        if not manifests:
+            empty = card("No workflows available", "No source-controlled built-in workflows are registered.")
+            empty.setObjectName("WorkflowEmptyState")
+            self.workflow_showcase_layout.addWidget(empty)
+        self.workflow_showcase_layout.addStretch(1)
+
+    def _activate_workflow_from_showcase(self, workflow_id: str) -> None:
+        """Delegate activation to the existing PR-06 switch service only."""
+        try:
+            result = self.request_workflow_switch(workflow_id)
+        except WorkflowError as exc:
+            self.refresh_workflow_showcase()
+            _message(self, "Workflow activation unavailable", str(exc), "warning")
+            return
+
+        if result in {"already_active", "cancelled"}:
+            self.refresh_workflow_showcase()
+        elif result == "committed_restart_required":
+            self.refresh_workflow_showcase()
+        elif result == "switched":
+            return
 
     def make_reports_page(self) -> QWidget:
         page = page_frame()

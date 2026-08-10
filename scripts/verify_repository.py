@@ -43,6 +43,7 @@ PR04_SHARE_INVITE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.20
 PR04_CI_PORTABILITY_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.21_pr04_ci_portability_fix_scope.json"
 PR05_MASTER_WORKFLOW_GATE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.22_pr05_master_workflow_gate_scope.json"
 PR06_WORKFLOW_STATE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json"
+PR07_WORKFLOW_SHOWCASE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.24_pr07_workflow_showcase_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -193,6 +194,32 @@ if pr06_scope.get("baseline_github_actions_run_id") != 31389336441 or pr06_scope
 if pr06_scope.get("target_version") != "1.0.6.23":
     fail("v1.0.6.23 PR-06 target mismatch")
 pr06_allowed_files = set(pr06_scope.get("allowed_runtime_source_changes", []))
+
+if not PR07_WORKFLOW_SHOWCASE_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.24 PR-07 Workflow Showcase scope contract is missing")
+try:
+    pr07_scope = json.loads(PR07_WORKFLOW_SHOWCASE_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.24 PR-07 Workflow Showcase scope contract is invalid: {exc}")
+if pr07_scope.get("plan_id") != "VP-PR07-WORKFLOW-SHOWCASE-001":
+    fail("v1.0.6.24 PR-07 plan identifier mismatch")
+if pr07_scope.get("official_baseline_archive_sha256") != "bafc6d672447afbf02bf3a8c06f8b9992239d9943cb178f6fdec00ff1d6939f6":
+    fail("v1.0.6.24 PR-07 official baseline archive mismatch")
+if pr07_scope.get("baseline_github_commit") != "0959c00d014d71909726b0e886aaaa88e38f3eae":
+    fail("v1.0.6.24 PR-07 baseline GitHub commit mismatch")
+if pr07_scope.get("baseline_github_actions_run_id") != 31425661879 or pr07_scope.get("baseline_ci_result") != "PASS":
+    fail("v1.0.6.24 PR-07 prerequisite CI evidence mismatch")
+if pr07_scope.get("target_version") != "1.0.6.24":
+    fail("v1.0.6.24 PR-07 target mismatch")
+if pr07_scope.get("allowed_production_source_changes") != ["src/vibrapilot/qt_app.py"]:
+    fail("v1.0.6.24 PR-07 production source scope mismatch")
+pr07_allowed_main = set(pr07_scope.get("approved_mainwindow_method_changes", []))
+if pr07_allowed_main != {
+    "_create_nav_button", "_register_pages", "navigate", "make_workflows_page",
+    "_workflow_logo_path", "_workflow_card", "refresh_workflow_showcase",
+    "_activate_workflow_from_showcase",
+}:
+    fail("v1.0.6.24 PR-07 MainWindow method scope mismatch")
 
 print("[1/8] Python syntax")
 for path in sorted(ROOT.rglob("*.py")):
@@ -1076,7 +1103,7 @@ main_window_methods = {
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
 }
 for method_name, expected_sha in workflow_inputs_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main:
+    if method_name in pr07_allowed_main or method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main:
         continue
     if method_name in workflow_approved_mainwindow:
         fail(f"v1.0.6.8 Workflow Inputs scope incorrectly freezes approved MainWindow method: {method_name}")
@@ -1131,7 +1158,7 @@ for relative, expected_sha in workflow_fix_scope.get("frozen_file_sha256", {}).i
 if workflow_fix_scope.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
     fail("v1.0.6.9 Workflow Inputs fix AST hash algorithm mismatch")
 for method_name, expected_sha in workflow_fix_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main:
+    if method_name in pr07_allowed_main or method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main:
         continue
     if method_name in workflow_fix_approved_methods:
         fail(f"v1.0.6.9 fix scope incorrectly freezes approved MainWindow method: {method_name}")
@@ -1180,7 +1207,7 @@ for method_name, expected_sha in license_fix_scope.get("frozen_licensemanager_me
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.10 out-of-scope LicenseManager drift: {method_name}")
 for method_name, expected_sha in license_fix_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main:
+    if method_name in pr07_allowed_main or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main:
         continue
     if method_name in license_allowed_mw_methods:
         fail(f"v1.0.6.10 license scope incorrectly freezes approved MainWindow method: {method_name}")
@@ -1216,7 +1243,7 @@ for method_name, expected_sha in browser_ui_scope.get("frozen_taskslotwidget_met
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.12 browser UI out-of-scope TaskSlotWidget drift: {method_name}")
 for method_name, expected_sha in browser_ui_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main:
+    if method_name in pr07_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main:
         continue
     node = main_window_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
@@ -1315,6 +1342,39 @@ for key in (
     if pr06_scope.get(key) is not True:
         fail(f"v1.0.6.23 PR-06 boundary missing: {key}")
 
+for relative, expected_sha in pr07_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.24 PR-07 frozen file drift detected: {relative}")
+for key in (
+    "no_fake_demo_placeholder_workflows", "no_dynamic_workflow_inputs",
+    "no_workflow_engine_change", "no_workflow_state_schema_change",
+    "no_task_database_schema_change", "no_workspace_schema_change",
+    "no_report_schema_change", "no_browser_change", "no_licensing_change",
+    "captcha_out_of_scope", "no_dependency_change", "no_ci_workflow_change",
+    "external_plugin_loading_prohibited", "filesystem_workflow_discovery_prohibited",
+    "manifest_controlled_dynamic_import_prohibited",
+):
+    if pr07_scope.get(key) is not True:
+        fail(f"v1.0.6.24 PR-07 boundary missing: {key}")
+
+required_nav = 'NAV_SECTIONS = ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]'
+if required_nav not in qt_text:
+    fail("v1.0.6.24 PR-07 Workflows navigation order mismatch")
+for marker in (
+    "def make_workflows_page(self) -> QWidget:",
+    "self.workflow_catalog.list_workflows()",
+    "self.workflow_catalog.require_runtime_factory(manifest.workflow_id)",
+    "self.request_workflow_switch(workflow_id)",
+    'elif name == "Workflows":',
+    "self.refresh_workflow_showcase()",
+):
+    if marker not in qt_text:
+        fail(f"v1.0.6.24 PR-07 UI integration marker missing: {marker}")
+registry_text = (SRC / "workflow" / "registry.py").read_text(encoding="utf-8")
+if "return (SHARE_INVITE_MANIFEST,)" not in registry_text or "other_workflow" in registry_text:
+    fail("v1.0.6.24 PR-07 production workflow registry drift detected")
+
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
 app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
@@ -1324,8 +1384,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.23":
-    fail("AppConfig VERSION must be 1.0.6.23 for the PR-06 Workflow State Atomic Switch release")
+if app_version != "1.0.6.24":
+    fail("AppConfig VERSION must be 1.0.6.24 for the PR-07 Workflow Showcase candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -1439,8 +1499,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.23-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.23 release path")
+if "VibraPilot-1.0.6.24-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.24 candidate path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})
@@ -1609,8 +1669,8 @@ for key in expected_workflow_keys:
 if 'default_target_url' in workflow_inputs_text:
     fail("default_target_url must not move into Workflow Inputs")
 nav_sections = literal_assignment(ROOT / "src" / "vibrapilot" / "qt_app.py", "NAV_SECTIONS")
-if nav_sections != ["Dashboard", "Tasks", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]:
-    fail("Workflow Inputs navigation order mismatch")
+if nav_sections != ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]:
+    fail("Workflow Inputs / PR-07 navigation order mismatch")
 for method_name in ("make_workflow_inputs_page", "refresh_workflow_input_widgets", "save_workflow_inputs", "reset_workflow_inputs"):
     if method_name not in main_window_methods:
         fail(f"Workflow Inputs MainWindow method is missing: {method_name}")
@@ -1806,7 +1866,7 @@ for marker in [
     "apply_nav_button_contract",
     "install_keyboard_focus_ring",
     "CONST.sidebar_width",
-    'NAV_SECTIONS = ["Dashboard", "Tasks", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]',
+    'NAV_SECTIONS = ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]',
 ]:
     if marker not in qt_text:
         fail(f"required branded UI integration marker missing: {marker}")

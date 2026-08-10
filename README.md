@@ -1,3 +1,11 @@
+# VibraPilot v1.0.6.24 — PR-07 Workflow Showcase Page
+
+## Current development candidate
+
+PR-07 adds a top-level **Workflows** page that renders only source-controlled built-in workflow metadata, displays the authoritative active workflow and delegates valid inactive-workflow activation to the existing PR-06 `request_workflow_switch()` service.
+
+Production still contains only **Share Invite**. No fake/demo workflow, dynamic Workflow Inputs, schema redesign, Browser/licensing/CAPTCHA change or plugin discovery is introduced. The current release baseline remains v1.0.6.23 / PR-06 until PR-07 owner UI acceptance, GitHub publication and Windows/Python 3.12 CI closure.
+
 # VibraPilot v1.0.6.23 — PR-06 Workflow State Persistence + Atomic Switch/Restart
 
 ## Current release

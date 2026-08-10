@@ -1,3 +1,9 @@
+# Versioning — PR-07 Candidate
+
+- Current release baseline: **v1.0.6.23 / PR-06**.
+- Current development candidate: **v1.0.6.24 / PR-07 Workflow Showcase Page**.
+- v1.0.6.24 is not RELEASE COMPLETE until owner UI acceptance, exact GitHub publication and Windows/Python 3.12 CI PASS.
+
 ## Current baseline classification — 2026-08-10
 
 - **Official Release Baseline:** v1.0.6.23 / PR-06 Workflow State + Atomic Switch/Restart.

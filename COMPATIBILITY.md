@@ -1,3 +1,7 @@
+## v1.0.6.24 PR-07 compatibility
+
+PR-07 adds only the Workflows navigation/page surface in `qt_app.py`. It preserves PR-06 workflow-state/switch/restart semantics, the single `share_invite` production registry, existing Workflow Inputs behavior, Task/workspace/report/database schemas, Browser behavior, licensing, dependencies and CAPTCHA/security-challenge policy.
+
 ## v1.0.6.23 PR-06 compatibility
 
 PR-06 adds a separate schema-v1 workflow-state file and atomic workflow switch/restart orchestration while preserving existing browser, licensing, TaskRuntimeStore, workspace and report/result schema compatibility.
