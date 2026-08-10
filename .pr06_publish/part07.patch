@@ -1,0 +1,132 @@
+--- a/tests/test_pr03_workflow_contracts_registry.py
++++ b/tests/test_pr03_workflow_contracts_registry.py
+@@ -19,6 +19,7 @@ from vibrapilot.workflow import (
+ ROOT = Path(__file__).resolve().parents[1]
+ SCOPE = ROOT / "config" / "verification" / "v1.0.7.0_pr02_pr03_workflow_foundation_scope.json"
+ PR04_SCOPE = ROOT / "config" / "verification" / "v1.0.6.20_pr04_share_invite_workflow_extraction_scope.json"
++PR06_SCOPE = ROOT / "config" / "verification" / "v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json"
+ 
+ 
+ def _manifest(workflow_id: str = "alpha") -> WorkflowManifest:
+@@ -152,6 +153,9 @@ def test_approved_frozen_production_files_are_byte_identical():
+     if PR04_SCOPE.is_file():
+         pr04_scope = json.loads(PR04_SCOPE.read_text(encoding="utf-8"))
+         superseded.update(pr04_scope.get("allowed_runtime_source_changes", []))
++    if PR06_SCOPE.is_file():
++        pr06_scope = json.loads(PR06_SCOPE.read_text(encoding="utf-8"))
++        superseded.update(pr06_scope.get("allowed_runtime_source_changes", []))
+     for relative, expected in scope["frozen_file_sha256"].items():
+         if relative in superseded:
+             continue
+diff --git a/tests/test_v10617_browser_capabilities.py b/tests/test_v10617_browser_capabilities.py
+index fc39c41..364c2b2 100644
+--- a/tests/test_v10617_browser_capabilities.py
++++ b/tests/test_v10617_browser_capabilities.py
+@@ -29,6 +29,7 @@ from vibrapilot.browser_capabilities import (
+ SCOPE = ROOT / "config/verification/v1.0.6.17_browser_capabilities_scope.json"
+ TASKS_UI_SCOPE = ROOT / "config/verification/v1.0.6.17_tasks_ui_polish_scope.json"
+ BROWSER_FOUNDATION_SCOPE = ROOT / "config/verification/v1.0.6.18_browser_foundation_scope.json"
++PR06_SCOPE = ROOT / "config/verification/v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json"
+ 
+ 
+ class BrowserCapabilityHelpersTest(unittest.TestCase):
+@@ -51,13 +52,19 @@ class BrowserCapabilityHelpersTest(unittest.TestCase):
+         ui_allowed = set(ui_scope["allowed_runtime_source_changes"])
+         foundation_scope = json.loads(BROWSER_FOUNDATION_SCOPE.read_text(encoding="utf-8"))
+         foundation_allowed = set(foundation_scope["allowed_runtime_source_changes"])
++        pr06_scope = json.loads(PR06_SCOPE.read_text(encoding="utf-8"))
++        pr06_allowed = set(pr06_scope["allowed_runtime_source_changes"])
+         for relative, expected in scope["approved_target_file_sha256"].items():
+-            if relative in ui_allowed or relative in foundation_allowed:
++            if relative in ui_allowed or relative in foundation_allowed or relative in pr06_allowed:
+                 continue
+             self.assertEqual(hashlib.sha256((ROOT / relative).read_bytes()).hexdigest(), expected, relative)
+         for relative, expected in ui_scope["approved_target_file_sha256"].items():
++            if relative in pr06_allowed:
++                continue
+             self.assertEqual(hashlib.sha256((ROOT / relative).read_bytes()).hexdigest(), expected, relative)
+         for relative, expected in scope["frozen_file_sha256"].items():
++            if relative in pr06_allowed:
++                continue
+             self.assertEqual(hashlib.sha256((ROOT / relative).read_bytes()).hexdigest(), expected, relative)
+ 
+     def test_download_filename_is_safe_and_collision_is_non_destructive(self):
+diff --git a/tests/test_v10620_pr04_share_invite_workflow_parity.py b/tests/test_v10620_pr04_share_invite_workflow_parity.py
+index 167a55d..dc44103 100644
+--- a/tests/test_v10620_pr04_share_invite_workflow_parity.py
++++ b/tests/test_v10620_pr04_share_invite_workflow_parity.py
+@@ -25,6 +25,7 @@ from vibrapilot.workflow.share_invite.workflow import (
+ ROOT = Path(__file__).resolve().parents[1]
+ SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.20_pr04_share_invite_workflow_extraction_scope.json"
+ PR04_CI_FIX_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.21_pr04_ci_portability_fix_scope.json"
++PR06_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json"
+ BASELINE_BACKEND = ROOT / "project" / "research" / "source_baseline" / "VibraPilot_v1.0.6_original_app.py"
+ 
+ ALG = "canonical-semantic-ast-v2"
+@@ -438,7 +439,13 @@ def test_backend_selectors_and_exception_classes_remain_ast_frozen():
+ 
+ def test_pr04_frozen_runtime_files_are_byte_identical():
+     scope = _scope()
++    superseded = set()
++    if PR06_SCOPE_PATH.is_file():
++        pr06_scope = json.loads(PR06_SCOPE_PATH.read_text(encoding="utf-8"))
++        superseded.update(pr06_scope.get("allowed_runtime_source_changes", []))
+     for relative, expected in scope["frozen_file_sha256"].items():
++        if relative in superseded:
++            continue
+         actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+         assert actual == expected, relative
+ 
+diff --git a/tests/test_v10622_pr05_master_workflow_gate.py b/tests/test_v10622_pr05_master_workflow_gate.py
+index 0258275..75d3f59 100644
+--- a/tests/test_v10622_pr05_master_workflow_gate.py
++++ b/tests/test_v10622_pr05_master_workflow_gate.py
+@@ -102,9 +102,11 @@ def test_share_invite_generic_adapters_delegate_exact_existing_methods(monkeypat
+     assert calls == [("ready", page), ("ensure", None), ("execute", item), ("retry", None)]
+ 
+ 
+-def test_worker_master_gate_uses_share_invite_as_run_scoped_default():
++def test_worker_master_gate_accepts_application_owned_active_workflow_identity():
+     source = (ROOT / "src/vibrapilot/backend.py").read_text(encoding="utf-8")
+-    assert 'WorkflowManager.with_builtin_workflows(\n            active_workflow_id="share_invite"' in source
++    assert "active_workflow_id: str | None = None" in source
++    assert "active_workflow_id=active_workflow_id" in source
++    assert 'active_workflow_id="share_invite"' not in source
+     assert "self._workflow_manager.resolve_active_runtime(" in source
+     assert "self._active_workflow_runtime_cache" in source
+ 
+@@ -120,18 +122,20 @@ def test_worker_compatibility_boundaries_route_through_master_gate():
+         assert marker in source
+ 
+ 
+-def test_no_persistent_active_workflow_state_or_switching_surface():
++def test_pr06_persistence_does_not_leak_into_pr05_settings_task_or_workspace_schemas():
+     for relative in (
+         "config/settings.defaults.json",
+         "src/vibrapilot/task_runtime_store.py",
+         "src/vibrapilot/workspace_state.py",
+-        "src/vibrapilot/qt_app.py",
+     ):
+         assert "active_workflow_id" not in (ROOT / relative).read_text(encoding="utf-8")
+     manager_tree = ast.parse((ROOT / "src/vibrapilot/workflow/manager.py").read_text(encoding="utf-8"))
+     cls = next(n for n in manager_tree.body if isinstance(n, ast.ClassDef) and n.name == "WorkflowManager")
+     methods = {n.name for n in cls.body if isinstance(n, ast.FunctionDef)}
+     assert not methods & {"activate", "switch", "restart", "persist_active_workflow", "set_active_workflow"}
++    state_source = (ROOT / "src/vibrapilot/workflow/state.py").read_text(encoding="utf-8")
++    assert '"active_workflow_id"' in state_source
++    assert 'workflow_state.json' in (ROOT / "src/vibrapilot/qt_app.py").read_text(encoding="utf-8")
+ 
+ 
+ def test_no_external_plugin_or_dynamic_manifest_import_surface():
+diff --git a/vibproject.ygit b/vibproject.ygit
+index d90b9db..a16b8da 100644
+--- a/vibproject.ygit
++++ b/vibproject.ygit
+@@ -8,8 +8,8 @@
+     "slug": "vibrapilot",
+     "displayName": "VibraPilot",
+     "description": "VibraPilot browser automation desktop application by Vib Tools.",
+-    "summary": "VibraPilot v1.0.6.22 adds the fail-closed in-memory Master Workflow Gate while preserving Share Invite behavior, browser ownership, safety, persistence and UI contracts.",
+-    "version": "1.0.6.22",
++    "summary": "VibraPilot v1.0.6.23 adds persisted single-active-workflow state and atomic switch/restart safety while preserving Share Invite behavior, browser ownership, global settings and licensing.",
++    "version": "1.0.6.23",
