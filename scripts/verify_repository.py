@@ -35,6 +35,7 @@ MANAGED_BROWSER_CLOSED_TASK_SCOPE_CONTRACT = ROOT / "config" / "verification" / 
 WORKSPACE_PERSISTENCE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.15_workspace_persistence_scope.json"
 WORKSPACE_PERSISTENCE_VERIFICATION_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.16_workspace_persistence_verification_fix_scope.json"
 BROWSER_CAPABILITIES_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.17_browser_capabilities_scope.json"
+TASKS_UI_POLISH_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.17_tasks_ui_polish_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -353,7 +354,45 @@ if not capability_scope.get("no_workspace_schema_change") or not capability_scop
     fail("v1.0.6.17 workspace/settings boundary mismatch")
 if not capability_scope.get("no_new_dependency") or not capability_scope.get("no_new_page"):
     fail("v1.0.6.17 dependency/page boundary mismatch")
+
+# The current user-approved patch is presentation-only and supersedes the
+# historical v1.0.6.17 qt_app hash only for Tasks-page UI methods. Browser
+# capability runtime behavior and every non-UI surface remain frozen.
+if not TASKS_UI_POLISH_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.17 Tasks-page UI polish scope contract is missing")
+try:
+    tasks_ui_scope = json.loads(TASKS_UI_POLISH_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.17 Tasks-page UI polish scope contract is invalid: {exc}")
+if tasks_ui_scope.get("official_baseline") != "VibraPilot v1.0.6.17":
+    fail("Tasks-page UI polish baseline version mismatch")
+if tasks_ui_scope.get("official_baseline_github_commit") != "6d29224d38d15d6b744d334585d6eb28de8314c8":
+    fail("Tasks-page UI polish GitHub baseline mismatch")
+if tasks_ui_scope.get("target_version") != "1.0.6.17" or tasks_ui_scope.get("version_bump_authorized"):
+    fail("Tasks-page UI polish version boundary mismatch")
+tasks_ui_allowed_files = set(tasks_ui_scope.get("allowed_runtime_source_changes", []))
+tasks_ui_allowed_task = set(tasks_ui_scope.get("approved_taskslotwidget_ui_methods", []))
+tasks_ui_allowed_main = set(tasks_ui_scope.get("approved_mainwindow_ui_methods", []))
+if tasks_ui_allowed_files != {"src/vibrapilot/qt_app.py"}:
+    fail("Tasks-page UI polish runtime surface mismatch")
+if not all(
+    tasks_ui_scope.get(key)
+    for key in (
+        "no_backend_change", "no_database_schema_change", "no_workspace_schema_change",
+        "no_settings_change", "no_other_page_change", "no_new_dependency",
+        "no_new_page", "no_workflow_change", "no_browser_capability_change",
+        "no_licensing_change",
+    )
+):
+    fail("Tasks-page UI polish preservation boundary mismatch")
+for relative, expected_sha in tasks_ui_scope.get("approved_target_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"Tasks-page UI polish approved target mismatch: {relative}")
+
 for relative, expected_sha in capability_scope.get("approved_target_file_sha256", {}).items():
+    if relative in tasks_ui_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.17 approved target runtime mismatch: {relative}")
@@ -681,7 +720,7 @@ current_checks = {
 for name, node in current_checks.items():
     if name == "backend.LicenseManager" and "src/vibrapilot/backend.py" in license_allowed_files:
         continue
-    if name == "qt_app.MainWindow" and (workflow_approved_mainwindow or license_allowed_mw_methods or browser_ui_allowed_main or managed_allowed_main or workspace_allowed_main or capability_allowed_main):
+    if name == "qt_app.MainWindow" and (workflow_approved_mainwindow or license_allowed_mw_methods or browser_ui_allowed_main or managed_allowed_main or workspace_allowed_main or capability_allowed_main or tasks_ui_allowed_main):
         continue
     expected_sha = current_ast.get(name)
     if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
@@ -711,7 +750,7 @@ followup_ast = windows_sqlite_fix_scope.get("frozen_ast_sha256", {})
 for name, node in current_checks.items():
     if name == "backend.LicenseManager" and "src/vibrapilot/backend.py" in license_allowed_files:
         continue
-    if name == "qt_app.MainWindow" and (workflow_approved_mainwindow or license_allowed_mw_methods or browser_ui_allowed_main or managed_allowed_main or workspace_allowed_main or capability_allowed_main):
+    if name == "qt_app.MainWindow" and (workflow_approved_mainwindow or license_allowed_mw_methods or browser_ui_allowed_main or managed_allowed_main or workspace_allowed_main or capability_allowed_main or tasks_ui_allowed_main):
         continue
     expected_sha = followup_ast.get(name)
     if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
@@ -762,7 +801,7 @@ main_window_methods = {
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
 }
 for method_name, expected_sha in workflow_inputs_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main:
+    if method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main:
         continue
     if method_name in workflow_approved_mainwindow:
         fail(f"v1.0.6.8 Workflow Inputs scope incorrectly freezes approved MainWindow method: {method_name}")
@@ -779,7 +818,7 @@ task_slot_methods = {
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
 }
 for method_name, expected_sha in workflow_inputs_scope.get("frozen_taskslotwidget_method_ast_sha256", {}).items():
-    if method_name in browser_ui_allowed_task or method_name in managed_allowed_task or method_name in workspace_allowed_task or method_name in capability_allowed_task:
+    if method_name in browser_ui_allowed_task or method_name in managed_allowed_task or method_name in workspace_allowed_task or method_name in capability_allowed_task or method_name in tasks_ui_allowed_task or method_name in tasks_ui_allowed_task:
         continue
     node = task_slot_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
@@ -813,7 +852,7 @@ for relative, expected_sha in workflow_fix_scope.get("frozen_file_sha256", {}).i
 if workflow_fix_scope.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
     fail("v1.0.6.9 Workflow Inputs fix AST hash algorithm mismatch")
 for method_name, expected_sha in workflow_fix_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main:
+    if method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main:
         continue
     if method_name in workflow_fix_approved_methods:
         fail(f"v1.0.6.9 fix scope incorrectly freezes approved MainWindow method: {method_name}")
@@ -858,7 +897,7 @@ for method_name, expected_sha in license_fix_scope.get("frozen_licensemanager_me
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.10 out-of-scope LicenseManager drift: {method_name}")
 for method_name, expected_sha in license_fix_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main:
+    if method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main:
         continue
     if method_name in license_allowed_mw_methods:
         fail(f"v1.0.6.10 license scope incorrectly freezes approved MainWindow method: {method_name}")
@@ -888,13 +927,13 @@ for method_name, expected_sha in browser_ui_scope.get("frozen_automationworker_m
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.12 browser UI out-of-scope AutomationWorker drift: {method_name}")
 for method_name, expected_sha in browser_ui_scope.get("frozen_taskslotwidget_method_ast_sha256", {}).items():
-    if method_name in managed_allowed_task or method_name in workspace_allowed_task or method_name in capability_allowed_task:
+    if method_name in managed_allowed_task or method_name in workspace_allowed_task or method_name in capability_allowed_task or method_name in tasks_ui_allowed_task:
         continue
     node = task_slot_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.12 browser UI out-of-scope TaskSlotWidget drift: {method_name}")
 for method_name, expected_sha in browser_ui_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main:
+    if method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main:
         continue
     node = main_window_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:

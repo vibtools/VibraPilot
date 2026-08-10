@@ -27,6 +27,7 @@ from vibrapilot.browser_capabilities import (
 )
 
 SCOPE = ROOT / "config/verification/v1.0.6.17_browser_capabilities_scope.json"
+TASKS_UI_SCOPE = ROOT / "config/verification/v1.0.6.17_tasks_ui_polish_scope.json"
 
 
 class BrowserCapabilityHelpersTest(unittest.TestCase):
@@ -45,7 +46,13 @@ class BrowserCapabilityHelpersTest(unittest.TestCase):
         self.assertTrue(scope["no_workspace_schema_change"])
         self.assertTrue(scope["no_settings_key_change"])
         self.assertTrue(scope["no_new_dependency"])
+        ui_scope = json.loads(TASKS_UI_SCOPE.read_text(encoding="utf-8"))
+        ui_allowed = set(ui_scope["allowed_runtime_source_changes"])
         for relative, expected in scope["approved_target_file_sha256"].items():
+            if relative in ui_allowed:
+                continue
+            self.assertEqual(hashlib.sha256((ROOT / relative).read_bytes()).hexdigest(), expected, relative)
+        for relative, expected in ui_scope["approved_target_file_sha256"].items():
             self.assertEqual(hashlib.sha256((ROOT / relative).read_bytes()).hexdigest(), expected, relative)
         for relative, expected in scope["frozen_file_sha256"].items():
             self.assertEqual(hashlib.sha256((ROOT / relative).read_bytes()).hexdigest(), expected, relative)

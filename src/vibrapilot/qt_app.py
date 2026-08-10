@@ -838,26 +838,26 @@ class TaskSlotWidget(QFrame):
                 border-radius: 8px;
             }
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskStartButton {
-                min-height: 32px; max-height: 32px;
+                min-height: 26px; max-height: 26px;
                 background: #3B82F6; color: #FFFFFF;
                 border: 1px solid #3B82F6; border-radius: 6px;
-                padding: 0 10px; font-weight: 600;
+                padding: 0 8px; font-size: 11px; font-weight: 600;
             }
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskStartButton:hover { background: #2563EB; }
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskPauseButton,
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskResumeButton {
-                min-height: 32px; max-height: 32px;
+                min-height: 26px; max-height: 26px;
                 background: #334155; color: #F8FAFC;
                 border: 1px solid #475569; border-radius: 6px;
-                padding: 0 10px; font-weight: 600;
+                padding: 0 8px; font-size: 11px; font-weight: 600;
             }
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskPauseButton:hover,
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskResumeButton:hover { background: #475569; }
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskStopButton {
-                min-height: 32px; max-height: 32px;
+                min-height: 26px; max-height: 26px;
                 background: #1A212E; color: #FCA5A5;
                 border: 1px solid #7F1D1D; border-radius: 6px;
-                padding: 0 10px; font-weight: 600;
+                padding: 0 8px; font-size: 11px; font-weight: 600;
             }
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskStopButton:hover {
                 background: #7F1D1D; color: #FFFFFF;
@@ -865,20 +865,21 @@ class TaskSlotWidget(QFrame):
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskOpenBrowserButton,
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskDownloadsButton,
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskCloseButton {
-                min-height: 32px; max-height: 32px; border-radius: 6px;
+                min-height: 26px; max-height: 26px; border-radius: 6px;
+                padding: 0 8px; font-size: 11px;
             }
             QFrame[vibTaskCard="compact-v1"] QLineEdit#TaskUrlInput {
-                min-height: 36px;
+                min-height: 28px; max-height: 28px;
                 background: #161D2A; color: #F8FAFC;
                 border: 1px solid #334155; border-radius: 8px;
                 padding: 0 12px;
             }
             QFrame[vibTaskCard="compact-v1"] QLineEdit#TaskUrlInput:focus { border: 1px solid #38BDF8; }
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskUploadButton {
-                min-height: 36px;
+                min-height: 28px; max-height: 28px;
                 background: #1E293B; color: #F8FAFC;
                 border: 1px solid #334155; border-radius: 8px;
-                padding: 0 10px; font-weight: 600;
+                padding: 0 8px; font-size: 11px; font-weight: 600;
             }
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskUploadButton:hover { background: #334155; }
             QFrame[vibTaskCard="compact-v1"] QLabel#TaskDataBadge {
@@ -888,13 +889,13 @@ class TaskSlotWidget(QFrame):
                 padding: 0; font-size: 12px;
             }
             QFrame#TaskMetric {
-                min-height: 44px; max-height: 44px;
-                background: #0F172A;
-                border: 1px solid #334155; border-radius: 7px;
+                min-height: 32px; max-height: 32px;
+                background: rgba(255,255,255,8);
+                border: none; border-radius: 7px;
             }
-            QLabel#TaskMetricLabel { color: #94A3B8; font-size: 11px; }
+            QLabel#TaskMetricLabel { color: #94A3B8; font-size: 10px; }
             QLabel#TaskMetricValue, QLabel#TaskMetricValueSuccess, QLabel#TaskMetricValueFailed {
-                color: #F8FAFC; font-size: 14px; font-weight: 700;
+                color: #F8FAFC; font-size: 12px; font-weight: 700;
             }
             QLabel#TaskMetricValueSuccess { color: #10B981; }
             QLabel#TaskMetricValueFailed { color: #EF4444; }
@@ -905,7 +906,7 @@ class TaskSlotWidget(QFrame):
             }
             QFrame#TaskBrowserStatusPill {
                 background: transparent; border: none;
-                min-height: 32px; max-height: 32px;
+                min-height: 26px; max-height: 26px;
             }
             QFrame#TaskBrowserStatusDot {
                 min-width: 8px; max-width: 8px;
@@ -921,6 +922,15 @@ class TaskSlotWidget(QFrame):
                 color: #94A3B8; font-size: 12px;
                 padding: 0;
             }
+            QLabel#TaskSubtitle {
+                background: transparent; border: none;
+                color: #64748B; font-size: 10px;
+                padding: 0;
+            }
+            QPushButton#TasksOpenClosedButton, QPushButton#TasksAddButton {
+                min-height: 24px; max-height: 24px;
+                padding: 0 8px; font-size: 11px;
+            }
             QProgressBar#TaskProgress {
                 min-height: 3px; max-height: 3px;
                 border: none; border-radius: 1px; background: #1E293B;
@@ -933,8 +943,8 @@ class TaskSlotWidget(QFrame):
         # metric and backend binding is preserved; only presentation is changed.
         self.setProperty("vibTaskCard", "compact-v1")
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-        # Exact Top/Middle/Bottom row gap from the approved specification.
-        root = vbox(self, margins=(12, 12, 12, 12), spacing=14)
+        # Fixed-pixel compact layout: no viewport-percentage padding or gaps.
+        root = vbox(self, margins=(12, 12, 12, 12), spacing=8)
         self._task_root_layout = root
 
         # Row 1: task identity + three clearly separated toolbar groups.
@@ -948,6 +958,7 @@ class TaskSlotWidget(QFrame):
         text_lay = vbox(text_col, spacing=2)
         text_lay.addWidget(title(f"Task {self.slot_id}", "CardTitle"))
         self.subtitle = elide_label("Independent authenticated Test Mode browser slot", "Caption")
+        self.subtitle.setObjectName("TaskSubtitle")
         text_lay.addWidget(self.subtitle)
         header_lay.addWidget(text_col, 1)
 
@@ -956,20 +967,20 @@ class TaskSlotWidget(QFrame):
         control_lay = hbox(control_group, margins=(0, 0, 0, 0), spacing=4)
         self.start_btn = button("Start", "primary")
         self.start_btn.setObjectName("TaskStartButton")
-        self.start_btn.setFixedHeight(32)
+        self.start_btn.setFixedHeight(26)
         self.start_btn.clicked.connect(self.start)
         self.pause_btn = button("Pause", "secondary")
         self.pause_btn.setObjectName("TaskPauseButton")
-        self.pause_btn.setFixedHeight(32)
+        self.pause_btn.setFixedHeight(26)
         self.pause_btn.clicked.connect(self.pause)
         # Resume remains present because it is an existing v1.0.6 feature.
         self.resume_btn = button("Resume", "secondary")
         self.resume_btn.setObjectName("TaskResumeButton")
-        self.resume_btn.setFixedHeight(32)
+        self.resume_btn.setFixedHeight(26)
         self.resume_btn.clicked.connect(self.resume)
         self.stop_btn = button("Stop", "danger")
         self.stop_btn.setObjectName("TaskStopButton")
-        self.stop_btn.setFixedHeight(32)
+        self.stop_btn.setFixedHeight(26)
         self.stop_btn.clicked.connect(self.stop)
         for control in (self.start_btn, self.pause_btn, self.resume_btn, self.stop_btn):
             control_lay.addWidget(control)
@@ -1005,17 +1016,17 @@ class TaskSlotWidget(QFrame):
         action_lay = hbox(action_group, margins=(0, 0, 0, 0), spacing=6)
         self.browser_action_button = button("Open Browser", "primary")
         self.browser_action_button.setObjectName("TaskOpenBrowserButton")
-        self.browser_action_button.setFixedHeight(32)
+        self.browser_action_button.setFixedHeight(26)
         self.browser_action_button.clicked.connect(self.browser_action)
         action_lay.addWidget(self.browser_action_button)
         downloads_btn = button("Downloads", "secondary", "folder")
         downloads_btn.setObjectName("TaskDownloadsButton")
-        downloads_btn.setFixedHeight(32)
+        downloads_btn.setFixedHeight(26)
         downloads_btn.clicked.connect(self.open_downloads_folder)
         action_lay.addWidget(downloads_btn)
         close_btn = button("Close Task", "danger")
         close_btn.setObjectName("TaskCloseButton")
-        close_btn.setFixedHeight(32)
+        close_btn.setFixedHeight(26)
         close_btn.clicked.connect(self.close)
         action_lay.addWidget(close_btn)
         header_lay.addWidget(action_group)
@@ -1037,10 +1048,9 @@ class TaskSlotWidget(QFrame):
         top_lay.addWidget(progress_holder)
         root.addWidget(top_section)
 
-        # Row 2: Target URL + upload/data status; controls remain exactly 36px.
-        # Four-pixel inner top/bottom breathing room prevents border collision.
+        # Row 2: fixed-pixel compact Target URL + upload/data status.
         target_row = QWidget()
-        target_lay = hbox(target_row, margins=(0, 4, 0, 4), spacing=8)
+        target_lay = hbox(target_row, margins=(0, 0, 0, 0), spacing=8)
         self._task_target_layout = target_lay
         target_label = label("Target URL", "FormLabel", False)
         target_label.setFixedWidth(72)
@@ -1048,8 +1058,8 @@ class TaskSlotWidget(QFrame):
 
         self.url = line_input("https://…", self.state.target_url)
         self.url.setObjectName("TaskUrlInput")
-        self.url.setMinimumHeight(36)
-        self.url.setMaximumHeight(36)
+        self.url.setMinimumHeight(28)
+        self.url.setMaximumHeight(28)
         self.url.editingFinished.connect(self.app.schedule_workspace_save)
         target_lay.addWidget(self.url, 3)
 
@@ -1057,8 +1067,8 @@ class TaskSlotWidget(QFrame):
         data_lay = hbox(data_cluster, margins=(0, 0, 0, 0), spacing=8)
         load_btn = button("Upload Email/Data", "secondary", "open")
         load_btn.setObjectName("TaskUploadButton")
-        load_btn.setMinimumHeight(36)
-        load_btn.setMaximumHeight(36)
+        load_btn.setMinimumHeight(28)
+        load_btn.setMaximumHeight(28)
         self._task_upload_button = load_btn
         load_btn.clicked.connect(self.load_data)
         data_lay.addWidget(load_btn, 2)
@@ -1074,7 +1084,7 @@ class TaskSlotWidget(QFrame):
         metrics = QWidget()
         grid = QGridLayout(metrics)
         grid.setContentsMargins(0, 0, 0, 0)
-        grid.setHorizontalSpacing(6)
+        grid.setHorizontalSpacing(4)
         grid.setVerticalSpacing(0)
         self._task_metrics_grid = grid
         self.metric_labels: dict[str, QLabel] = {}
@@ -1088,9 +1098,9 @@ class TaskSlotWidget(QFrame):
         for i, (name, value) in enumerate(zip(names, defaults)):
             metric = QFrame()
             metric.setObjectName("TaskMetric")
-            metric.setFixedHeight(44)
+            metric.setFixedHeight(32)
             metric.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            metric_lay = vbox(metric, margins=(10, 6, 10, 6), spacing=0)
+            metric_lay = vbox(metric, margins=(8, 2, 8, 2), spacing=0)
             self._task_metric_layouts.append(metric_lay)
             visible_metric_name = "Send Attempts / Limit" if name == "Send Limit" else name
             metric_lay.addWidget(elide_label(visible_metric_name, "TaskMetricLabel"))
@@ -1107,7 +1117,7 @@ class TaskSlotWidget(QFrame):
         root.addWidget(metrics)
 
     def _task_viewport_dimensions(self) -> tuple[int, int]:
-        """Return the current Tasks scroll viewport size for percentage spacing."""
+        """Return the current Tasks viewport size for resize invalidation only."""
         parent = self.parentWidget()
         while parent is not None:
             if isinstance(parent, QScrollArea):
@@ -1119,64 +1129,38 @@ class TaskSlotWidget(QFrame):
         return max(1, window.width()), max(1, window.height())
 
     def _apply_task_spacing_contract(self) -> None:
-        """Apply the scope-locked percentage spacing contract to this task card."""
+        """Apply the fixed-pixel compact Tasks-page spacing contract."""
         if self._task_root_layout is None:
             return
 
+        # Viewport dimensions only invalidate the cached application of this
+        # fixed-pixel contract. They never scale padding, gaps, heights or fonts.
         viewport_width, viewport_height = self._task_viewport_dimensions()
-
-        # Percentage values are calculated from the Tasks viewport. This is the
-        # Qt-equivalent of the approved percentage specification; Qt layout
-        # margins/spacing accept integer logical pixels rather than CSS %.
-        # Never compress below the frozen compact baseline. Percentages only
-        # add breathing room as the Tasks viewport grows, preventing DPI/resize
-        # clipping while preserving the established compact visual density.
-        pad_v = max(12, round(viewport_height * 0.020))
-        pad_h = max(12, round(viewport_width * 0.025))
-        row_gap = max(14, round(viewport_height * 0.025))
-        status_gap = max(6, round(viewport_width * 0.012))
-
-        # Status-card percentage padding is calculated against each metric card
-        # itself, with the frozen 6px/10px padding retained as the minimum.
-        metric_width = max(1, round(max(1, self.width() - (pad_h * 2)) / 7))
-        status_pad_v = max(6, round(44 * 0.012))
-        status_pad_h = max(10, round(metric_width * 0.018))
-
-        upload_height = max(36, round(viewport_height * 0.050))
-        separator_margin = max(0, round(viewport_height * 0.015))
-        card_min_height = max(1, round(viewport_height * 0.350))
-
-        signature = (
-            pad_v, pad_h, row_gap, status_gap, status_pad_v, status_pad_h,
-            upload_height, separator_margin, card_min_height,
-        )
+        signature = (viewport_width, viewport_height, 12, 12, 8, 4, 2, 8, 28, 0, 0)
         if signature == self._task_spacing_signature:
             return
         self._task_spacing_signature = signature
 
-        self.setMinimumHeight(card_min_height)
-        self._task_root_layout.setContentsMargins(pad_h, pad_v, pad_h, pad_v)
-        self._task_root_layout.setSpacing(row_gap)
+        # Content-driven height replaces the previous 35% viewport minimum.
+        self.setMinimumHeight(0)
+        self._task_root_layout.setContentsMargins(12, 12, 12, 12)
+        self._task_root_layout.setSpacing(8)
 
         if self._task_separator_layout is not None:
-            self._task_separator_layout.setContentsMargins(0, separator_margin, 0, separator_margin)
+            self._task_separator_layout.setContentsMargins(0, 0, 0, 0)
 
         if self._task_target_layout is not None:
-            # The row itself retains its established horizontal structure; the
-            # percentage row gap is supplied by the root layout above.
             self._task_target_layout.setContentsMargins(0, 0, 0, 0)
 
         if self._task_metrics_grid is not None:
-            self._task_metrics_grid.setHorizontalSpacing(status_gap)
+            self._task_metrics_grid.setHorizontalSpacing(4)
 
         for metric_lay in self._task_metric_layouts:
-            metric_lay.setContentsMargins(status_pad_h, status_pad_v, status_pad_h, status_pad_v)
+            metric_lay.setContentsMargins(8, 2, 8, 2)
 
-        # Keep Upload and Target URL controls exactly aligned while applying the
-        # requested 5% responsive control height.
         if self._task_upload_button is not None:
-            self._task_upload_button.setFixedHeight(upload_height)
-        self.url.setFixedHeight(upload_height)
+            self._task_upload_button.setFixedHeight(28)
+        self.url.setFixedHeight(28)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -2382,8 +2366,12 @@ class MainWindow(QMainWindow):
         page = page_frame()
         root = vbox(page, margins=(0, 0, 0, 0), spacing=0)
         open_closed_btn = button("Open Closed Tasks", "secondary")
+        open_closed_btn.setObjectName("TasksOpenClosedButton")
+        open_closed_btn.setFixedHeight(24)
         open_closed_btn.clicked.connect(self.open_closed_tasks)
         add_btn = button("Add Task", "primary", "open")
+        add_btn.setObjectName("TasksAddButton")
+        add_btn.setFixedHeight(24)
         add_btn.clicked.connect(self.add_task)
         root.addWidget(
             page_header(
@@ -2402,7 +2390,7 @@ class MainWindow(QMainWindow):
         )
         self.task_host = QWidget()
         self.task_host.setObjectName("PageInner")
-        self.task_layout = vbox(self.task_host, margins=(0, 0, 0, 0), spacing=CONST.content_gap)
+        self.task_layout = vbox(self.task_host, margins=(0, 0, 0, 0), spacing=8)
         self.task_layout.addStretch(1)
         outer_lay.addWidget(self.task_host)
         outer_lay.addStretch(1)

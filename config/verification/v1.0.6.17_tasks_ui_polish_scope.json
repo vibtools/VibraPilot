@@ -1,0 +1,64 @@
+{
+  "contract_name": "VibraPilot v1.0.6.17 Tasks-page UI design polish scope lock",
+  "scope": "Tasks page UI design only",
+  "official_baseline": "VibraPilot v1.0.6.17",
+  "official_baseline_archive": "VibraPilot_v1.0.6.17_Development_Baseline_Candidate.zip",
+  "official_baseline_archive_sha256": "db48d42aafc5a6a9b2daa781a2c9185e95a2243e99611c43d19b4a03c2e03324",
+  "official_baseline_github_commit": "6d29224d38d15d6b744d334585d6eb28de8314c8",
+  "target_version": "1.0.6.17",
+  "version_bump_authorized": false,
+  "allowed_runtime_source_changes": [
+    "src/vibrapilot/qt_app.py"
+  ],
+  "approved_taskslotwidget_ui_methods": [
+    "task_qss",
+    "_build",
+    "_task_viewport_dimensions",
+    "_apply_task_spacing_contract",
+    "resizeEvent"
+  ],
+  "approved_mainwindow_ui_methods": [
+    "make_tasks_page"
+  ],
+  "design_contract": {
+    "viewport_percentage_sizing": false,
+    "task_card_minimum_viewport_height": false,
+    "task_card_height_mode": "content-driven",
+    "task_card_padding_px": 12,
+    "task_internal_row_gap_px": 8,
+    "task_to_task_gap_px": 8,
+    "main_task_button_height_px": 26,
+    "main_task_button_padding_x_px": 8,
+    "task_button_font_px": 11,
+    "url_height_px": 28,
+    "upload_height_px": 28,
+    "status_card_height_px": 32,
+    "status_card_gap_px": 4,
+    "status_label_font_px": 10,
+    "status_value_font_px": 12,
+    "status_card_border": "none",
+    "status_card_background": "rgba(255,255,255,8)",
+    "tasks_header_button_height_px": 24,
+    "task_title_change": false,
+    "task_subtitle_font_px": 10,
+    "task_subtitle_color": "#64748B"
+  },
+  "baseline_runtime_sha256": {
+    "src/vibrapilot/qt_app.py": "22d93e7e788a00326d7d60778b87c4bde5d8152a0b534541051ded40a562a69b"
+  },
+  "approved_target_file_sha256": {
+    "src/vibrapilot/qt_app.py": "db0b0cc464b2e7e78b8620628e54087cd8135d8c339018392974a3df6c6e5935"
+  },
+  "preserve_all_task_actions": true,
+  "preserve_all_signals_and_callbacks": true,
+  "no_backend_change": true,
+  "no_database_schema_change": true,
+  "no_workspace_schema_change": true,
+  "no_settings_change": true,
+  "no_other_page_change": true,
+  "no_new_dependency": true,
+  "no_new_page": true,
+  "no_workflow_change": true,
+  "no_browser_capability_change": true,
+  "no_licensing_change": true
+}
