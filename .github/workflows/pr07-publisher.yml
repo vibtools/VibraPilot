@@ -1,0 +1,94 @@
+name: PR07 Publisher
+
+on:
+  push:
+    branches:
+      - pr07-publish-stage-20260810
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: github.event.head_commit.message == 'chore: stage PR-07 release payload'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact parent
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "0959c00d014d71909726b0e886aaaa88e38f3eae"
+
+      - name: Materialize verified PR-07 payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/pr07_payload
+          mkdir -p /tmp/pr07_payload
+          tar -xJf .pr07_publish/payload.tar.xz -C /tmp/pr07_payload
+          test ! -e /tmp/pr07_payload/project
+          rsync -a /tmp/pr07_payload/ ./
+
+      - name: Verify exact public scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add CHANGELOG.md CITATION.cff COMPATIBILITY.md PROJECT_STRUCTURE.md README.md ROADMAP.md UPDATE_LOG.md VERSIONING.md \
+            config/AppConfig/app.py config/verification/v1.0.6.24_pr07_workflow_showcase_scope.json \
+            docs/docs.manifest.ygit docs/index.md docs/updates/v1.0.6.24-pr07-workflow-showcase.md \
+            docs/verification/V1.0.6.24_PR07_WORKFLOW_SHOWCASE.md pyproject.toml scripts/Start-VibraPilot.ps1 \
+            scripts/verify_repository.py src/vibrapilot/qt_app.py tests/test_app_config.py \
+            tests/test_browser_settings_wiring.py tests/test_feature_parity.py \
+            tests/test_v10623_pr06_workflow_state_atomic_switch.py tests/test_v10624_pr07_workflow_showcase.py \
+            tests/test_workflow_inputs_ui.py vibproject.ygit
+          expected=$(cat <<'EOF'
+CHANGELOG.md
+CITATION.cff
+COMPATIBILITY.md
+PROJECT_STRUCTURE.md
+README.md
+ROADMAP.md
+UPDATE_LOG.md
+VERSIONING.md
+config/AppConfig/app.py
+config/verification/v1.0.6.24_pr07_workflow_showcase_scope.json
+docs/docs.manifest.ygit
+docs/index.md
+docs/updates/v1.0.6.24-pr07-workflow-showcase.md
+docs/verification/V1.0.6.24_PR07_WORKFLOW_SHOWCASE.md
+pyproject.toml
+scripts/Start-VibraPilot.ps1
+scripts/verify_repository.py
+src/vibrapilot/qt_app.py
+tests/test_app_config.py
+tests/test_browser_settings_wiring.py
+tests/test_feature_parity.py
+tests/test_v10623_pr06_workflow_state_atomic_switch.py
+tests/test_v10624_pr07_workflow_showcase.py
+tests/test_workflow_inputs_ui.py
+vibproject.ygit
+EOF
+)
+          actual=$(git diff --cached --name-only | sort)
+          test "$actual" = "$(printf '%s\n' "$expected" | sort)"
+          ! printf '%s\n' "$actual" | grep -q '^project/'
+
+      - name: Repository verification
+        run: python scripts/verify_repository.py
+
+      - name: PR-07 targeted verification
+        run: python -m pytest -q tests/test_v10624_pr07_workflow_showcase.py
+
+      - name: Commit materialized release candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "feat: add workflow showcase page and promote v1.0.6.24"
+          git push origin HEAD:pr07-publish-stage-20260810
