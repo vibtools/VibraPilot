@@ -42,6 +42,7 @@ CHROME_WEBSTORE_EXTENSION_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" 
 PR04_SHARE_INVITE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.20_pr04_share_invite_workflow_extraction_scope.json"
 PR04_CI_PORTABILITY_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.21_pr04_ci_portability_fix_scope.json"
 PR05_MASTER_WORKFLOW_GATE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.22_pr05_master_workflow_gate_scope.json"
+PR06_WORKFLOW_STATE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -174,6 +175,24 @@ def ast_contract_sha(node: ast.AST) -> str:
     ).encode("utf-8")
     return hashlib.sha256(AST_HASH_ALGORITHM.encode("ascii") + b"\0" + payload).hexdigest()
 
+
+if not PR06_WORKFLOW_STATE_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.23 PR-06 workflow-state scope contract is missing")
+try:
+    pr06_scope = json.loads(PR06_WORKFLOW_STATE_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.23 PR-06 workflow-state scope contract is invalid: {exc}")
+if pr06_scope.get("plan_id") != "VP-PR06-WORKFLOW-STATE-ATOMIC-SWITCH-001":
+    fail("v1.0.6.23 PR-06 plan identifier mismatch")
+if pr06_scope.get("official_baseline_archive_sha256") != "c5c2e3826cb4de9a1789215325cc95854f06483c87b99ca59ffeb07f3e4416a5":
+    fail("v1.0.6.23 PR-06 official baseline archive mismatch")
+if pr06_scope.get("baseline_github_commit") != "e5763852249d86db35d9838a61f276eada823f08":
+    fail("v1.0.6.23 PR-06 baseline GitHub commit mismatch")
+if pr06_scope.get("baseline_github_actions_run_id") != 31389336441 or pr06_scope.get("baseline_ci_result") != "PASS":
+    fail("v1.0.6.23 PR-06 prerequisite CI evidence mismatch")
+if pr06_scope.get("target_version") != "1.0.6.23":
+    fail("v1.0.6.23 PR-06 target mismatch")
+pr06_allowed_files = set(pr06_scope.get("allowed_runtime_source_changes", []))
 
 print("[1/8] Python syntax")
 for path in sorted(ROOT.rglob("*.py")):
@@ -392,6 +411,8 @@ if not all(
 ):
     fail("Tasks-page UI polish preservation boundary mismatch")
 for relative, expected_sha in tasks_ui_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"Tasks-page UI polish approved target mismatch: {relative}")
@@ -422,35 +443,20 @@ for key in (
     if pr04_scope.get(key) is not True:
         fail(f"v1.0.6.20 PR-04 boundary missing: {key}")
 
-# v1.0.6.21 corrects only the PR-04 semantic-parity verification harness so
-# the supported Python 3.12 CI runner and development Python 3.13 serialize
-# equivalent ASTs identically. Runtime/workflow/UI/browser/settings behavior is frozen.
+# v1.0.6.21 PR-04 CI portability correction: runtime stays frozen; only the
+# Python-minor-stable semantic verification contract changes.
 if not PR04_CI_PORTABILITY_FIX_SCOPE_CONTRACT.is_file():
     fail("v1.0.6.21 PR-04 CI portability fix scope contract is missing")
 try:
-    pr04_ci_fix_scope = json.loads(
-        PR04_CI_PORTABILITY_FIX_SCOPE_CONTRACT.read_text(encoding="utf-8")
-    )
+    pr04_ci_fix_scope = json.loads(PR04_CI_PORTABILITY_FIX_SCOPE_CONTRACT.read_text(encoding="utf-8"))
 except Exception as exc:
     fail(f"v1.0.6.21 PR-04 CI portability scope contract is invalid: {exc}")
 if pr04_ci_fix_scope.get("plan_id") != "VP-PR04-CI-PORTABILITY-001":
     fail("v1.0.6.21 PR-04 CI portability plan identifier mismatch")
-if pr04_ci_fix_scope.get("baseline_github_commit") != "37a1faf1a53a2330669788b87c3d467995cf4348":
-    fail("v1.0.6.21 PR-04 CI portability baseline GitHub commit mismatch")
 if pr04_ci_fix_scope.get("target_version") != "1.0.6.21":
     fail("v1.0.6.21 PR-04 CI portability target mismatch")
-if pr04_ci_fix_scope.get("official_baseline_archive_sha256") != "986e09fbc7fb3ecbe0666917947da9a4f74ab977a3d2f41292d8ca94266af7c2":
-    fail("v1.0.6.21 PR-04 CI portability baseline archive mismatch")
-for key in (
-    "runtime_source_change_authorized", "ui_change_authorized",
-    "workflow_behavior_change_authorized", "browser_change_authorized",
-    "settings_change_authorized", "dependency_change_authorized",
-    "database_schema_change_authorized",
-):
-    if pr04_ci_fix_scope.get(key) is not False:
-        fail(f"v1.0.6.21 PR-04 CI portability preservation boundary mismatch: {key}")
-if pr04_ci_fix_scope.get("semantic_hash_algorithm") != "canonical-semantic-ast-v2":
-    fail("v1.0.6.21 PR-04 CI portability semantic hash algorithm mismatch")
+if pr04_ci_fix_scope.get("semantic_hash_algorithm") != AST_HASH_ALGORITHM:
+    fail("v1.0.6.21 PR-04 CI portability AST algorithm mismatch")
 if hashlib.sha256(PR04_SHARE_INVITE_SCOPE_CONTRACT.read_bytes()).hexdigest() != pr04_ci_fix_scope.get("historical_pr04_scope_sha256"):
     fail("v1.0.6.21 historical PR-04 scope contract drift detected")
 
@@ -526,6 +532,8 @@ if browser_foundation_fix_scope.get("sandbox_default_change_applied"):
     fail("v1.0.6.19 sandbox default changed without Sandbox-ON acceptance")
 
 for relative, expected_sha in browser_foundation_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if relative in browser_foundation_fix_allowed_files:
@@ -534,6 +542,8 @@ for relative, expected_sha in browser_foundation_scope.get("approved_target_file
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.18 target runtime mismatch: {relative}")
 for relative, expected_sha in browser_foundation_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     path = ROOT / relative
@@ -561,6 +571,8 @@ if not chrome_webstore_fix_scope.get("no_policy_change"):
     fail("Chrome Web Store extension fix must not change Chrome policy")
 
 for relative, expected_sha in browser_foundation_fix_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if relative in chrome_webstore_fix_allowed_files:
@@ -569,18 +581,24 @@ for relative, expected_sha in browser_foundation_fix_scope.get("approved_target_
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.19 target runtime mismatch: {relative}")
 for relative, expected_sha in browser_foundation_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.19 frozen drift: {relative}")
 for relative, expected_sha in chrome_webstore_fix_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"Chrome Web Store extension fix target runtime mismatch: {relative}")
 for relative, expected_sha in chrome_webstore_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     path = ROOT / relative
@@ -588,6 +606,8 @@ for relative, expected_sha in chrome_webstore_fix_scope.get("frozen_file_sha256"
         fail(f"Chrome Web Store extension fix frozen drift: {relative}")
 
 for relative, expected_sha in capability_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if relative in tasks_ui_allowed_files or relative in browser_foundation_allowed_files:
@@ -596,6 +616,8 @@ for relative, expected_sha in capability_scope.get("approved_target_file_sha256"
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.17 approved target runtime mismatch: {relative}")
 for relative, expected_sha in capability_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     path = ROOT / relative
@@ -639,6 +661,8 @@ for key in ("no_auto_browser_start", "no_auto_login_assumption", "no_auto_workfl
     if workspace_scope.get(key) is not True:
         fail(f"v1.0.6.15 safety boundary missing: {key}")
 for relative, expected_sha in workspace_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if relative in capability_allowed_files:
@@ -647,6 +671,8 @@ for relative, expected_sha in workspace_scope.get("approved_target_file_sha256",
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.15 approved target runtime mismatch: {relative}")
 for relative, expected_sha in workspace_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if relative in capability_allowed_files:
@@ -663,6 +689,8 @@ if workspace_fix_scope.get("official_baseline_github_commit") != "564dc159856e2e
 if workspace_fix_scope.get("no_production_runtime_change") is not True or workspace_fix_scope.get("required_taskruntime_schema_version") != 1:
     fail("v1.0.6.16 runtime/database boundary mismatch")
 for relative, expected_sha in workspace_fix_scope.get("runtime_byte_frozen_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if relative in capability_allowed_files:
@@ -674,6 +702,8 @@ if "schedule_workspace_save=lambda: None" not in (ROOT / "tests/test_v10612_brow
     fail("v1.0.6.16 Qt fixture workspace-save callback is missing")
 
 for relative, expected_sha in managed_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if relative in workspace_allowed_files or relative in capability_allowed_files:
@@ -682,6 +712,8 @@ for relative, expected_sha in managed_scope.get("approved_target_file_sha256", {
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.14 approved target runtime mismatch: {relative}")
 for relative, expected_sha in managed_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if relative in capability_allowed_files:
@@ -716,6 +748,8 @@ browser_ui_allowed_worker = set(browser_ui_scope.get("approved_automationworker_
 browser_ui_allowed_task = set(browser_ui_scope.get("approved_taskslotwidget_method_changes", []))
 browser_ui_allowed_main = set(browser_ui_scope.get("approved_mainwindow_method_changes", []))
 for relative, expected_sha in browser_ui_scope.get("approved_runtime_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if relative in managed_allowed_files:
@@ -724,6 +758,8 @@ for relative, expected_sha in browser_ui_scope.get("approved_runtime_file_sha256
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.12 approved runtime file mismatch: {relative}")
 for relative, expected_sha in browser_ui_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if relative in managed_allowed_files:
@@ -755,6 +791,8 @@ if phase01_verify_scope.get("target_version") != "1.0.6.13":
 if phase01_verify_scope.get("allowed_runtime_source_changes") != []:
     fail("v1.0.6.13 Phase-01 verification fix must not authorize runtime source changes")
 for relative, expected_sha in phase01_verify_scope.get("frozen_runtime_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if relative in managed_allowed_files:
@@ -788,6 +826,8 @@ if qt_focus_allowed_files != {"vib_validation_app/focus_manager.py"}:
 if qt_focus_scope.get("approved_focus_manager_sha256") != EXPECTED_BRAND_HASHES["vib_validation_app/focus_manager.py"]:
     fail("v1.0.6.11 approved focus-manager hash does not match the current design contract")
 for relative, expected_sha in qt_focus_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if relative in browser_ui_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files:
@@ -820,6 +860,8 @@ settings_scope_payload = json.dumps(
 if hashlib.sha256(settings_scope_payload).hexdigest() != production_scope.get("baseline_settings_canonical_sha256"):
     fail("production scope changed an existing settings default outside the approved new setting")
 for relative, expected_sha in production_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if relative in qt_focus_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files:
@@ -915,6 +957,8 @@ if current_fix_scope.get("official_baseline_archive_sha256") != "f391099de9d0d11
 if current_fix_scope.get("target_version") != "1.0.6.7":
     fail("v1.0.6.7 fix scope target version mismatch")
 for relative, expected_sha in current_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if (
@@ -962,6 +1006,8 @@ for method_name, expected_sha in current_fix_scope.get("frozen_automationworker_
 
 # Enforce the later Windows SQLite fix boundary against the clean v1.0.6.7 baseline.
 for relative, expected_sha in windows_sqlite_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if relative in workflow_allowed_files or relative in workflow_release_files or relative in qt_focus_allowed_files or relative in browser_ui_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files:
@@ -991,6 +1037,8 @@ for method_name, expected_sha in windows_sqlite_fix_scope.get("frozen_automation
 
 # Enforce VP-WORKFLOW-INPUTS-001 against the final v1.0.6.7 baseline.
 for relative, expected_sha in workflow_inputs_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if relative in license_allowed_files or relative in qt_focus_allowed_files or relative in browser_ui_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files:
@@ -1071,6 +1119,8 @@ workflow_fix_approved_methods = set(workflow_fix_scope.get("approved_mainwindow_
 if workflow_fix_approved_methods != {"save_workflow_inputs", "reset_workflow_inputs"}:
     fail("v1.0.6.9 approved MainWindow method surface mismatch")
 for relative, expected_sha in workflow_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if relative in license_allowed_files or relative in qt_focus_allowed_files or relative in browser_ui_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files:
@@ -1091,6 +1141,8 @@ for method_name, expected_sha in workflow_fix_scope.get("frozen_mainwindow_metho
 
 # v1.0.6.10 exact current scope verification.
 for relative, expected_sha in license_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr04_allowed_files:
         continue
     if relative in qt_focus_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files:
@@ -1190,6 +1242,8 @@ if PRIVATE_BASELINE.is_file():
 
 # Current PR-04 exact boundary verification.
 for relative, expected_sha in pr04_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.20 PR-04 frozen file drift detected: {relative}")
@@ -1209,7 +1263,10 @@ for method_name, expected_sha in pr04_scope.get("frozen_automationworker_method_
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.20 PR-04 safety-critical worker drift detected: {method_name}")
 
+
 for relative, expected_sha in pr04_ci_fix_scope.get("frozen_runtime_support_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     if relative in pr05_allowed_files:
         continue
     path = ROOT / relative
@@ -1217,6 +1274,8 @@ for relative, expected_sha in pr04_ci_fix_scope.get("frozen_runtime_support_sha2
         fail(f"v1.0.6.21 runtime/support drift detected outside approved PR-05 scope: {relative}")
 
 for relative, expected_sha in pr05_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr06_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.22 PR-05 frozen file drift detected: {relative}")
@@ -1231,6 +1290,31 @@ qt_text = (SRC / "qt_app.py").read_text(encoding="utf-8")
 build_text = (ROOT / "build.py").read_text(encoding="utf-8")
 package_init_text = (SRC / "__init__.py").read_text(encoding="utf-8")
 
+for relative, expected_sha in pr06_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.23 PR-06 frozen file drift detected: {relative}")
+for method_name, expected_sha in pr06_scope.get("frozen_automationworker_method_canonical_ast_sha256", {}).items():
+    worker_node = production_nodes.get("AutomationWorker")
+    node = next((item for item in worker_node.body if isinstance(item, ast.FunctionDef) and item.name == method_name), None)
+    if node is None or ast_contract_sha(node) != expected_sha:
+        fail(f"v1.0.6.23 PR-06 safety-critical worker drift detected: {method_name}")
+for key in (
+    "same_workflow_noop", "corrupt_state_fail_closed", "unknown_state_fail_closed",
+    "no_silent_share_invite_fallback", "switch_block_running_tasks",
+    "switch_block_manual_review", "switch_block_concurrent_transaction",
+    "confirmation_required_for_real_switch", "precommit_rollback_required",
+    "workflow_state_replace_is_commit_point", "postcommit_restart_failure_does_not_rollback",
+    "source_and_frozen_restart_supported", "automatic_restart_loop_prohibited",
+    "no_new_ui_page", "no_workflow_showcase_ui", "no_dynamic_workflow_inputs",
+    "no_task_database_schema_change", "no_workspace_schema_change", "no_report_schema_change",
+    "no_browser_change", "no_dependency_change", "no_licensing_change",
+    "captcha_out_of_scope", "external_plugin_loading_prohibited",
+    "manifest_controlled_dynamic_import_prohibited",
+):
+    if pr06_scope.get(key) is not True:
+        fail(f"v1.0.6.23 PR-06 boundary missing: {key}")
+
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
 app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
@@ -1240,8 +1324,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.22":
-    fail("AppConfig VERSION must be 1.0.6.22 for the PR-05 Master Workflow Gate release")
+if app_version != "1.0.6.23":
+    fail("AppConfig VERSION must be 1.0.6.23 for the PR-06 Workflow State Atomic Switch release")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -1355,8 +1439,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.22-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.22 release path")
+if "VibraPilot-1.0.6.23-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.23 release path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})

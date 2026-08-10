@@ -3,9 +3,12 @@
   "documentation": {
     "id": "vibrapilot",
     "title": "VibraPilot Documentation",
-    "description": "Documentation for VibraPilot v1.0.6.22 by Vib Tools.",
-    "version": "1.0.6.22",
+    "description": "Documentation for VibraPilot v1.0.6.23 by Vib Tools.",
+    "version": "1.0.6.23",
     "root": "docs",
     "home": "index.md"
+  },
+  "product": {
+    "description": "Documentation for the stopped VibraPilot v1.0.6.23 PR-06 development snapshot; Official Release Baseline remains v1.0.6.22."
   }
 }

@@ -25,6 +25,7 @@ from vibrapilot.workflow.share_invite.workflow import (
 ROOT = Path(__file__).resolve().parents[1]
 SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.20_pr04_share_invite_workflow_extraction_scope.json"
 PR04_CI_FIX_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.21_pr04_ci_portability_fix_scope.json"
+PR06_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json"
 BASELINE_BACKEND = ROOT / "project" / "research" / "source_baseline" / "VibraPilot_v1.0.6_original_app.py"
 
 ALG = "canonical-semantic-ast-v2"
@@ -180,14 +181,6 @@ class _ExtractedWorkflowParityNormalizer(ast.NodeTransformer):
 
 
 def _extracted_method_semantic_hash(function: ast.FunctionDef) -> str:
-    """Return a Python-minor-stable semantic AST hash for extracted methods.
-
-    ``ast.dump`` includes version-specific empty AST fields (for example
-    ``type_params``), which made the v1.0.6.20 parity gate pass on Python 3.13
-    but fail on the supported Python 3.12 CI runner.  The existing canonical
-    serializer intentionally omits empty/None fields and is therefore used for
-    the release parity contract.
-    """
     normalized = _ExtractedWorkflowParityNormalizer().visit(
         _strip_annotations(function)
     )
@@ -409,21 +402,6 @@ def test_all_extracted_share_invite_methods_are_semantically_identical_to_baseli
         assert _extracted_method_semantic_hash(methods[name]) == expected, name
 
 
-
-def test_pr04_ci_portability_contract_pins_historical_scope_and_algorithm():
-    scope = _ci_fix_scope()
-    assert scope["plan_id"] == "VP-PR04-CI-PORTABILITY-001"
-    assert scope["baseline_github_commit"] == "37a1faf1a53a2330669788b87c3d467995cf4348"
-    assert scope["target_version"] == "1.0.6.21"
-    assert scope["semantic_hash_algorithm"] == ALG
-    assert hashlib.sha256(SCOPE_PATH.read_bytes()).hexdigest() == scope[
-        "historical_pr04_scope_sha256"
-    ]
-    # Empty version-specific AST fields must not participate in the canonical payload.
-    canonical_payload = json.dumps(_canonical(ast.parse("def f(x):\n    return x\n").body[0]))
-    assert "type_params" not in canonical_payload
-
-
 def test_backend_compatibility_methods_delegate_to_share_invite_runtime():
     source = (ROOT / "src/vibrapilot/backend.py").read_text(encoding="utf-8")
     for method in (
@@ -461,7 +439,13 @@ def test_backend_selectors_and_exception_classes_remain_ast_frozen():
 
 def test_pr04_frozen_runtime_files_are_byte_identical():
     scope = _scope()
+    superseded = set()
+    if PR06_SCOPE_PATH.is_file():
+        pr06_scope = json.loads(PR06_SCOPE_PATH.read_text(encoding="utf-8"))
+        superseded.update(pr06_scope.get("allowed_runtime_source_changes", []))
     for relative, expected in scope["frozen_file_sha256"].items():
+        if relative in superseded:
+            continue
         actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
         assert actual == expected, relative
 

@@ -1,16 +1,16 @@
-# VibraPilot v1.0.6.22 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.23 — PR-06 Workflow State Persistence + Atomic Switch/Restart
 
-## v1.0.6.22 — PR-05 Master Workflow Gate
+## Current release
 
-VibraPilot now resolves the current source-controlled built-in workflow through one fail-closed Master Workflow Gate before workflow-specific session, item execution and retry operations. The current in-memory active workflow is `share_invite`; no persistent workflow selection or switching is introduced in this phase.
+VibraPilot v1.0.6.23 promotes the locally verified PR-06 workflow-state and atomic switch/restart implementation on top of the v1.0.6.22 PR-05 Master Workflow Gate.
 
-The verified Share Invite behavior remains unchanged. Browser lifecycle, pause/resume/stop ownership, duplicate-send/manual-review safety, UI/UX, Workflow Inputs, App/Browser Settings, task/workspace/report schemas, licensing, dependencies and CAPTCHA policy are preserved.
+PR-06 persists exactly one built-in `active_workflow_id` in schema-v1 `AppData/workflow_state.json`, migrates only genuinely missing state to `share_invite`, fails closed on corrupt/unsupported/unknown state, injects the active identity into `AutomationWorker`, and exposes an application-level switch service for later Workflow UI.
 
-## v1.0.6.21 — PR-04 Windows/Python 3.12 CI verification fix
+Real workflow switches are blocked while Tasks are running or manual review is required, require explicit confirmation, preserve the approved global/browser/license/profile surfaces, stage rollback state before destructive workflow-scoped clearing, atomically commit the new workflow state, and restart only after commit. Interrupted PREPARED/COMMITTED transactions recover deterministically. Production still contains only the built-in **Share Invite** workflow; PR-07 owns the future Workflow Showcase UI and PR-08 owns dynamic per-workflow inputs.
 
-The v1.0.6.20 PR-04 runtime extraction remains unchanged. GitHub Actions exposed a verification-only portability defect: semantic parity hashes were based on Python 3.13 `ast.dump(...)` output and therefore differed on the supported Python 3.12 runner. v1.0.6.21 switches that gate to the existing canonical AST serializer and freezes all PR-04 runtime/support files.
+## Browser acceptance boundary
 
-No Share Invite, UI, browser, settings, persistence, licensing or CAPTCHA behavior changes are included.
+PR-06 does not change browser launch/configuration, persistent profiles, downloads/uploads, extensions, licensing, Task/report/database schemas or CAPTCHA/security-challenge behavior. Remaining target-Windows browser acceptance for Sandbox policy, storage/history persistence, extension persistence, lifecycle/process-kill recovery and real 1/2/4 Task matrices remains a separate carried acceptance track before final v1.0.7.0 production approval.
 
 ## v1.0.6.20 — PR-04 Share Invite workflow extraction
 
@@ -249,3 +249,4 @@ Public documentation belongs under `docs/`. The local `project/` tree and runtim
 GPL-3.0-only. See `LICENSE` and `NOTICE`.
 
 Maintained by **Vib Tools** — https://vib.tools/
+

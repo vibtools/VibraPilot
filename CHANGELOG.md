@@ -1,3 +1,25 @@
+## v1.0.6.23 — PR-06 Workflow State Persistence + Atomic Switch/Restart — 2026-08-10
+
+### Added
+- Schema-v1 `AppData/workflow_state.json` persisting exactly one active built-in workflow identity.
+- Absence-only first migration to `share_invite`; corrupt, unsupported and unknown persisted states fail closed.
+- Atomic application-level workflow switch transaction with explicit blockers/confirmation, rollback staging, commit-point state replacement and deterministic interrupted-transaction recovery.
+- Active workflow identity injection into `AutomationWorker` with no silent Share Invite fallback.
+- Restart-after-commit behavior with fail-closed manual-restart handling when post-commit spawn fails.
+- PR-06 verification contract and regression coverage.
+
+### Preserved
+- Share Invite selectors/Send/Test Mode/retry/manual-review behavior and safety-critical worker paths.
+- TaskRuntimeStore, workspace, result/report and settings schemas.
+- Browser launch/configuration, persistent profiles, download/upload/extension behavior, licensing and CAPTCHA/security-challenge policy.
+- Production registry remains source-controlled and contains only `share_invite`.
+
+### Deferred
+- PR-07 Workflow Showcase UI.
+- PR-08 dynamic per-workflow Workflow Inputs.
+- PR-09 workflow-aware data/report schemas.
+- Remaining Browser Windows technical acceptance remains a separate carried track.
+
 ## v1.0.6.22 — PR-05 Master Workflow Gate Integration — 2026-08-10
 
 ### Added
@@ -14,11 +36,7 @@
 ## v1.0.6.21 — PR-04 Windows/Python 3.12 CI parity verification fix — 2026-08-10
 
 ### Fixed
-- Replaced Python-minor-dependent `ast.dump(...)` hashing in the PR-04 extracted-workflow parity test with the existing canonical semantic AST serializer (`canonical-semantic-ast-v2`).
-- Added a v1.0.6.21 verification scope that pins the failed v1.0.6.20 GitHub Actions run/job, the historical PR-04 scope hash, canonical baseline-equivalent method hashes, and byte-frozen runtime/support files.
-
-### Preserved
-- No production runtime source, Share Invite behavior, selector order, Test Mode/session enforcement, retry/manual-review safety, UI/UX, browser configuration, settings, dependencies, database/workspace schemas or licensing behavior changes.
+- Replaced Python-minor-sensitive raw `ast.dump()` parity hashing with `canonical-semantic-ast-v2`; PR-04 runtime source remained unchanged.
 
 ## v1.0.6.20 — PR-04 Share Invite workflow extraction — 2026-08-10
 

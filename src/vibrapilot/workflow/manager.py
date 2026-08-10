@@ -75,6 +75,16 @@ class WorkflowManager:
             )
         return self.require_workflow(workflow_id)
 
+    def require_runtime_factory(self, workflow_id: str) -> WorkflowRuntimeFactory:
+        """Return the source-controlled runtime factory or fail closed."""
+        manifest = self.require_workflow(workflow_id)
+        factory = self._runtime_factories.get(manifest.workflow_id)
+        if factory is None:
+            raise WorkflowRuntimeResolutionError(
+                f"no source-controlled runtime is registered for workflow_id: {manifest.workflow_id}"
+            )
+        return factory
+
     def resolve_active_runtime(self, *args: Any, **kwargs: Any) -> WorkflowRuntime:
         manifest = self.require_active_workflow()
         factory = self._runtime_factories.get(manifest.workflow_id)

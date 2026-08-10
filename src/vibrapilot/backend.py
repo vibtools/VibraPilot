@@ -1706,6 +1706,7 @@ class AutomationWorker(threading.Thread):
         pause_event: threading.Event,
         initial_url: str,
         runtime_store: TaskRuntimeStore | None = None,
+        active_workflow_id: str | None = None,
     ):
         super().__init__(daemon=True, name=f"slot-{state.slot_id}-browser-worker")
         self.state = state
@@ -1754,10 +1755,12 @@ class AutomationWorker(threading.Thread):
         self._pending_file_chooser_request_id: str | None = None
         self._pending_file_chooser_page_id: int | None = None
         self.browser_launch_diagnostics: dict[str, Any] = {}
-        # PR-05 Master Workflow Gate: in-memory only. No settings/database/workspace
-        # persistence or switching surface exists in this phase.
+        # PR-06: the application owns the persisted active workflow identity and
+        # injects it into each worker. None/unknown values remain fail-closed at
+        # the existing PR-05 Master Workflow Gate; no Share Invite fallback lives
+        # inside AutomationWorker.
         self._workflow_manager = WorkflowManager.with_builtin_workflows(
-            active_workflow_id="share_invite"
+            active_workflow_id=active_workflow_id
         )
         self._active_workflow_runtime_cache: WorkflowRuntime | None = None
 

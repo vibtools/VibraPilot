@@ -1,12 +1,14 @@
+## Current baseline classification — 2026-08-10
+
+- **Official Release Baseline:** v1.0.6.23 / PR-06 Workflow State + Atomic Switch/Restart.
+- **Previous Official Release:** v1.0.6.22 / PR-05 / GitHub `e5763852249d86db35d9838a61f276eada823f08`.
+- **Final planned production line:** v1.0.7.0.
+
+v1.0.6.23 preserves the v1.0.6.22 Master Workflow Gate and promotes only the approved workflow-state persistence and atomic switch/restart infrastructure. Browser technical acceptance remains a separate carried release track.
+
 ## v1.0.6.22 — PR-05 Master Workflow Gate
 
 Scope-locked fourth-segment production update from official v1.0.6.21 baseline `8aa8de7df68cb5d402bd3d2ae2400efc36189fbcca8f36bddb23679dbc78ff14` and GitHub commit `cb4337812c0ac4f0e944093b7a7d4400fe618d57`. PR-05 adds only the in-memory Master Workflow execution gate and fail-closed built-in runtime resolution. Active workflow persistence/switching remains reserved for PR-06.
-
-## v1.0.6.21 — PR-04 CI portability verification fix
-
-Verification-only fourth-segment release from official v1.0.6.20 PR-04 baseline commit `37a1faf1a53a2330669788b87c3d467995cf4348`. Runtime/workflow/UI/browser/settings/dependency/schema behavior is frozen; only the cross-version semantic-AST parity harness, release metadata and verification/documentation state change.
-
-GitHub Actions acceptance is required before v1.0.6.21 is frozen as the next official baseline.
 
 ## v1.0.6.20 — PR-04 Share Invite workflow extraction
 
@@ -46,7 +48,7 @@ Version **1.0.6.14** is the scope-locked managed-persistent-browser and Closed T
 
 VibraPilot uses a four-segment production release version for hardening/configuration/security maintenance on top of the validated v1.0.6 automation baseline.
 
-Current release candidate: **1.0.6.20**
+Current release: **1.0.6.23**
 
 Version **1.0.6.13** is the verification/CI-stability correction anchored to uploaded v1.0.6.12 archive SHA-256 `becd6add21d377e98e458ce856c9c3baa710a113459bde0c737507c122c2a9b5` and GitHub v1.0.6.12 commit `a9cfec319285db2fb9fbff8d4bf0ede8ac87686b`.
 

@@ -1,109 +1,45 @@
-## v1.0.6.22 PR-05 Master Workflow Gate surface
-
-- `src/vibrapilot/workflow/contracts.py` — generic session/item/retry runtime protocol plus fail-closed workflow errors.
-- `src/vibrapilot/workflow/registry.py` — explicit source-controlled built-in runtime factory map; no external discovery.
-- `src/vibrapilot/workflow/manager.py` — in-memory active workflow identity, validation and runtime resolution.
-- `src/vibrapilot/workflow/share_invite/workflow.py` — generic adapters delegating to the existing verified Share Invite methods.
-- `src/vibrapilot/backend.py` — Master Workflow Gate ownership and compatibility-boundary routing; safety-critical processing state machine remains frozen.
-- `config/verification/v1.0.6.22_pr05_master_workflow_gate_scope.json` — exact baseline/scope/frozen-hash contract.
-- `tests/test_v10622_pr05_master_workflow_gate.py` — fail-closed, delegation and safety regression coverage.
-
-No new application page, settings key, persistence column/table or external plugin surface is introduced.
-
-## v1.0.6.21 PR-04 CI portability verification surface
-
-- `config/verification/v1.0.6.21_pr04_ci_portability_fix_scope.json` — baseline/run identity, canonical semantic hashes and runtime/support freeze.
-- `tests/test_v10620_pr04_share_invite_workflow_parity.py` — same PR-04 behavior tests with Python-minor-stable semantic hashing.
-- `scripts/verify_repository.py` — v1.0.6.21 metadata/freeze verification only; no runtime source integration change.
-- `docs/updates/v1.0.6.21-pr04-ci-portability-fix.md` and `docs/verification/V1.0.6.21_PR04_CI_PORTABILITY_VERIFICATION.md` — public release/verification evidence.
-
-## v1.0.6.20 PR-04 workflow extraction surface
-
-- `src/vibrapilot/workflow/share_invite/` — first source-controlled built-in workflow: manifest, existing logo asset and extracted Share Invite runtime implementation.
-- `src/vibrapilot/workflow/{contracts.py,registry.py,manager.py}` — minimal runtime contract plus deterministic built-in registration/resolution; no external discovery.
-- `src/vibrapilot/backend.py` — thin compatibility delegation only for Share Invite-specific methods; safety-critical processing state remains frozen.
-- `config/verification/v1.0.6.20_pr04_share_invite_workflow_extraction_scope.json` — approved scope, frozen hashes and parity contract.
-- `tests/test_v10620_pr04_share_invite_workflow_parity.py` — PR-04 structural/behavioral safety parity coverage.
-
-No new application page, database/workspace schema, setting, browser policy, dependency or workflow-switch state is introduced.
-
-## v1.0.6.19 browser-foundation verification surface
-
-- `src/vibrapilot/browser_diagnostics.py` — evidence fidelity, redaction and Playwright runtime compatibility classification.
-- `src/vibrapilot/backend.py` — sanitized fallback diagnostic logging and compatibility warning emission.
-- `scripts/diagnostics/verify_browser_foundation_evidence.py` — non-invasive evidence validator.
-- `config/verification/v1.0.6.19_browser_foundation_verification_fix_scope.json` — exact scope/frozen-hash contract.
-- `tests/test_v10619_browser_foundation_verification_fix.py` — regression coverage.
-
-## v1.0.6.18 browser-foundation surface
-
-- `src/vibrapilot/browser_diagnostics.py` — observational browser evidence.
-- `config/verification/v1.0.6.18_browser_foundation_scope.json` — scope lock.
-- `docs/forensic/` — permanent P0 evidence docs.
-- `tests/test_v10618_browser_foundation.py` — regression tests.
-
-## v1.0.6.17 browser capability surface
-
-- `src/vibrapilot/browser_capabilities.py` — download-path/filename and unpacked-extension validation helpers.
-- `src/vibrapilot/backend.py` — Playwright download/filechooser lifecycle integration and backend extension validation.
-- `src/vibrapilot/qt_app.py` — Task Downloads action, native chooser UI, event rendering, save-time extension validation.
-- `config/verification/v1.0.6.17_browser_capabilities_scope.json` — machine-readable scope lock.
-- `tests/test_v10617_browser_capabilities.py` — regression contract.
-
-No new database table, settings key or application page is added.
-
-## v1.0.6.16 verification surface
-
-- `config/verification/v1.0.6.16_workspace_persistence_verification_fix_scope.json`
-- `tests/test_v10616_workspace_persistence_verification_fix.py`
-- `docs/updates/v1.0.6.16-workspace-persistence-verification-fix.md`
-- `docs/verification/V1.0.6.16_WORKSPACE_PERSISTENCE_FORENSIC_VERIFICATION.md`
-
-## v1.0.6.15 workspace persistence addition
-
-- `src/vibrapilot/workspace_state.py` — atomic lightweight workspace metadata store.
-- `AppData/state.json` — runtime workspace metadata path already reserved by the baseline; no recipient rows, browser profile data or licensing secrets are stored here.
-- `config/verification/v1.0.6.15_workspace_persistence_scope.json` — scope lock.
-- `tests/test_v10615_workspace_persistence.py` — workspace persistence regression contract.
-
-## v1.0.6.14 current implementation surface
+# Project Structure — v1.0.6.23 PR-06 Release
 
 ```text
-config/settings.defaults.json   Managed persistent browser enabled by default
-config/verification/v1.0.6.14_managed_persistent_browser_closed_task_scope.json
-src/vibrapilot/backend.py       Managed profile resolver/migration + persistent recycle compatibility
-src/vibrapilot/qt_app.py        Profile validation + Open Closed Tasks / Task archive-reopen UI
-src/vibrapilot/task_runtime_store.py  Closed Task lifecycle using existing schema v1
-tests/test_v10614_managed_persistent_browser.py
-```
-
-No new application page, database table/column, dependency or permanent Task-delete feature is introduced.
-
-# Project Structure
-
-```text
-.github/workflows/           CI
+.github/workflows/           Public CI workflow
 assets/                      Application assets
-config/                      Source-controlled application/runtime configuration and public machine contracts
-  AppConfig/                 Public app/About/support/social + Licora API v2 public configuration
-  verification/              Backend, historical scope locks, Phase-01 lifecycle and current v1.0.6.13 verification-fix contracts
-docs/                        Public product documentation and per-release update notes
-frozen_design_source/        Official frozen Vib Tools token JSON
-project/                     Private local development workspace (gitignored; never required by CI)
-scripts/                     Launch, repository verification and clean source-archive verification helpers
-src/vibrapilot/              Production application
-  app_config.py              Validated read-only AppConfig facade
-  licensing_v2.py            Secure Licora API v2 protocol/cryptographic client
-  backend.py                 validated automation + production worker/runtime wiring; v1.0.6.12 browser lifecycle runtime (byte-frozen in v1.0.6.13)
-  data_io.py                 Input/export adapters + import reconciliation
-  task_runtime_store.py       SQLite task/checkpoint/result persistence
-  workflow_inputs.py          Workflow/form input metadata only
-  qt_app.py                  Vib Tools PySide6 interface; v1.0.6.12 Task browser lifecycle/geometry runtime (byte-frozen in v1.0.6.13)
-tests/                       Static/runtime/security/scope contract tests
-vib_validation_app/          Vib Tools design-system modules; v1.0.6.11 approves focus-manager lifetime correction only
-CHANGELOG.md                  Cumulative release history
-UPDATE_LOG.md                 Concise production update index
-VERSIONING.md                 Release/version documentation policy
-build.py                      Windows x64 release builder
-run.py                        Source launcher
+config/                      Source-controlled application/runtime configuration
+  AppConfig/                 Public app/About/support/social/Licora configuration
+  verification/              Version/phase verification contracts
+docs/                        Public documentation and historical release evidence
+frozen_design_source/        Frozen Vib Tools design tokens
+project/                     Private development/governance workspace; not runtime/public release input
+scripts/                     Launch/repository/source-archive verification helpers
+src/vibrapilot/
+  app_config.py              Validated AppConfig facade
+  backend.py                 Settings/licensing/task model/AutomationWorker/browser automation runtime
+  browser_capabilities.py    Download path/filename and unpacked-extension helpers
+  browser_diagnostics.py     Browser/environment/process diagnostics
+  data_io.py                 Import reconciliation and report export
+  licensing_v2.py            Licora Secure API v2 cryptographic client
+  qt_app.py                  PySide6 application shell, Tasks, settings, PR-06 switch orchestration
+  task_runtime_store.py      SQLite runs/items/results persistence
+  workflow_inputs.py         Four existing settings-backed Workflow Input metadata fields
+  workspace_state.py         Atomic workspace metadata persistence
+  workflow/
+    contracts.py             Workflow contracts/errors/runtime protocol
+    registry.py              Deterministic built-in registry
+    manager.py               Fail-closed active workflow runtime resolution
+    state.py                 PR-06 persisted active state + switch transaction/recovery
+    share_invite/            Only current production workflow
+      manifest.json
+      workflow.py
+      logo.png
+tests/                       Regression/security/scope/forensic contract tests
+vib_validation_app/          Frozen design-system support modules
+build.py                     Windows x64 release builder
+run.py                       Source launcher
 ```
+
+## Current UI pages
+
+Dashboard, Tasks, Workflow Inputs, Reports, Live Logs, App Settings, Browser Settings and About. There is no Workflow Showcase page in v1.0.6.23; PR-07 owns that UI.
+
+## Public/private release boundary
+
+`project/`, runtime `AppData/`, `Logs/`, `Reports/`, `FailedData/`, caches and compiled Python files must remain excluded from clean public release-source artifacts.

@@ -44,6 +44,22 @@ class WorkflowRuntimeResolutionError(WorkflowError):
     """Raised when a built-in workflow runtime cannot be resolved safely."""
 
 
+class WorkflowStateError(WorkflowError):
+    """Raised when persistent active-workflow state cannot be used safely."""
+
+
+class WorkflowStateCorruptError(WorkflowStateError):
+    """Raised after corrupt/invalid workflow state is quarantined fail-closed."""
+
+
+class WorkflowSwitchError(WorkflowError):
+    """Raised when an atomic workflow switch cannot complete safely."""
+
+
+class WorkflowSwitchBlockedError(WorkflowSwitchError):
+    """Raised when workflow switching is blocked before destructive mutation."""
+
+
 def _required_text(value: str, field_name: str) -> str:
     if not isinstance(value, str):
         raise WorkflowManifestError(f"{field_name} must be a string")
