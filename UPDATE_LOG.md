@@ -1,3 +1,7 @@
+## v1.0.6.25 — PR-08 Dynamic Workflow Inputs + Per-Workflow Persistence — 2026-08-10
+
+Adds source-controlled dynamic Workflow Input schemas and canonical atomic per-workflow persistence while preserving the existing Share Invite compatibility keys as mirrors. Existing values migrate once when `workflow_inputs.json` is absent; canonical values survive workflow switches and newly created workers receive an immutable validated snapshot. Production registry remains `share_invite` only and PR-09 remains not started.
+
 ## v1.0.6.24 — PR-07 Workflow Showcase Page — 2026-08-10
 
 Adds a metadata-driven Workflows page for registered built-in workflows and active-state display while keeping PR-06 switching authoritative. Production registry remains `share_invite` only; PR-08 inputs and all Browser/licensing/CAPTCHA/schema work stay out of scope.

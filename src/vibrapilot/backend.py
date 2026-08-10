@@ -34,6 +34,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 from urllib.parse import urlparse
 
@@ -1707,6 +1708,7 @@ class AutomationWorker(threading.Thread):
         initial_url: str,
         runtime_store: TaskRuntimeStore | None = None,
         active_workflow_id: str | None = None,
+        workflow_input_values: dict[str, Any] | None = None,
     ):
         super().__init__(daemon=True, name=f"slot-{state.slot_id}-browser-worker")
         self.state = state
@@ -1716,6 +1718,10 @@ class AutomationWorker(threading.Thread):
         self.pause_event = pause_event
         self.initial_url = initial_url
         self.runtime_store = runtime_store
+        # PR-08: capture an immutable per-worker snapshot of the active
+        # workflow's validated inputs. Existing workers are intentionally not
+        # live-mutated when Workflow Inputs are saved.
+        self.workflow_input_values = MappingProxyType(dict(workflow_input_values or {}))
         self.browser = None
         self.context = None
         self.active_page = None

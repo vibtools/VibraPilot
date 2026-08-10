@@ -33,9 +33,12 @@ class V10613Phase01VerificationFixTest(unittest.TestCase):
 
     def test_phase01_runtime_and_task_store_are_byte_frozen(self):
         current_scope = ROOT / "config/verification/v1.0.6.14_managed_persistent_browser_closed_task_scope.json"
+        pr08_scope = ROOT / "config/verification/v1.0.6.25_pr08_dynamic_workflow_inputs_scope.json"
         current_allowed = set()
         if current_scope.is_file():
             current_allowed = set(json.loads(current_scope.read_text(encoding="utf-8")).get("allowed_runtime_source_changes", []))
+        if pr08_scope.is_file():
+            current_allowed |= set(json.loads(pr08_scope.read_text(encoding="utf-8")).get("allowed_production_source_changes", []))
         for relative, expected in self.scope["frozen_runtime_file_sha256"].items():
             if relative in current_allowed:
                 continue

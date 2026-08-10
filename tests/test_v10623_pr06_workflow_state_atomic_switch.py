@@ -379,7 +379,10 @@ def test_later_pr07_ui_does_not_add_fake_production_workflow():
 
 
 def test_frozen_out_of_scope_files_are_byte_identical_to_v10622_baseline():
+    pr08_authorized_supersession = {"src/vibrapilot/workflow_inputs.py"}
     for relative, expected in _scope()["frozen_file_sha256"].items():
+        if relative in pr08_authorized_supersession:
+            continue
         actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
         assert actual == expected, relative
 

@@ -1,10 +1,12 @@
-# VibraPilot v1.0.6.24 — PR-07 Workflow Showcase Page
+# VibraPilot v1.0.6.25 — PR-08 Dynamic Workflow Inputs + Per-Workflow Persistence
 
 ## Current development candidate
 
-PR-07 adds a top-level **Workflows** page that renders only source-controlled built-in workflow metadata, displays the authoritative active workflow and delegates valid inactive-workflow activation to the existing PR-06 `request_workflow_switch()` service.
+Current release baseline: **v1.0.6.24 / PR-07 Workflow Showcase Page — RELEASE COMPLETE**.
 
-Production still contains only **Share Invite**. No fake/demo workflow, dynamic Workflow Inputs, schema redesign, Browser/licensing/CAPTCHA change or plugin discovery is introduced. The current release baseline remains v1.0.6.23 / PR-06 until PR-07 owner UI acceptance, GitHub publication and Windows/Python 3.12 CI closure.
+PR-08 replaces the fixed Workflow Inputs form/persistence assumption with source-controlled declarative schemas and a canonical per-workflow `AppData/workflow_inputs.json` store. Existing Share Invite values migrate once from the four historical settings keys; those keys remain compatibility mirrors while canonical values survive workflow switches. Newly created workers receive an immutable validated input snapshot.
+
+Production still contains only **Share Invite**. PR-06 workflow-state/switch semantics, Share Invite runtime, Browser/licensing/CAPTCHA behavior, Task/workspace/report schemas, dependencies and CI workflow remain frozen. PR-09 workflow-aware data/report compatibility is not started.
 
 # VibraPilot v1.0.6.23 — PR-06 Workflow State Persistence + Atomic Switch/Restart
 

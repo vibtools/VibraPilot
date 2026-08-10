@@ -30,6 +30,7 @@ SCOPE = ROOT / "config/verification/v1.0.6.17_browser_capabilities_scope.json"
 TASKS_UI_SCOPE = ROOT / "config/verification/v1.0.6.17_tasks_ui_polish_scope.json"
 BROWSER_FOUNDATION_SCOPE = ROOT / "config/verification/v1.0.6.18_browser_foundation_scope.json"
 PR06_SCOPE = ROOT / "config/verification/v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json"
+PR08_SCOPE = ROOT / "config/verification/v1.0.6.25_pr08_dynamic_workflow_inputs_scope.json"
 
 
 class BrowserCapabilityHelpersTest(unittest.TestCase):
@@ -54,16 +55,18 @@ class BrowserCapabilityHelpersTest(unittest.TestCase):
         foundation_allowed = set(foundation_scope["allowed_runtime_source_changes"])
         pr06_scope = json.loads(PR06_SCOPE.read_text(encoding="utf-8"))
         pr06_allowed = set(pr06_scope["allowed_runtime_source_changes"])
+        pr08_scope = json.loads(PR08_SCOPE.read_text(encoding="utf-8"))
+        pr08_allowed = set(pr08_scope["allowed_production_source_changes"])
         for relative, expected in scope["approved_target_file_sha256"].items():
-            if relative in ui_allowed or relative in foundation_allowed or relative in pr06_allowed:
+            if relative in ui_allowed or relative in foundation_allowed or relative in pr06_allowed or relative in pr08_allowed:
                 continue
             self.assertEqual(hashlib.sha256((ROOT / relative).read_bytes()).hexdigest(), expected, relative)
         for relative, expected in ui_scope["approved_target_file_sha256"].items():
-            if relative in pr06_allowed:
+            if relative in pr06_allowed or relative in pr08_allowed:
                 continue
             self.assertEqual(hashlib.sha256((ROOT / relative).read_bytes()).hexdigest(), expected, relative)
         for relative, expected in scope["frozen_file_sha256"].items():
-            if relative in pr06_allowed:
+            if relative in pr06_allowed or relative in pr08_allowed:
                 continue
             self.assertEqual(hashlib.sha256((ROOT / relative).read_bytes()).hexdigest(), expected, relative)
 

@@ -50,11 +50,14 @@ class WorkflowInputsTest(unittest.TestCase):
             self.assertEqual(manager.get("default_target_url"), saved["default_target_url"])
             self.assertEqual(manager.get("theme_mode"), saved["theme_mode"])
 
-    def test_workflow_metadata_contains_no_fake_workflow_selector(self):
+    def test_workflow_metadata_remains_source_controlled_without_fake_selector(self):
         text = (SRC / "vibrapilot" / "workflow_inputs.py").read_text(encoding="utf-8")
-        self.assertNotIn("workflow_id", text)
+        self.assertIn('workflow_id="share_invite"', text)
+        self.assertIn("WORKFLOW_INPUT_SCHEMAS", text)
         self.assertNotIn("workflow_selector", text)
         self.assertNotIn("default_target_url", text)
+        for forbidden in ("importlib", "entry_points", "__import__", "eval(", "exec("):
+            self.assertNotIn(forbidden, text)
 
 
 if __name__ == "__main__":

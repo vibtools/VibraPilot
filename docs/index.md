@@ -1,12 +1,12 @@
-# VibraPilot Documentation — v1.0.6.24 PR-07 Candidate
+# VibraPilot Documentation — v1.0.6.25 PR-08 Candidate
 
-Current release baseline: **v1.0.6.23 / PR-06**. Current development candidate: **v1.0.6.24 / PR-07 Workflow Showcase Page**.
+Current release baseline: **v1.0.6.24 / PR-07 — RELEASE COMPLETE**. Current development candidate: **v1.0.6.25 / PR-08 Dynamic Workflow Inputs + per-workflow persistence**.
 
-PR-07 exposes source-controlled built-in workflow metadata through a Workflows page and delegates activation to the existing PR-06 atomic switch service. Production still contains only `share_invite`; PR-08 dynamic Workflow Inputs remain not started.
+PR-08 introduces source-controlled declarative input schemas and canonical atomic per-workflow persistence while preserving Share Invite compatibility mirrors and all PR-06/PR-07 workflow behavior. Production remains `share_invite` only; PR-09 workflow-aware Task/data/report compatibility remains not started.
 
 Candidate documents:
-- `updates/v1.0.6.24-pr07-workflow-showcase.md`
-- `verification/V1.0.6.24_PR07_WORKFLOW_SHOWCASE.md`
+- `updates/v1.0.6.25-pr08-dynamic-workflow-inputs.md`
+- `verification/V1.0.6.25_PR08_DYNAMIC_WORKFLOW_INPUTS.md`
 
 # VibraPilot Documentation
 

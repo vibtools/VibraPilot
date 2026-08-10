@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.20_pr04_share_invite_workflow_extraction_scope.json"
 PR04_CI_FIX_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.21_pr04_ci_portability_fix_scope.json"
 PR06_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json"
+PR08_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.25_pr08_dynamic_workflow_inputs_scope.json"
 BASELINE_BACKEND = ROOT / "project" / "research" / "source_baseline" / "VibraPilot_v1.0.6_original_app.py"
 
 ALG = "canonical-semantic-ast-v2"
@@ -443,6 +444,9 @@ def test_pr04_frozen_runtime_files_are_byte_identical():
     if PR06_SCOPE_PATH.is_file():
         pr06_scope = json.loads(PR06_SCOPE_PATH.read_text(encoding="utf-8"))
         superseded.update(pr06_scope.get("allowed_runtime_source_changes", []))
+    if PR08_SCOPE_PATH.is_file():
+        pr08_scope = json.loads(PR08_SCOPE_PATH.read_text(encoding="utf-8"))
+        superseded.update(pr08_scope.get("allowed_production_source_changes", []))
     for relative, expected in scope["frozen_file_sha256"].items():
         if relative in superseded:
             continue

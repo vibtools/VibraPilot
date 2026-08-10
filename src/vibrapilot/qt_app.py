@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QProgressBar,
+    QSpinBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -66,6 +67,7 @@ from vib_validation_app.widgets import (
     label,
     line_input,
     metric_card,
+    number_input,
     page_frame,
     page_header,
     password_input,
@@ -111,7 +113,16 @@ from .data_io import (
     parse_data_with_audit,
 )
 from .task_runtime_store import TaskRuntimeStore
-from .workflow_inputs import WORKFLOW_INPUT_FIELDS, WORKFLOW_INPUT_KEYS
+from .workflow_inputs import (
+    WORKFLOW_INPUT_FIELDS,
+    WORKFLOW_INPUT_KEYS,
+    WorkflowInputField,
+    WorkflowInputSchema,
+    WorkflowInputSchemaError,
+    normalize_workflow_input_values,
+    workflow_input_schema_for,
+)
+from .workflow.input_state import WorkflowInputStateError, WorkflowInputStateStore
 from .workspace_state import WorkspaceStateStore
 from .workflow import (
     WorkflowError,
@@ -1277,6 +1288,7 @@ class TaskSlotWidget(QFrame):
             initial_url=url,
             runtime_store=self.app.runtime_store,
             active_workflow_id=self.app.active_workflow_id,
+            workflow_input_values=self.app.current_workflow_input_snapshot(),
         )
         self.worker.start()
         self.app.log_ui(f"Task {self.slot_id}: opening browser session")
@@ -1683,6 +1695,11 @@ class MainWindow(QMainWindow):
         self.workflow_switch_root = APP_DATA_DIR / "WorkflowSwitch"
         self.workflow_state_error = ""
         self.active_workflow_id: str | None = None
+        self.workflow_input_state_store = WorkflowInputStateStore(
+            APP_DATA_DIR / "workflow_inputs.json"
+        )
+        self.workflow_input_state_error = ""
+        self.active_workflow_input_values: dict[str, Any] = {}
         self._workflow_recovery_actions: list[str] = []
         self._workflow_switch_in_progress = False
         self._workflow_restart_required = False
@@ -1702,6 +1719,13 @@ class MainWindow(QMainWindow):
         except (WorkflowStateError, WorkflowSwitchError) as exc:
             self.workflow_state_error = str(exc)
 
+        if not self.workflow_state_error and self.active_workflow_id:
+            try:
+                self._initialize_workflow_input_state()
+            except WorkflowInputStateError as exc:
+                self.workflow_input_state_error = str(exc)
+                self.active_workflow_input_values = {}
+
         self.license_manager = LicenseManager(self.settings)
         self.runtime_store = TaskRuntimeStore(TASK_RUNTIME_DB)
         self.workspace_store = WorkspaceStateStore(APP_STATE_FILE)
@@ -1719,6 +1743,10 @@ class MainWindow(QMainWindow):
         self.pages: dict[str, int] = {}
         self.setting_widgets: dict[str, QWidget] = {}
         self.workflow_input_widgets: dict[str, QWidget] = {}
+        self.workflow_input_fields: dict[str, WorkflowInputField] = {}
+        self.workflow_input_form_layout: QVBoxLayout | None = None
+        self.workflow_input_save_button: QPushButton | None = None
+        self.workflow_input_reset_button: QPushButton | None = None
         self.browser_setting_widgets: dict[str, QWidget] = {}
         self._workspace_active = False
         self._workspace_transitioning = False
@@ -2081,6 +2109,22 @@ class MainWindow(QMainWindow):
                         "Workflow state blocked",
                         "VibraPilot cannot safely determine the active workflow. "
                         f"Automation is blocked until the workflow state is repaired.\n\n{self.workflow_state_error}",
+                        "error",
+                    ),
+                )
+            if self.workflow_input_state_error:
+                self.log_ui(
+                    f"Workflow Input state is unavailable; automation and workflow switching are blocked: {self.workflow_input_state_error}",
+                    "ERROR",
+                )
+                QTimer.singleShot(
+                    0,
+                    lambda: _message(
+                        self,
+                        "Workflow Inputs blocked",
+                        "VibraPilot cannot safely load the active workflow's persisted inputs. "
+                        "Automation and workflow switching are blocked until the Workflow Input state is repaired.\n\n"
+                        f"{self.workflow_input_state_error}",
                         "error",
                     ),
                 )
@@ -2980,6 +3024,121 @@ class MainWindow(QMainWindow):
         root.addWidget(self._scroll_page(inner), 1)
         return page
 
+    def _legacy_share_invite_input_values(self) -> dict[str, Any]:
+        """Return the exact historical Share Invite compatibility values."""
+        return {
+            key: self.settings.get(key, DEFAULT_SETTINGS[key])
+            for key in WORKFLOW_INPUT_KEYS
+        }
+
+    def _rehydrate_legacy_workflow_input_mirror(
+        self,
+        workflow_id: str,
+        values: dict[str, Any],
+        *,
+        persist: bool,
+    ) -> bool:
+        """Mirror canonical Share Invite values into the four legacy settings keys."""
+        if workflow_id != "share_invite":
+            return False
+        changed = False
+        for key in WORKFLOW_INPUT_KEYS:
+            value = values.get(key, DEFAULT_SETTINGS[key])
+            if self.settings.get(key, DEFAULT_SETTINGS[key]) != value:
+                self.settings.data[key] = value
+                changed = True
+        if changed and persist:
+            try:
+                self.settings.save()
+            except Exception as exc:
+                raise WorkflowInputStateError(
+                    f"Share Invite compatibility settings could not be persisted: {exc}"
+                ) from exc
+        return changed
+
+    def _initialize_workflow_input_state(self) -> None:
+        """Migrate once when absent, then load the active workflow fail-closed."""
+        if not self.active_workflow_id:
+            raise WorkflowInputStateError("Active workflow ID is unavailable.")
+        state = self.workflow_input_state_store.load_or_migrate(
+            legacy_share_invite_values=self._legacy_share_invite_input_values()
+        )
+        values = self.workflow_input_state_store.values_for(
+            self.active_workflow_id, state=state
+        )
+        self._rehydrate_legacy_workflow_input_mirror(
+            self.active_workflow_id, values, persist=True
+        )
+        self.active_workflow_input_values = dict(values)
+        self.workflow_input_state_error = ""
+
+    def _reload_active_workflow_inputs(self) -> tuple[WorkflowInputSchema, dict[str, Any]]:
+        """Reload existing canonical state only; never re-run legacy migration."""
+        if self.workflow_state_error or not self.active_workflow_id:
+            raise WorkflowInputStateError("Active workflow state is unavailable.")
+        try:
+            schema = workflow_input_schema_for(self.active_workflow_id)
+            state = self.workflow_input_state_store.load_existing()
+            values = self.workflow_input_state_store.values_for(
+                self.active_workflow_id, state=state
+            )
+        except (WorkflowInputSchemaError, WorkflowInputStateError) as exc:
+            self.workflow_input_state_error = str(exc)
+            self.active_workflow_input_values = {}
+            raise WorkflowInputStateError(str(exc)) from exc
+        self._rehydrate_legacy_workflow_input_mirror(
+            self.active_workflow_id, values, persist=True
+        )
+        self.active_workflow_input_values = dict(values)
+        self.workflow_input_state_error = ""
+        return schema, dict(values)
+
+    def current_workflow_input_snapshot(self) -> dict[str, Any]:
+        """Return a detached validated snapshot for a newly created worker."""
+        if self.workflow_input_state_error or not self.active_workflow_id:
+            raise WorkflowInputStateError(
+                "Active Workflow Inputs are unavailable; worker creation is blocked."
+            )
+        return dict(self.active_workflow_input_values)
+
+    def _workflow_input_widget(
+        self, field: WorkflowInputField, value: Any
+    ) -> QWidget:
+        if field.kind == "text":
+            widget = line_input(field.placeholder, str(value))
+        elif field.kind == "integer":
+            low = field.minimum if field.minimum is not None else -2147483648
+            high = field.maximum if field.maximum is not None else 2147483647
+            widget = number_input(int(value), low=low, high=high)
+        elif field.kind == "boolean":
+            widget = ToggleSwitch()
+            widget.setChecked(bool(value))
+        elif field.kind == "choice":
+            current = field.choices.index(str(value))
+            widget = combo_box(field.choices, current=current)
+        else:
+            raise WorkflowInputSchemaError(
+                f"Unsupported Workflow Input kind: {field.kind!r}"
+            )
+        if field.help_text:
+            widget.setToolTip(field.help_text)
+        return widget
+
+    def _workflow_input_widget_value(
+        self, field: WorkflowInputField, widget: QWidget
+    ) -> Any:
+        if field.kind == "text" and isinstance(widget, QLineEdit):
+            return widget.text()
+        if field.kind == "integer" and isinstance(widget, QSpinBox):
+            return widget.value()
+        if field.kind == "boolean" and isinstance(widget, QCheckBox):
+            return widget.isChecked()
+        if field.kind == "choice" and isinstance(widget, QComboBox):
+            return widget.currentText()
+        raise WorkflowInputSchemaError(
+            f"Workflow Input widget does not match schema field: {field.key}."
+        )
+
     def make_workflow_inputs_page(self) -> QWidget:
         page = page_frame()
         root = vbox(page, margins=(0, 0, 0, 0), spacing=0)
@@ -2987,42 +3146,25 @@ class MainWindow(QMainWindow):
         save_btn.clicked.connect(self.save_workflow_inputs)
         reset_btn = button("Reset Workflow Inputs", "danger")
         reset_btn.clicked.connect(self.reset_workflow_inputs)
+        self.workflow_input_save_button = save_btn
+        self.workflow_input_reset_button = reset_btn
         root.addWidget(
             page_header(
                 "Workflow Inputs",
-                "Workflow-specific form values are kept separate from application and browser settings.",
+                "Workflow-specific values are rendered from the active source-controlled schema and persisted per workflow.",
                 [save_btn, reset_btn],
             )
         )
 
         inner = QWidget()
         inner.setObjectName("PageInner")
-        lay = vbox(
+        self.workflow_input_form_layout = vbox(
             inner,
             margins=(CONST.page_padding, CONST.page_padding, CONST.page_padding, CONST.page_padding),
             spacing=CONST.content_gap,
         )
-
-        form_card = card("Default Form Inputs")
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(CONST.content_gap)
-        grid.setVerticalSpacing(CONST.form_group_gap)
-        grid.setColumnStretch(1, 1)
-        form_card.layout().addLayout(grid)
-
-        self.workflow_input_widgets.clear()
-        for row, field in enumerate(WORKFLOW_INPUT_FIELDS):
-            grid.addWidget(label(field.label, "FormLabel", False), row, 0)
-            value = self.settings.get(field.key, DEFAULT_SETTINGS[field.key])
-            widget = line_input(field.placeholder, str(value))
-            if field.help_text:
-                widget.setToolTip(field.help_text)
-            self.workflow_input_widgets[field.key] = widget
-            grid.addWidget(widget, row, 1)
-
-        lay.addWidget(form_card)
-        lay.addStretch(1)
         root.addWidget(self._scroll_page(inner), 1)
+        self.refresh_workflow_input_widgets()
         return page
 
     def make_settings_page(self) -> QWidget:
@@ -3295,6 +3437,11 @@ class MainWindow(QMainWindow):
                 "Active workflow state is unavailable. Automation is fail-closed until "
                 "the workflow state is repaired."
             )
+        if self.workflow_input_state_error:
+            return False, (
+                "Active Workflow Inputs are unavailable. Automation is fail-closed until "
+                "the Workflow Input state is repaired. " + self.workflow_input_state_error
+            )
         limit = max(1, int(self.settings.get("max_concurrent_tasks", DEFAULT_SETTINGS["max_concurrent_tasks"])))
         active = [
             task for task in self.tasks.values()
@@ -3332,6 +3479,11 @@ class MainWindow(QMainWindow):
             return "Another workflow switch transaction is already in progress."
         if self.workflow_state_error or not self.active_workflow_id:
             return "Active workflow state is invalid or unavailable."
+        if self.workflow_input_state_error:
+            return (
+                "Workflow switching is blocked because Workflow Input state is invalid or unavailable: "
+                + self.workflow_input_state_error
+            )
         running = [task.slot_id for task in self.tasks.values() if task.is_running()]
         if running:
             return "Workflow switching is blocked while Tasks are running: " + ", ".join(
@@ -3355,7 +3507,9 @@ class MainWindow(QMainWindow):
             "Switch workflow",
             f"Switch workflow from {current} to {target}?\n\n"
             "This will clear current Task cards, the live task runtime database/results, "
-            "Task checkpoints, workspace Task references and current Workflow Input values.\n\n"
+            "Task checkpoints, workspace Task references and the legacy Workflow Input compatibility mirrors.\n\n"
+            "Canonical per-workflow Workflow Input values will be preserved. After restart, "
+            "the target workflow's saved inputs will be loaded.\n\n"
             "License/device identity, global App Settings, Browser Settings, browser profiles "
             "and session storage, downloads/extensions, exported Reports/FailedData, Logs, "
             "user source files, window geometry and selected page will be preserved.\n\n"
@@ -4004,81 +4158,173 @@ class MainWindow(QMainWindow):
         _message(self, "Browser Settings", "Browser settings reset to defaults.")
 
     def refresh_workflow_input_widgets(self) -> None:
-        """Render the exact persisted values for the dedicated workflow form inputs."""
-        for key in WORKFLOW_INPUT_KEYS:
-            widget = self.workflow_input_widgets.get(key)
+        """Render the active workflow's canonical values from its source schema."""
+        layout = self.workflow_input_form_layout
+        if layout is None:
+            return
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        self.workflow_input_widgets.clear()
+        self.workflow_input_fields.clear()
+        try:
+            schema, values = self._reload_active_workflow_inputs()
+            manifest = self.workflow_catalog.require_workflow(schema.workflow_id)
+        except (WorkflowInputStateError, WorkflowInputSchemaError, WorkflowError) as exc:
+            self.workflow_input_state_error = str(exc)
+            if self.workflow_input_save_button is not None:
+                self.workflow_input_save_button.setEnabled(False)
+            if self.workflow_input_reset_button is not None:
+                self.workflow_input_reset_button.setEnabled(False)
+            blocked = card(
+                "Workflow Inputs unavailable",
+                "Workflow Input persistence or schema state is invalid. Automation and workflow switching remain fail-closed until this state is repaired.\n\n"
+                + self.workflow_input_state_error,
+            )
+            layout.addWidget(blocked)
+            layout.addStretch(1)
+            return
+
+        if self.workflow_input_save_button is not None:
+            self.workflow_input_save_button.setEnabled(True)
+        if self.workflow_input_reset_button is not None:
+            self.workflow_input_reset_button.setEnabled(True)
+
+        form_card = card(
+            schema.title,
+            f"Active workflow: {manifest.name} ({schema.workflow_id}). Saved values are isolated to this workflow.",
+        )
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(CONST.content_gap)
+        grid.setVerticalSpacing(CONST.form_group_gap)
+        grid.setColumnStretch(1, 1)
+        form_card.layout().addLayout(grid)
+
+        for row, field in enumerate(schema.fields):
+            grid.addWidget(label(field.label, "FormLabel", False), row, 0)
+            widget = self._workflow_input_widget(field, values[field.key])
+            self.workflow_input_widgets[field.key] = widget
+            self.workflow_input_fields[field.key] = field
+            grid.addWidget(widget, row, 1)
+
+        if not schema.fields:
+            empty = label(
+                "This workflow intentionally defines no Workflow Inputs.",
+                "BodyText",
+                False,
+            )
+            form_card.layout().addWidget(empty)
+
+        layout.addWidget(form_card)
+        layout.addStretch(1)
+
+    def _collect_workflow_input_values(self) -> tuple[WorkflowInputSchema, dict[str, Any]]:
+        if self.workflow_input_state_error or not self.active_workflow_id:
+            raise WorkflowInputStateError(
+                "Workflow Input state is unavailable; Save/Reset is blocked."
+            )
+        schema = workflow_input_schema_for(self.active_workflow_id)
+        raw: dict[str, Any] = {}
+        for field in schema.fields:
+            widget = self.workflow_input_widgets.get(field.key)
             if widget is None:
-                continue
-            value = self.settings.get(key, DEFAULT_SETTINGS[key])
-            if isinstance(widget, QLineEdit):
-                widget.setText(str(value))
+                raise WorkflowInputStateError(
+                    f"Workflow Input widget is unavailable: {field.key}."
+                )
+            raw[field.key] = self._workflow_input_widget_value(field, widget)
+        try:
+            return schema, normalize_workflow_input_values(
+                schema, raw, coerce=True, fill_defaults=True
+            )
+        except WorkflowInputSchemaError as exc:
+            raise WorkflowInputStateError(str(exc)) from exc
+
+    def _persist_active_workflow_input_values(
+        self, schema: WorkflowInputSchema, values: dict[str, Any]
+    ) -> None:
+        """Commit canonical values first, then the Share Invite legacy mirror."""
+        previous_state = self.workflow_input_state_store.load_existing()
+        previous_legacy = self._legacy_share_invite_input_values()
+        try:
+            updated = self.workflow_input_state_store.save_workflow_values(
+                schema.workflow_id, values, coerce=False
+            )
+            canonical = self.workflow_input_state_store.values_for(
+                schema.workflow_id, state=updated
+            )
+            self._rehydrate_legacy_workflow_input_mirror(
+                schema.workflow_id, canonical, persist=True
+            )
+        except Exception as exc:
+            rollback_error: Exception | None = None
+            try:
+                self.workflow_input_state_store.save_state(previous_state)
+            except Exception as rollback_exc:
+                rollback_error = rollback_exc
+            for key, value in previous_legacy.items():
+                self.settings.data[key] = value
+            if rollback_error is not None:
+                self.workflow_input_state_error = (
+                    f"Workflow Input save failed and canonical rollback also failed: "
+                    f"{exc}; rollback: {rollback_error}"
+                )
+                self.active_workflow_input_values = {}
+                raise WorkflowInputStateError(self.workflow_input_state_error) from rollback_error
+            raise WorkflowInputStateError(str(exc)) from exc
+
+        self.active_workflow_input_values = dict(canonical)
+        self.workflow_input_state_error = ""
 
     def save_workflow_inputs(self) -> None:
-        previous_values = {
-            key: self.settings.get(key, DEFAULT_SETTINGS[key]) for key in WORKFLOW_INPUT_KEYS
-        }
         try:
-            parsed_settings: dict[str, Any] = {}
-            for key in WORKFLOW_INPUT_KEYS:
-                widget = self.workflow_input_widgets.get(key)
-                if widget is None:
-                    raise RuntimeError(f"Workflow input widget is unavailable: {key}")
-                parsed_settings[key] = self.parse_setting_value(
-                    key, self._widget_value(key, widget)
-                )
-
-            self.settings.data.update(parsed_settings)
-            try:
-                self.settings.save()
-            except Exception:
-                # A failed settings write must not make unsaved Workflow Inputs
-                # authoritative in memory. Restore the exact pre-save values so
-                # this page remains consistent with the persisted settings state.
-                self.settings.data.update(previous_values)
-                self.refresh_workflow_input_widgets()
-                raise
-
+            schema, values = self._collect_workflow_input_values()
+            self._persist_active_workflow_input_values(schema, values)
             self.refresh_workflow_input_widgets()
-            self.log_ui("Workflow Inputs saved.")
+            self.log_ui(
+                f"Workflow Inputs saved for {schema.workflow_id}. New values apply to newly created browser workers."
+            )
             _message(
                 self,
                 "Workflow Inputs",
-                "Workflow Inputs saved successfully. Existing setting keys and saved-value compatibility are preserved.",
+                "Workflow Inputs saved for the active workflow. Existing running workers keep their original input snapshot; new values apply on the next browser/worker lifecycle.",
             )
         except Exception as exc:
+            self.refresh_workflow_input_widgets()
             _message(self, "Workflow Inputs error", str(exc), "error")
 
     def reset_workflow_inputs(self) -> None:
+        if self.workflow_input_state_error or not self.active_workflow_id:
+            _message(
+                self,
+                "Workflow Inputs error",
+                self.workflow_input_state_error or "Active workflow is unavailable.",
+                "error",
+            )
+            return
         if not _confirm(
             self,
             "Reset Workflow Inputs",
-            "Reset only Workflow Inputs to source defaults? App Settings and Browser Settings will be preserved.",
+            "Reset only the active workflow's inputs to its source-controlled defaults? Other workflows, App Settings and Browser Settings will be preserved.",
         ):
             return
-        previous_values = {
-            key: self.settings.get(key, DEFAULT_SETTINGS[key]) for key in WORKFLOW_INPUT_KEYS
-        }
         try:
-            for key in WORKFLOW_INPUT_KEYS:
-                self.settings.data[key] = DEFAULT_SETTINGS[key]
-            try:
-                self.settings.save()
-            except Exception:
-                # Reset is transactional at the UI ownership boundary: if the
-                # existing SettingsManager cannot persist, keep the prior values
-                # in memory and surface the error instead of leaking it to Qt.
-                self.settings.data.update(previous_values)
-                self.refresh_workflow_input_widgets()
-                raise
-
+            schema = workflow_input_schema_for(self.active_workflow_id)
+            defaults = schema.defaults()
+            self._persist_active_workflow_input_values(schema, defaults)
             self.refresh_workflow_input_widgets()
-            self.log_ui("Workflow Inputs reset to source defaults.")
+            self.log_ui(
+                f"Workflow Inputs reset to source defaults for {schema.workflow_id}."
+            )
             _message(
                 self,
                 "Workflow Inputs",
-                "Workflow Inputs reset to defaults. App Settings and Browser Settings were preserved.",
+                "Active workflow inputs were reset to source-controlled defaults. Other workflow values, App Settings and Browser Settings were preserved.",
             )
         except Exception as exc:
+            self.refresh_workflow_input_widgets()
             _message(self, "Workflow Inputs error", str(exc), "error")
 
     def save_settings(self) -> None:

@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCOPE = ROOT / "config" / "verification" / "v1.0.7.0_pr02_pr03_workflow_foundation_scope.json"
 PR04_SCOPE = ROOT / "config" / "verification" / "v1.0.6.20_pr04_share_invite_workflow_extraction_scope.json"
 PR06_SCOPE = ROOT / "config" / "verification" / "v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json"
+PR08_SCOPE = ROOT / "config" / "verification" / "v1.0.6.25_pr08_dynamic_workflow_inputs_scope.json"
 
 
 def _manifest(workflow_id: str = "alpha") -> WorkflowManifest:
@@ -156,6 +157,9 @@ def test_approved_frozen_production_files_are_byte_identical():
     if PR06_SCOPE.is_file():
         pr06_scope = json.loads(PR06_SCOPE.read_text(encoding="utf-8"))
         superseded.update(pr06_scope.get("allowed_runtime_source_changes", []))
+    if PR08_SCOPE.is_file():
+        pr08_scope = json.loads(PR08_SCOPE.read_text(encoding="utf-8"))
+        superseded.update(pr08_scope.get("allowed_production_source_changes", []))
     for relative, expected in scope["frozen_file_sha256"].items():
         if relative in superseded:
             continue

@@ -61,23 +61,24 @@ class WorkflowInputsUiTest(unittest.TestCase):
         self.assertNotIn("Legacy Contact Settings (Preserved)", source)
         self.assertIn("default_target_url", source)
 
-    def test_workflow_page_owns_exact_fields_without_fake_selector(self):
-        source = _source("make_workflow_inputs_page")
+    def test_workflow_page_is_dynamic_without_fake_selector(self):
+        source = _source("make_workflow_inputs_page") + _source("refresh_workflow_input_widgets")
         self.assertIn('page_header(\n                "Workflow Inputs"', source)
-        self.assertIn('card("Default Form Inputs")', source)
-        self.assertIn("WORKFLOW_INPUT_FIELDS", source)
-        self.assertNotIn("combo_box(", source)
+        self.assertIn("schema.fields", source)
+        self.assertNotIn("WORKFLOW_INPUT_FIELDS", source)
         self.assertNotIn("Workflow:", source)
         self.assertNotIn("default_target_url", source)
 
-    def test_save_and_reset_are_limited_to_workflow_input_keys(self):
+    def test_save_and_reset_delegate_to_per_workflow_persistence_only(self):
         save_source = _source("save_workflow_inputs")
         reset_source = _source("reset_workflow_inputs")
-        self.assertIn("for key in WORKFLOW_INPUT_KEYS", save_source)
-        self.assertIn("for key in WORKFLOW_INPUT_KEYS", reset_source)
-        self.assertNotIn("default_target_url", save_source + reset_source)
-        self.assertNotIn("browser_setting_widgets", save_source + reset_source)
-        self.assertNotIn("setting_widgets", save_source + reset_source)
+        persist_source = _source("_persist_active_workflow_input_values")
+        self.assertIn("_collect_workflow_input_values", save_source)
+        self.assertIn("schema.defaults()", reset_source)
+        self.assertIn("save_workflow_values", persist_source)
+        self.assertNotIn("default_target_url", save_source + reset_source + persist_source)
+        self.assertNotIn("browser_setting_widgets", save_source + reset_source + persist_source)
+        self.assertNotIn("setting_widgets", save_source + reset_source + persist_source)
 
 
 if __name__ == "__main__":

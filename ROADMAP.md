@@ -1,9 +1,10 @@
-# VibraPilot Roadmap — PR-07 Candidate
+# VibraPilot Roadmap — PR-08 Candidate
 
-- Current release baseline: **v1.0.6.23 / PR-06 — RELEASE COMPLETE**.
-- Current development candidate: **v1.0.6.24 / PR-07 Workflow Showcase Page**.
-- PR-07 scope: UI exposure of source-controlled built-in workflow metadata + existing PR-06 activation service trigger.
-- PR-08 Dynamic Workflow Inputs: **NOT STARTED**.
+- Current release baseline: **v1.0.6.24 / PR-07 — RELEASE COMPLETE**.
+- Current development candidate: **v1.0.6.25 / PR-08 Dynamic Workflow Inputs + per-workflow persistence**.
+- PR-08 scope: source-controlled input schemas, dynamic active-workflow renderer, canonical per-workflow persistence, legacy Share Invite migration/mirror, and immutable worker input snapshots.
+- Production registry remains `share_invite` only.
+- PR-09 workflow-aware Task/data/report compatibility: **NOT STARTED**.
 
 # VibraPilot Roadmap — Current View
 

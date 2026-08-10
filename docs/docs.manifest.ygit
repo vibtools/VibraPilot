@@ -3,12 +3,12 @@
   "documentation": {
     "id": "vibrapilot",
     "title": "VibraPilot Documentation",
-    "description": "Documentation for VibraPilot v1.0.6.24 PR-07 Workflow Showcase candidate by Vib Tools.",
-    "version": "1.0.6.24",
+    "description": "Documentation for VibraPilot v1.0.6.25 PR-08 Dynamic Workflow Inputs development candidate by Vib Tools.",
+    "version": "1.0.6.25",
     "root": "docs",
     "home": "index.md"
   },
   "product": {
-    "description": "Documentation for the VibraPilot v1.0.6.24 PR-07 Workflow Showcase development candidate; v1.0.6.23 PR-06 is the current release baseline until PR-07 release closure."
+    "description": "Documentation for the VibraPilot v1.0.6.25 PR-08 Dynamic Workflow Inputs development candidate; v1.0.6.24 PR-07 is the current release baseline until PR-08 release closure."
   }
 }

@@ -1,3 +1,21 @@
+# Project Structure — v1.0.6.25 PR-08 Candidate
+
+PR-08 adds `src/vibrapilot/workflow/input_state.py` for canonical atomic per-workflow Workflow Input persistence and expands `workflow_inputs.py` into the source-controlled declarative schema authority. `qt_app.py` renders the active schema dynamically and `backend.py` stores an immutable worker input snapshot.
+
+```text
+src/vibrapilot/
+  backend.py                 Existing AutomationWorker + PR-08 immutable input snapshot
+  qt_app.py                  Dynamic Workflow Inputs UI/migration/mirror/gating wiring
+  workflow_inputs.py         Source-controlled declarative Workflow Input schemas
+  workflow/
+    input_state.py           PR-08 schema-v1 atomic per-workflow input persistence
+    state.py                 PR-06 workflow-state + atomic switch/recovery (frozen)
+    registry.py              Built-in registry; `share_invite` only (frozen)
+    share_invite/            Current production workflow (frozen)
+```
+
+Current top-level UI pages remain: Dashboard, Tasks, Workflows, Workflow Inputs, Reports, Live Logs, App Settings, Browser Settings, About.
+
 # Project Structure — v1.0.6.24 PR-07 Candidate
 
 PR-07 adds no new production module. `src/vibrapilot/qt_app.py` now exposes a Workflows page between Tasks and Workflow Inputs. Workflow engine/state/registry/runtime modules remain unchanged from v1.0.6.23.

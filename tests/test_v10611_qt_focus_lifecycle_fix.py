@@ -55,11 +55,14 @@ class V10611FocusLifecycleStaticTest(unittest.TestCase):
         data = json.loads(SCOPE.read_text(encoding="utf-8"))
         current_scope = ROOT / "config/verification/v1.0.6.12_browser_ui_lifecycle_scope.json"
         current_phase_scope = ROOT / "config/verification/v1.0.6.14_managed_persistent_browser_closed_task_scope.json"
+        pr08_scope = ROOT / "config/verification/v1.0.6.25_pr08_dynamic_workflow_inputs_scope.json"
         current_allowed = set()
         if current_scope.is_file():
             current_allowed |= set(json.loads(current_scope.read_text(encoding="utf-8")).get("allowed_runtime_source_changes", []))
         if current_phase_scope.is_file():
             current_allowed |= set(json.loads(current_phase_scope.read_text(encoding="utf-8")).get("allowed_runtime_source_changes", []))
+        if pr08_scope.is_file():
+            current_allowed |= set(json.loads(pr08_scope.read_text(encoding="utf-8")).get("allowed_production_source_changes", []))
         for relative, expected in data["frozen_file_sha256"].items():
             if relative in current_allowed:
                 continue

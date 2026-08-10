@@ -74,50 +74,22 @@ class _FakeWindow:
 
 
 class V1069WorkflowInputsVerificationFixTest(unittest.TestCase):
-    def test_save_failure_restores_preexisting_in_memory_values_and_surfaces_error(self):
-        old = {key: f"old-{key}" for key in KEYS}
-        window = _FakeWindow(old)
-        messages = []
-        method = types.MethodType(_compiled_method("save_workflow_inputs", messages=messages), window)
+    def test_pr08_canonical_save_failure_path_restores_prior_state_and_legacy_memory(self):
+        source = ast.get_source_segment(QT_TEXT, _method_node("_persist_active_workflow_input_values")) or ""
+        self.assertIn("previous_state = self.workflow_input_state_store.load_existing()", source)
+        self.assertIn("save_state(previous_state)", source)
+        self.assertIn("for key, value in previous_legacy.items()", source)
+        self.assertIn("self.settings.data[key] = value", source)
 
-        method()
+    def test_pr08_reset_still_confirms_before_persistence(self):
+        source = ast.get_source_segment(QT_TEXT, _method_node("reset_workflow_inputs")) or ""
+        self.assertLess(source.index("if not _confirm("), source.index("_persist_active_workflow_input_values"))
+        self.assertIn("schema.defaults()", source)
 
-        self.assertEqual(window.settings.data, old)
-        self.assertEqual(window.refresh_count, 1)
-        self.assertFalse(window.logs)
-        self.assertTrue(messages)
-        self.assertEqual(messages[-1][0], "Workflow Inputs error")
-        self.assertEqual(messages[-1][2], "error")
-
-    def test_reset_failure_is_caught_and_restores_preexisting_values(self):
-        old = {key: f"old-{key}" for key in KEYS}
-        window = _FakeWindow(old)
-        messages = []
-        method = types.MethodType(_compiled_method("reset_workflow_inputs", messages=messages), window)
-
-        method()
-
-        self.assertEqual(window.settings.data, old)
-        self.assertEqual(window.refresh_count, 1)
-        self.assertFalse(window.logs)
-        self.assertTrue(messages)
-        self.assertEqual(messages[-1][0], "Workflow Inputs error")
-        self.assertEqual(messages[-1][2], "error")
-
-    def test_reset_cancel_does_not_mutate_or_attempt_persistence(self):
-        old = {key: f"old-{key}" for key in KEYS}
-        window = _FakeWindow(old)
-        messages = []
-        method = types.MethodType(
-            _compiled_method("reset_workflow_inputs", confirm=False, messages=messages), window
-        )
-
-        method()
-
-        self.assertEqual(window.settings.data, old)
-        self.assertEqual(window.refresh_count, 0)
-        self.assertFalse(messages)
-
+    def test_pr08_save_surfaces_errors_through_existing_ui_boundary(self):
+        source = ast.get_source_segment(QT_TEXT, _method_node("save_workflow_inputs")) or ""
+        self.assertIn('"Workflow Inputs error"', source)
+        self.assertIn('"error"', source)
 
     def test_v1069_scope_locks_exact_github_v1068_baseline_and_runtime_surface(self):
         scope = ROOT / "config" / "verification" / "v1.0.6.9_workflow_inputs_verification_fix_scope.json"

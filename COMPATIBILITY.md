@@ -1,3 +1,7 @@
+## v1.0.6.25 PR-08 compatibility
+
+PR-08 retains the four historical Share Invite Workflow Input settings keys as compatibility mirrors while moving canonical persistence to schema-v1 `AppData/workflow_inputs.json`. Existing Share Invite values migrate once when the canonical store is absent. PR-06 workflow-state/switch/restart semantics, Share Invite runtime, TaskRuntimeStore/workspace/report schemas, Browser/licensing/CAPTCHA behavior, dependencies and CI remain unchanged. Production registry still contains only `share_invite`.
+
 ## v1.0.6.24 PR-07 compatibility
 
 PR-07 adds only the Workflows navigation/page surface in `qt_app.py`. It preserves PR-06 workflow-state/switch/restart semantics, the single `share_invite` production registry, existing Workflow Inputs behavior, Task/workspace/report/database schemas, Browser behavior, licensing, dependencies and CAPTCHA/security-challenge policy.

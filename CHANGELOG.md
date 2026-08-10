@@ -1,3 +1,20 @@
+## v1.0.6.25 — PR-08 Dynamic Workflow Inputs + Per-Workflow Persistence — 2026-08-10
+
+### Added
+- Source-controlled declarative Workflow Input schemas with `text`, `integer`, `boolean` and `choice` field kinds.
+- Canonical schema-v1 `AppData/workflow_inputs.json` with atomic same-directory replacement and per-workflow value isolation.
+- Absence-only migration of existing Share Invite values from the four historical compatibility keys.
+- Dynamic active-workflow Workflow Inputs rendering and active-workflow-only Save/Reset.
+- Immutable validated Workflow Input snapshots supplied to newly created `AutomationWorker` instances.
+
+### Preserved
+- Production registry remains `share_invite` only.
+- PR-06 workflow-state/switch transaction, Share Invite runtime, Browser/licensing/CAPTCHA behavior, Task/workspace/report schemas, dependencies and CI workflow remain frozen.
+- The four historical Share Invite settings keys remain compatibility mirrors; canonical per-workflow values survive workflow switches.
+
+### Deferred
+- PR-09 workflow-aware Task/data/report compatibility remains NOT STARTED.
+
 ## v1.0.6.24 — PR-07 Workflow Showcase Page — 2026-08-10
 
 ### Added

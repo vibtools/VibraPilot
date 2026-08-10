@@ -44,6 +44,7 @@ PR04_CI_PORTABILITY_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.
 PR05_MASTER_WORKFLOW_GATE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.22_pr05_master_workflow_gate_scope.json"
 PR06_WORKFLOW_STATE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json"
 PR07_WORKFLOW_SHOWCASE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.24_pr07_workflow_showcase_scope.json"
+PR08_DYNAMIC_WORKFLOW_INPUTS_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.25_pr08_dynamic_workflow_inputs_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -220,6 +221,55 @@ if pr07_allowed_main != {
     "_activate_workflow_from_showcase",
 }:
     fail("v1.0.6.24 PR-07 MainWindow method scope mismatch")
+
+if not PR08_DYNAMIC_WORKFLOW_INPUTS_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.25 PR-08 Dynamic Workflow Inputs scope contract is missing")
+try:
+    pr08_scope = json.loads(PR08_DYNAMIC_WORKFLOW_INPUTS_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.25 PR-08 scope contract is invalid: {exc}")
+if pr08_scope.get("plan_id") != "VP-PR08-DYNAMIC-WORKFLOW-INPUTS-001":
+    fail("v1.0.6.25 PR-08 plan identifier mismatch")
+if pr08_scope.get("official_baseline_archive_sha256") != "d20b3152a84870f36a794f862578718955c935b113bf7a4d8dd5bcd9b4a16d3d":
+    fail("v1.0.6.25 PR-08 official baseline archive mismatch")
+if pr08_scope.get("baseline_github_commit") != "39e089da94d8d7fcb0126e46a9dd4e259956f531":
+    fail("v1.0.6.25 PR-08 baseline GitHub commit mismatch")
+if pr08_scope.get("target_version") != "1.0.6.25":
+    fail("v1.0.6.25 PR-08 target mismatch")
+pr08_allowed_files = set(pr08_scope.get("allowed_production_source_changes", []))
+if pr08_allowed_files != {
+    "src/vibrapilot/workflow_inputs.py",
+    "src/vibrapilot/workflow/input_state.py",
+    "src/vibrapilot/qt_app.py",
+    "src/vibrapilot/backend.py",
+}:
+    fail("v1.0.6.25 PR-08 production source scope mismatch")
+if pr08_scope.get("canonical_input_state_path") != "AppData/workflow_inputs.json":
+    fail("v1.0.6.25 PR-08 canonical persistence path mismatch")
+if pr08_scope.get("input_state_schema_version") != 1:
+    fail("v1.0.6.25 PR-08 input-state schema mismatch")
+if pr08_scope.get("supported_field_kinds") != ["text", "integer", "boolean", "choice"]:
+    fail("v1.0.6.25 PR-08 supported field-kind contract mismatch")
+pr08_allowed_worker = {"__init__"}
+pr08_allowed_task = {"open_browser"}
+pr08_allowed_main = {
+    "_legacy_share_invite_input_values",
+    "_rehydrate_legacy_workflow_input_mirror",
+    "_initialize_workflow_input_state",
+    "_reload_active_workflow_inputs",
+    "current_workflow_input_snapshot",
+    "_workflow_input_widget",
+    "_workflow_input_widget_value",
+    "make_workflow_inputs_page",
+    "refresh_workflow_input_widgets",
+    "_collect_workflow_input_values",
+    "_persist_active_workflow_input_values",
+    "save_workflow_inputs",
+    "reset_workflow_inputs",
+    "can_open_task_browser",
+    "_workflow_switch_block_reason",
+    "_confirm_workflow_switch",
+}
 
 print("[1/8] Python syntax")
 for path in sorted(ROOT.rglob("*.py")):
@@ -438,6 +488,8 @@ if not all(
 ):
     fail("Tasks-page UI polish preservation boundary mismatch")
 for relative, expected_sha in tasks_ui_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     path = ROOT / relative
@@ -559,6 +611,8 @@ if browser_foundation_fix_scope.get("sandbox_default_change_applied"):
     fail("v1.0.6.19 sandbox default changed without Sandbox-ON acceptance")
 
 for relative, expected_sha in browser_foundation_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -569,6 +623,8 @@ for relative, expected_sha in browser_foundation_scope.get("approved_target_file
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.18 target runtime mismatch: {relative}")
 for relative, expected_sha in browser_foundation_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -598,6 +654,8 @@ if not chrome_webstore_fix_scope.get("no_policy_change"):
     fail("Chrome Web Store extension fix must not change Chrome policy")
 
 for relative, expected_sha in browser_foundation_fix_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -608,6 +666,8 @@ for relative, expected_sha in browser_foundation_fix_scope.get("approved_target_
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.19 target runtime mismatch: {relative}")
 for relative, expected_sha in browser_foundation_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -616,6 +676,8 @@ for relative, expected_sha in browser_foundation_fix_scope.get("frozen_file_sha2
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.19 frozen drift: {relative}")
 for relative, expected_sha in chrome_webstore_fix_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -624,6 +686,8 @@ for relative, expected_sha in chrome_webstore_fix_scope.get("approved_target_fil
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"Chrome Web Store extension fix target runtime mismatch: {relative}")
 for relative, expected_sha in chrome_webstore_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -633,6 +697,8 @@ for relative, expected_sha in chrome_webstore_fix_scope.get("frozen_file_sha256"
         fail(f"Chrome Web Store extension fix frozen drift: {relative}")
 
 for relative, expected_sha in capability_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -643,6 +709,8 @@ for relative, expected_sha in capability_scope.get("approved_target_file_sha256"
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.17 approved target runtime mismatch: {relative}")
 for relative, expected_sha in capability_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -688,6 +756,8 @@ for key in ("no_auto_browser_start", "no_auto_login_assumption", "no_auto_workfl
     if workspace_scope.get(key) is not True:
         fail(f"v1.0.6.15 safety boundary missing: {key}")
 for relative, expected_sha in workspace_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -698,6 +768,8 @@ for relative, expected_sha in workspace_scope.get("approved_target_file_sha256",
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.15 approved target runtime mismatch: {relative}")
 for relative, expected_sha in workspace_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -716,6 +788,8 @@ if workspace_fix_scope.get("official_baseline_github_commit") != "564dc159856e2e
 if workspace_fix_scope.get("no_production_runtime_change") is not True or workspace_fix_scope.get("required_taskruntime_schema_version") != 1:
     fail("v1.0.6.16 runtime/database boundary mismatch")
 for relative, expected_sha in workspace_fix_scope.get("runtime_byte_frozen_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -729,6 +803,8 @@ if "schedule_workspace_save=lambda: None" not in (ROOT / "tests/test_v10612_brow
     fail("v1.0.6.16 Qt fixture workspace-save callback is missing")
 
 for relative, expected_sha in managed_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -739,6 +815,8 @@ for relative, expected_sha in managed_scope.get("approved_target_file_sha256", {
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.14 approved target runtime mismatch: {relative}")
 for relative, expected_sha in managed_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -775,6 +853,8 @@ browser_ui_allowed_worker = set(browser_ui_scope.get("approved_automationworker_
 browser_ui_allowed_task = set(browser_ui_scope.get("approved_taskslotwidget_method_changes", []))
 browser_ui_allowed_main = set(browser_ui_scope.get("approved_mainwindow_method_changes", []))
 for relative, expected_sha in browser_ui_scope.get("approved_runtime_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -785,6 +865,8 @@ for relative, expected_sha in browser_ui_scope.get("approved_runtime_file_sha256
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.12 approved runtime file mismatch: {relative}")
 for relative, expected_sha in browser_ui_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -818,6 +900,8 @@ if phase01_verify_scope.get("target_version") != "1.0.6.13":
 if phase01_verify_scope.get("allowed_runtime_source_changes") != []:
     fail("v1.0.6.13 Phase-01 verification fix must not authorize runtime source changes")
 for relative, expected_sha in phase01_verify_scope.get("frozen_runtime_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -853,6 +937,8 @@ if qt_focus_allowed_files != {"vib_validation_app/focus_manager.py"}:
 if qt_focus_scope.get("approved_focus_manager_sha256") != EXPECTED_BRAND_HASHES["vib_validation_app/focus_manager.py"]:
     fail("v1.0.6.11 approved focus-manager hash does not match the current design contract")
 for relative, expected_sha in qt_focus_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -887,6 +973,8 @@ settings_scope_payload = json.dumps(
 if hashlib.sha256(settings_scope_payload).hexdigest() != production_scope.get("baseline_settings_canonical_sha256"):
     fail("production scope changed an existing settings default outside the approved new setting")
 for relative, expected_sha in production_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -928,7 +1016,7 @@ automation_worker_methods = {
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
 }
 for method_name, expected_sha in production_scope.get("frozen_automationworker_method_ast_sha256", {}).items():
-    if method_name in browser_ui_allowed_worker or method_name in managed_allowed_worker or method_name in capability_allowed_worker or method_name in pr04_allowed_worker:
+    if method_name in pr08_allowed_worker or method_name in browser_ui_allowed_worker or method_name in managed_allowed_worker or method_name in capability_allowed_worker or method_name in pr04_allowed_worker:
         continue
     node = automation_worker_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
@@ -984,6 +1072,8 @@ if current_fix_scope.get("official_baseline_archive_sha256") != "f391099de9d0d11
 if current_fix_scope.get("target_version") != "1.0.6.7":
     fail("v1.0.6.7 fix scope target version mismatch")
 for relative, expected_sha in current_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -1021,7 +1111,7 @@ for name, node in current_checks.items():
         fail(f"v1.0.6.7 out-of-scope AST drift detected: {name}")
 allowed_current_worker = set(current_fix_scope.get("approved_automationworker_method_changes", []))
 for method_name, expected_sha in current_fix_scope.get("frozen_automationworker_method_ast_sha256", {}).items():
-    if method_name in browser_ui_allowed_worker or method_name in managed_allowed_worker or method_name in capability_allowed_worker or method_name in pr04_allowed_worker:
+    if method_name in pr08_allowed_worker or method_name in browser_ui_allowed_worker or method_name in managed_allowed_worker or method_name in capability_allowed_worker or method_name in pr04_allowed_worker:
         continue
     if method_name in allowed_current_worker:
         fail(f"v1.0.6.7 fix scope incorrectly freezes an approved worker method: {method_name}")
@@ -1033,6 +1123,8 @@ for method_name, expected_sha in current_fix_scope.get("frozen_automationworker_
 
 # Enforce the later Windows SQLite fix boundary against the clean v1.0.6.7 baseline.
 for relative, expected_sha in windows_sqlite_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -1054,7 +1146,7 @@ for name, node in current_checks.items():
     if node is None or not expected_sha or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.7 Windows SQLite fix out-of-scope AST drift detected: {name}")
 for method_name, expected_sha in windows_sqlite_fix_scope.get("frozen_automationworker_method_ast_sha256", {}).items():
-    if method_name in browser_ui_allowed_worker or method_name in managed_allowed_worker or method_name in capability_allowed_worker or method_name in pr04_allowed_worker:
+    if method_name in pr08_allowed_worker or method_name in browser_ui_allowed_worker or method_name in managed_allowed_worker or method_name in capability_allowed_worker or method_name in pr04_allowed_worker:
         continue
     if method_name in followup_allowed_worker:
         fail(f"v1.0.6.7 Windows SQLite fix incorrectly freezes an approved worker method: {method_name}")
@@ -1064,6 +1156,8 @@ for method_name, expected_sha in windows_sqlite_fix_scope.get("frozen_automation
 
 # Enforce VP-WORKFLOW-INPUTS-001 against the final v1.0.6.7 baseline.
 for relative, expected_sha in workflow_inputs_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -1103,7 +1197,7 @@ main_window_methods = {
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
 }
 for method_name, expected_sha in workflow_inputs_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in pr07_allowed_main or method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main:
+    if method_name in pr08_allowed_main or method_name in pr07_allowed_main or method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main:
         continue
     if method_name in workflow_approved_mainwindow:
         fail(f"v1.0.6.8 Workflow Inputs scope incorrectly freezes approved MainWindow method: {method_name}")
@@ -1120,7 +1214,7 @@ task_slot_methods = {
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
 }
 for method_name, expected_sha in workflow_inputs_scope.get("frozen_taskslotwidget_method_ast_sha256", {}).items():
-    if method_name in browser_ui_allowed_task or method_name in managed_allowed_task or method_name in workspace_allowed_task or method_name in capability_allowed_task or method_name in tasks_ui_allowed_task or method_name in tasks_ui_allowed_task:
+    if method_name in pr08_allowed_task or method_name in browser_ui_allowed_task or method_name in managed_allowed_task or method_name in workspace_allowed_task or method_name in capability_allowed_task or method_name in tasks_ui_allowed_task or method_name in tasks_ui_allowed_task:
         continue
     node = task_slot_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
@@ -1146,6 +1240,8 @@ workflow_fix_approved_methods = set(workflow_fix_scope.get("approved_mainwindow_
 if workflow_fix_approved_methods != {"save_workflow_inputs", "reset_workflow_inputs"}:
     fail("v1.0.6.9 approved MainWindow method surface mismatch")
 for relative, expected_sha in workflow_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -1158,7 +1254,7 @@ for relative, expected_sha in workflow_fix_scope.get("frozen_file_sha256", {}).i
 if workflow_fix_scope.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
     fail("v1.0.6.9 Workflow Inputs fix AST hash algorithm mismatch")
 for method_name, expected_sha in workflow_fix_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in pr07_allowed_main or method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main:
+    if method_name in pr08_allowed_main or method_name in pr07_allowed_main or method_name in license_allowed_mw_methods or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main:
         continue
     if method_name in workflow_fix_approved_methods:
         fail(f"v1.0.6.9 fix scope incorrectly freezes approved MainWindow method: {method_name}")
@@ -1168,6 +1264,8 @@ for method_name, expected_sha in workflow_fix_scope.get("frozen_mainwindow_metho
 
 # v1.0.6.10 exact current scope verification.
 for relative, expected_sha in license_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr04_allowed_files:
@@ -1207,7 +1305,7 @@ for method_name, expected_sha in license_fix_scope.get("frozen_licensemanager_me
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.10 out-of-scope LicenseManager drift: {method_name}")
 for method_name, expected_sha in license_fix_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in pr07_allowed_main or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main:
+    if method_name in pr08_allowed_main or method_name in pr07_allowed_main or method_name in browser_ui_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main or method_name in tasks_ui_allowed_main:
         continue
     if method_name in license_allowed_mw_methods:
         fail(f"v1.0.6.10 license scope incorrectly freezes approved MainWindow method: {method_name}")
@@ -1231,19 +1329,19 @@ for name, expected_sha in browser_ui_scope.get("frozen_ast_sha256", {}).items():
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.12 browser UI frozen AST drift detected: {name}")
 for method_name, expected_sha in browser_ui_scope.get("frozen_automationworker_method_ast_sha256", {}).items():
-    if method_name in managed_allowed_worker or method_name in capability_allowed_worker or method_name in pr04_allowed_worker:
+    if method_name in pr08_allowed_worker or method_name in managed_allowed_worker or method_name in capability_allowed_worker or method_name in pr04_allowed_worker:
         continue
     node = automation_worker_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.12 browser UI out-of-scope AutomationWorker drift: {method_name}")
 for method_name, expected_sha in browser_ui_scope.get("frozen_taskslotwidget_method_ast_sha256", {}).items():
-    if method_name in managed_allowed_task or method_name in workspace_allowed_task or method_name in capability_allowed_task or method_name in tasks_ui_allowed_task:
+    if method_name in pr08_allowed_task or method_name in managed_allowed_task or method_name in workspace_allowed_task or method_name in capability_allowed_task or method_name in tasks_ui_allowed_task:
         continue
     node = task_slot_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.12 browser UI out-of-scope TaskSlotWidget drift: {method_name}")
 for method_name, expected_sha in browser_ui_scope.get("frozen_mainwindow_method_ast_sha256", {}).items():
-    if method_name in pr07_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main:
+    if method_name in pr08_allowed_main or method_name in pr07_allowed_main or method_name in managed_allowed_main or method_name in workspace_allowed_main or method_name in capability_allowed_main or method_name in tasks_ui_allowed_main:
         continue
     node = main_window_methods.get(method_name)
     if node is None or ast_contract_sha(node) != expected_sha:
@@ -1269,6 +1367,8 @@ if PRIVATE_BASELINE.is_file():
 
 # Current PR-04 exact boundary verification.
 for relative, expected_sha in pr04_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     path = ROOT / relative
@@ -1292,6 +1392,8 @@ for method_name, expected_sha in pr04_scope.get("frozen_automationworker_method_
 
 
 for relative, expected_sha in pr04_ci_fix_scope.get("frozen_runtime_support_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     if relative in pr05_allowed_files:
@@ -1301,6 +1403,8 @@ for relative, expected_sha in pr04_ci_fix_scope.get("frozen_runtime_support_sha2
         fail(f"v1.0.6.21 runtime/support drift detected outside approved PR-05 scope: {relative}")
 
 for relative, expected_sha in pr05_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     if relative in pr06_allowed_files:
         continue
     path = ROOT / relative
@@ -1318,6 +1422,8 @@ build_text = (ROOT / "build.py").read_text(encoding="utf-8")
 package_init_text = (SRC / "__init__.py").read_text(encoding="utf-8")
 
 for relative, expected_sha in pr06_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.23 PR-06 frozen file drift detected: {relative}")
@@ -1343,6 +1449,8 @@ for key in (
         fail(f"v1.0.6.23 PR-06 boundary missing: {key}")
 
 for relative, expected_sha in pr07_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr08_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.24 PR-07 frozen file drift detected: {relative}")
@@ -1375,6 +1483,39 @@ registry_text = (SRC / "workflow" / "registry.py").read_text(encoding="utf-8")
 if "return (SHARE_INVITE_MANIFEST,)" not in registry_text or "other_workflow" in registry_text:
     fail("v1.0.6.24 PR-07 production workflow registry drift detected")
 
+for relative, expected_sha in pr08_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.25 PR-08 frozen file drift detected: {relative}")
+for key in (
+    "no_second_or_fake_workflow", "no_dynamic_workflow_actions",
+    "no_workflow_state_schema_change", "no_atomic_switch_redesign",
+    "no_task_database_schema_change", "no_workspace_schema_change",
+    "no_report_schema_change", "no_browser_change", "no_licensing_change",
+    "captcha_out_of_scope", "no_dependency_change", "no_ci_workflow_change",
+    "pr09_not_started", "external_plugin_loading_prohibited",
+    "filesystem_workflow_discovery_prohibited",
+    "manifest_controlled_dynamic_import_prohibited",
+    "arbitrary_callback_execution_prohibited",
+):
+    if pr08_scope.get(key) is not True:
+        fail(f"v1.0.6.25 PR-08 boundary missing: {key}")
+workflow_inputs_text_current = (SRC / "workflow_inputs.py").read_text(encoding="utf-8")
+input_state_text_current = (SRC / "workflow" / "input_state.py").read_text(encoding="utf-8")
+for marker in (
+    "WORKFLOW_INPUT_SCHEMAS",
+    'workflow_id="share_invite"',
+    'WORKFLOW_INPUT_STATE_SCHEMA_VERSION = 1',
+    'APP_DATA_DIR / "workflow_inputs.json"',
+    "workflow_input_values=self.app.current_workflow_input_snapshot()",
+    "self.workflow_input_state_error",
+):
+    if marker not in (workflow_inputs_text_current + input_state_text_current + qt_text):
+        fail(f"v1.0.6.25 PR-08 integration marker missing: {marker}")
+for forbidden in ("importlib", "entry_points", "__import__", "eval(", "exec("):
+    if forbidden in workflow_inputs_text_current + input_state_text_current:
+        fail(f"v1.0.6.25 PR-08 executable/discovery surface detected: {forbidden}")
+
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
 app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
@@ -1384,8 +1525,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.24":
-    fail("AppConfig VERSION must be 1.0.6.24 for the PR-07 Workflow Showcase candidate")
+if app_version != "1.0.6.25":
+    fail("AppConfig VERSION must be 1.0.6.25 for the PR-08 Dynamic Workflow Inputs candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -1499,8 +1640,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.24-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.24 candidate path")
+if "VibraPilot-1.0.6.25-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.25 candidate path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})
@@ -1638,63 +1779,90 @@ if 'if parsed < 0:' not in backend_text:
 if 'MAX_TEST_SEND_LIMIT' in backend_text:
     fail("Test Send Limit must not have a hardcoded upper ceiling in application code")
 
-# VP-WORKFLOW-INPUTS-001 UI ownership contract. Existing keys/defaults remain unchanged.
+# Workflow Inputs current ownership contract. Historical v1.0.6.8/9 keys remain
+# compatibility aliases, while PR-08 supersedes the fixed-form/settings-backed
+# implementation with source-controlled schemas + canonical per-workflow state.
 workflow_inputs_path = SRC / "workflow_inputs.py"
+workflow_input_state_path = SRC / "workflow" / "input_state.py"
 if not workflow_inputs_path.is_file():
-    fail("Workflow Inputs metadata module is missing")
+    fail("Workflow Inputs schema module is missing")
+if not workflow_input_state_path.is_file():
+    fail("PR-08 Workflow Input state module is missing")
 workflow_inputs_text = workflow_inputs_path.read_text(encoding="utf-8")
-workflow_tree = ast.parse(workflow_inputs_text, filename=str(workflow_inputs_path))
-workflow_keys_node = next(
-    (
-        node
-        for node in workflow_tree.body
-        if (
-            isinstance(node, ast.Assign)
-            and any(isinstance(target, ast.Name) and target.id == "WORKFLOW_INPUT_FIELDS" for target in node.targets)
-        )
-        or (
-            isinstance(node, ast.AnnAssign)
-            and isinstance(node.target, ast.Name)
-            and node.target.id == "WORKFLOW_INPUT_FIELDS"
-        )
-    ),
-    None,
-)
-if workflow_keys_node is None:
-    fail("Workflow Inputs field definition is missing")
+workflow_input_state_text = workflow_input_state_path.read_text(encoding="utf-8")
 expected_workflow_keys = ("default_full_name", "default_number", "fallback_name", "update_click_count")
 for key in expected_workflow_keys:
     if f'key="{key}"' not in workflow_inputs_text:
-        fail(f"Workflow Inputs field key is missing: {key}")
+        fail(f"Workflow Inputs compatibility field key is missing: {key}")
 if 'default_target_url' in workflow_inputs_text:
     fail("default_target_url must not move into Workflow Inputs")
+for marker in (
+    "class WorkflowInputSchema",
+    "WORKFLOW_INPUT_SCHEMAS",
+    'workflow_id="share_invite"',
+    'WORKFLOW_INPUT_KINDS = frozenset({"text", "integer", "boolean", "choice"})',
+):
+    if marker not in workflow_inputs_text:
+        fail(f"PR-08 Workflow Input schema marker missing: {marker}")
+for marker in (
+    "class WorkflowInputStateStore",
+    "WORKFLOW_INPUT_STATE_SCHEMA_VERSION = 1",
+    "os.replace(temporary, self.path)",
+    "def load_or_migrate",
+    "def save_workflow_values",
+):
+    if marker not in workflow_input_state_text:
+        fail(f"PR-08 Workflow Input persistence marker missing: {marker}")
+for forbidden in ("importlib", "entry_points", "__import__", "eval(", "exec("):
+    if forbidden in workflow_inputs_text + workflow_input_state_text:
+        fail(f"Workflow Input schema/persistence contains forbidden executable discovery surface: {forbidden}")
 nav_sections = literal_assignment(ROOT / "src" / "vibrapilot" / "qt_app.py", "NAV_SECTIONS")
 if nav_sections != ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]:
     fail("Workflow Inputs / PR-07 navigation order mismatch")
-for method_name in ("make_workflow_inputs_page", "refresh_workflow_input_widgets", "save_workflow_inputs", "reset_workflow_inputs"):
+for method_name in (
+    "make_workflow_inputs_page", "refresh_workflow_input_widgets",
+    "save_workflow_inputs", "reset_workflow_inputs",
+    "_persist_active_workflow_input_values", "current_workflow_input_snapshot",
+):
     if method_name not in main_window_methods:
-        fail(f"Workflow Inputs MainWindow method is missing: {method_name}")
+        fail(f"PR-08 Workflow Inputs MainWindow method is missing: {method_name}")
 settings_page_source = ast.get_source_segment(qt_text, main_window_methods["make_settings_page"]) or ""
-workflow_page_source = ast.get_source_segment(qt_text, main_window_methods["make_workflow_inputs_page"]) or ""
+workflow_page_source = (
+    (ast.get_source_segment(qt_text, main_window_methods["make_workflow_inputs_page"]) or "")
+    + (ast.get_source_segment(qt_text, main_window_methods["refresh_workflow_input_widgets"]) or "")
+)
 for key in expected_workflow_keys:
     if key in settings_page_source:
         fail(f"workflow input remains exposed by App Settings: {key}")
 if 'default_target_url' not in settings_page_source:
     fail("default_target_url must remain in App Settings")
-if 'WORKFLOW_INPUT_FIELDS' not in workflow_page_source or 'Default Form Inputs' not in workflow_page_source:
-    fail("Workflow Inputs page is not bound to the approved form metadata")
-if 'combo_box(' in workflow_page_source or 'Workflow:' in workflow_page_source:
-    fail("Workflow Inputs must not add a fake/single-option workflow selector")
+if "schema.fields" not in workflow_page_source or "WORKFLOW_INPUT_FIELDS" in workflow_page_source:
+    fail("PR-08 Workflow Inputs page is not rendered from the active declarative schema")
+if 'Workflow:' in workflow_page_source:
+    fail("Workflow Inputs must not add a workflow selector")
 if 'Legacy Contact Settings (Preserved)' in qt_text:
     fail("legacy workflow/contact fields must no longer be owned by App Settings UI")
 
+persist_workflow_source = ast.get_source_segment(
+    qt_text, main_window_methods["_persist_active_workflow_input_values"]
+) or ""
 save_workflow_source = ast.get_source_segment(qt_text, main_window_methods["save_workflow_inputs"]) or ""
 reset_workflow_source = ast.get_source_segment(qt_text, main_window_methods["reset_workflow_inputs"]) or ""
-for method_name, source in (("save_workflow_inputs", save_workflow_source), ("reset_workflow_inputs", reset_workflow_source)):
-    if "previous_values" not in source or "self.settings.data.update(previous_values)" not in source:
-        fail(f"v1.0.6.9 {method_name} must restore exact pre-operation values on persistence failure")
-    if "except Exception" not in source or '"Workflow Inputs error"' not in source:
-        fail(f"v1.0.6.9 {method_name} must contain and report persistence errors")
+for marker in (
+    "previous_state = self.workflow_input_state_store.load_existing()",
+    "save_workflow_values",
+    "save_state(previous_state)",
+    "for key, value in previous_legacy.items()",
+):
+    if marker not in persist_workflow_source:
+        fail(f"PR-08 Workflow Input transaction marker missing: {marker}")
+if "_collect_workflow_input_values" not in save_workflow_source:
+    fail("PR-08 Save must collect only active-schema Workflow Inputs")
+if "schema.defaults()" not in reset_workflow_source:
+    fail("PR-08 Reset must use active source-controlled schema defaults")
+for source in (save_workflow_source, reset_workflow_source):
+    if '"Workflow Inputs error"' not in source or '"error"' not in source:
+        fail("Workflow Inputs Save/Reset must contain and report persistence errors")
 
 # v1.0.6.10 license-login durability/recovery invariants.
 for marker in (
@@ -2041,8 +2209,9 @@ required = [
     "config/verification/v1.0.6.15_workspace_persistence_scope.json",
     "config/verification/v1.0.6.16_workspace_persistence_verification_fix_scope.json",
     "config/verification/v1.0.6.17_browser_capabilities_scope.json",
+    "config/verification/v1.0.6.25_pr08_dynamic_workflow_inputs_scope.json",
     "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
-    "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "src/vibrapilot/workspace_state.py", "src/vibrapilot/browser_capabilities.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
+    "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "src/vibrapilot/workflow/input_state.py", "src/vibrapilot/workspace_state.py", "src/vibrapilot/browser_capabilities.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
     "docs/updates/v1.0.6.1-vibrapilot-branding.md", "docs/updates/v1.0.6.1-github-ci-repository-hygiene-fix.md",
     "docs/updates/v1.0.6.1-github-ci-deterministic-ast-contract-fix.md",
@@ -2063,6 +2232,8 @@ required = [
     "docs/verification/V1.0.6.15_WORKSPACE_PERSISTENCE_VERIFICATION.md",
     "docs/verification/V1.0.6.16_WORKSPACE_PERSISTENCE_FORENSIC_VERIFICATION.md",
     "docs/verification/V1.0.6.17_BROWSER_CAPABILITIES_VERIFICATION.md",
+    "docs/verification/V1.0.6.25_PR08_DYNAMIC_WORKFLOW_INPUTS.md",
+    "docs/updates/v1.0.6.25-pr08-dynamic-workflow-inputs.md",
     "docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md", "docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md",
     "docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md",
     "docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md",
@@ -2093,6 +2264,8 @@ required = [
     "tests/test_v10615_workspace_persistence.py",
     "tests/test_v10616_workspace_persistence_verification_fix.py",
     "tests/test_v10617_browser_capabilities.py",
+    "tests/test_v10625_pr08_dynamic_workflow_inputs.py",
+    "tests/test_v10625_pr08_workflow_input_state.py",
     "scripts/maintenance/Apply-v1.0.6.2-Phase01-Fix.cmd",
     "scripts/maintenance/PHASE01_V1.0.6.2_DELETE_PATHS.txt",
     "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",
