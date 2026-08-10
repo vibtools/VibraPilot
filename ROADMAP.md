@@ -1,3 +1,7 @@
+## Phase-1 Browser Foundation Stabilization — v1.0.6.18 Candidate
+
+Identity/fallback/sandbox evidence is implemented. Windows Sandbox/CAPTCHA/capability/lifecycle/multi-Task acceptance remains required before Master Workflow Engine work.
+
 ## Phase-04 implementation candidate — v1.0.6.17
 
 `VP-BROWSER-CAPABILITIES-001` is implemented from the verified v1.0.6.16 baseline. The scope is limited to durable downloads, explicit site-triggered file chooser handling, and unpacked-extension validation. It does not add workflow-defined uploads, download history/database UI, Chrome Web Store automation, stealth/CAPTCHA behavior, or settings/schema changes.

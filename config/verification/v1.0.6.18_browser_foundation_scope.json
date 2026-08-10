@@ -1,0 +1,39 @@
+{
+  "contract_name": "VibraPilot v1.0.6.18 browser foundation stabilization scope lock",
+  "plan_id": "VP-BROWSER-FOUNDATION-STABILIZATION-001",
+  "official_baseline": "VibraPilot v1.0.6.17",
+  "official_baseline_archive_sha256": "02d8d70a9c11365922121440edc0d6da8328ba3b9dcfb73fcc1f0885a05a38bf",
+  "target_version": "1.0.6.18",
+  "allowed_runtime_source_changes": ["src/vibrapilot/backend.py", "src/vibrapilot/qt_app.py", "src/vibrapilot/browser_diagnostics.py"],
+  "actual_runtime_source_changes": ["src/vibrapilot/backend.py", "src/vibrapilot/browser_diagnostics.py"],
+  "conditional_runtime_change": "config/settings.defaults.json",
+  "windows_sandbox_on_acceptance": "RUNTIME_TEST_BLOCKED_NON_WINDOWS_ENVIRONMENT",
+  "sandbox_default_change_applied": false,
+  "approved_target_file_sha256": {
+    "src/vibrapilot/backend.py": "fd00888ed75b1adb540ede78168c5fcc173d7ec160ca7ac91c1715e6629bb7cf",
+    "src/vibrapilot/qt_app.py": "db0b0cc464b2e7e78b8620628e54087cd8135d8c339018392974a3df6c6e5935",
+    "src/vibrapilot/browser_diagnostics.py": "a3347ac6236956b3d81e64998e00f1ad2dadccc44dd373706d40f2f04a7490d1"
+  },
+  "frozen_file_sha256": {
+    "config/settings.defaults.json": "64c0377a5a84167bdd480b8302d3ca7ac7c9b0db89d56df0d118bf5566444b76",
+    "src/vibrapilot/browser_capabilities.py": "8f256cbde7c1674c297547d0b2bf91a8a5641d4d28598833428ada828b76d4df",
+    "src/vibrapilot/task_runtime_store.py": "b4b581c936479a6a3f334170c033bae53f1d216e562cc1aff8b3e54e728dcf26",
+    "src/vibrapilot/workspace_state.py": "7b4af52a304b449504ed1a8b7333ed4738fac08a49cf431acb60e57936219ccd",
+    "src/vibrapilot/licensing_v2.py": "36435d05593785b7ec02310dcf2d031342524e95d5be6212591a09277699a91b",
+    "src/vibrapilot/data_io.py": "ac8adddec1cfc2ba6784562c7f85e18ceb4da6d7906edac3296f79ed48af3c31",
+    "src/vibrapilot/workflow_inputs.py": "095e46558736ae9cf073bd4883a5bd43eefd1b2a1eb3de62156baa863f4a5ce9",
+    "vib_validation_app/focus_manager.py": "a073051b05cbd2442b0bdec0a1251cf8185b54cbb71e755cc25c2ee85ce7f86e"
+  },
+  "no_new_dependency": true,
+  "no_database_schema_change": true,
+  "required_taskruntime_schema_version": 1,
+  "no_workspace_schema_change": true,
+  "required_workspace_schema_version": 1,
+  "no_new_page": true,
+  "no_live_sending_enablement": true,
+  "no_master_workflow_engine": true,
+  "no_captcha_bypass": true,
+  "no_stealth": true,
+  "no_fingerprint_spoofing": true,
+  "no_runtime_data_relocation": true
+}

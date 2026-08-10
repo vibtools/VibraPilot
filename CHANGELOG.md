@@ -1,3 +1,12 @@
+## v1.0.6.18 — Browser foundation stabilization — 2026-08-09
+
+### Added
+- Structured browser identity, fallback, profile, sandbox, CDP and Windows-process diagnostics.
+- Non-invasive browser environment evidence for controlled normal-Chrome comparison.
+
+### Preserved
+- Existing Chrome-preferred fallback policy, profiles, capabilities, lifecycle, persistence, licensing, Test Mode and workflow. Sandbox default unchanged pending Windows acceptance.
+
 ## v1.0.6.17 — Browser capabilities — 2026-08-09
 
 ### Added

@@ -1,3 +1,7 @@
+## v1.0.6.18 acceptance
+
+Run the v1.0.6.18 source and Windows browser-foundation gates before promotion. Browser diagnostics are evidence, not proof that blocked Windows tests passed.
+
 ## v1.0.6.17 acceptance
 
 After normal automated tests, use controlled pages on Windows to verify durable download files survive browser/app close, same-name downloads do not overwrite, native single/multiple/directory browser upload selection reaches only the originating chooser, cancellation/stale chooser handling is safe, and a valid unpacked extension loads only through the supported persistent Chromium-compatible path.

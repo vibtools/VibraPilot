@@ -1,3 +1,7 @@
+## v1.0.6.18 browser-foundation compatibility
+
+No dependency, database/workspace schema, settings-key, Task UI or workflow change. Optional Windows process evidence uses PowerShell/CIM; diagnostic failure is non-fatal.
+
 ## v1.0.6.17 browser-capability compatibility
 
 Existing `accept_downloads`, `downloads_path`, `extensions_enabled` and `extension_paths` settings retain their keys. Blank download paths now resolve to a durable managed per-Task folder; explicit paths keep prior semantics. Browser uploads require a webpage-triggered file chooser and explicit user selection. Unpacked extensions remain persistent-context Chromium capabilities; branded Chrome side-loading restrictions remain enforced.

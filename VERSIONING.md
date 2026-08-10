@@ -1,3 +1,7 @@
+## v1.0.6.18 — Browser foundation stabilization
+
+Candidate from official v1.0.6.17 baseline. Windows browser acceptance is required before the next Official Baseline Freeze.
+
 ## v1.0.6.17 — Browser capabilities
 
 Production feature release for `VP-BROWSER-CAPABILITIES-001`. The v1.0.6.16 workspace-persistence verification baseline is preserved outside the explicitly approved browser capability surfaces. No settings-key, TaskRuntimeStore-schema, WorkspaceState-schema or dependency change is included.

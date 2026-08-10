@@ -52,6 +52,11 @@ from .browser_capabilities import (
     normalize_extension_paths,
     validate_unpacked_extension_directories,
 )
+from .browser_diagnostics import (
+    browser_diagnostics_summary,
+    build_browser_diagnostics,
+    persist_browser_diagnostics,
+)
 
 DISPLAY_APP_NAME = APP.display_name
 APP_NAME = APP.app_name
@@ -1740,6 +1745,7 @@ class AutomationWorker(threading.Thread):
         self._pending_file_chooser = None
         self._pending_file_chooser_request_id: str | None = None
         self._pending_file_chooser_page_id: int | None = None
+        self.browser_launch_diagnostics: dict[str, Any] = {}
 
     def emit(self, kind: str, payload: dict[str, Any]) -> None:
         payload["slot_id"] = self.state.slot_id
@@ -2871,6 +2877,37 @@ class AutomationWorker(threading.Thread):
                 f"Legacy VibraPilot browser profile could not be migrated from {legacy} to {target}: {exc}"
             ) from exc
 
+    def _capture_browser_foundation_diagnostics(
+        self,
+        *,
+        requested_launch_kwargs: dict[str, Any],
+        effective_launch_kwargs: dict[str, Any],
+        user_data_dir: Path | None,
+        fallback_used: bool,
+        fallback_reason: str,
+    ) -> None:
+        """Capture non-fatal browser identity/environment evidence."""
+        if self.context is None or self.active_page is None:
+            return
+        try:
+            record = build_browser_diagnostics(
+                slot_id=self.state.slot_id, settings=self.settings,
+                requested_launch_kwargs=requested_launch_kwargs,
+                effective_launch_kwargs=effective_launch_kwargs,
+                context=self.context, page=self.active_page,
+                user_data_dir=user_data_dir,
+                fallback_used=fallback_used, fallback_reason=fallback_reason,
+                persistent_context=self.persistent_context_mode,
+            )
+            self.browser_launch_diagnostics = record
+            timestamped, _latest = persist_browser_diagnostics(
+                LOGS_DIR, self.state.slot_id, record
+            )
+            self.log(browser_diagnostics_summary(record))
+            self.log(f"Browser diagnostics evidence saved: {timestamped}")
+        except Exception as exc:
+            self.log(f"Browser diagnostics could not be collected: {exc}", "WARNING")
+
     def launch_browser(self) -> None:
         from playwright.sync_api import sync_playwright
 
@@ -3304,6 +3341,10 @@ class AutomationWorker(threading.Thread):
 
             persistent_args = dict(launch_args)
             persistent_args.update(self.context_arguments())
+            requested_persistent_args = dict(persistent_args)
+            effective_persistent_args = dict(persistent_args)
+            chrome_fallback_used = False
+            chrome_fallback_reason = ""
             persistent_error: Exception | None = None
             try:
                 self.context = self.playwright.chromium.launch_persistent_context(
@@ -3320,6 +3361,7 @@ class AutomationWorker(threading.Thread):
                 ):
                     fallback_args = dict(persistent_args)
                     fallback_args.pop("channel", None)
+                    chrome_fallback_reason = str(exc)
                     self.log(
                         f"Chrome channel persistent launch unavailable; falling back "
                         f"to bundled Chromium. Detail: {exc}",
@@ -3330,6 +3372,8 @@ class AutomationWorker(threading.Thread):
                             str(user_data_dir.resolve()),
                             **fallback_args,
                         )
+                        effective_persistent_args = dict(fallback_args)
+                        chrome_fallback_used = True
                         persistent_error = None
                     except Exception as fallback_exc:
                         persistent_error = fallback_exc
@@ -3360,10 +3404,24 @@ class AutomationWorker(threading.Thread):
                 self.browser = None
                 ephemeral_args = dict(launch_args)
                 self.browser = self.playwright.chromium.launch(**ephemeral_args)
+                effective_persistent_args = dict(ephemeral_args)
+                chrome_fallback_used = False
+                chrome_fallback_reason = ""
 
             self.new_context(initial_url=startup_url)
+            self._capture_browser_foundation_diagnostics(
+                requested_launch_kwargs=requested_persistent_args,
+                effective_launch_kwargs=effective_persistent_args,
+                user_data_dir=(user_data_dir if self.persistent_context_mode else None),
+                fallback_used=chrome_fallback_used,
+                fallback_reason=chrome_fallback_reason,
+            )
             return
 
+        requested_launch_args = dict(launch_args)
+        effective_launch_args = dict(launch_args)
+        chrome_fallback_used = False
+        chrome_fallback_reason = ""
         try:
             self.browser = self.playwright.chromium.launch(**launch_args)
             self.log(
@@ -3376,15 +3434,25 @@ class AutomationWorker(threading.Thread):
                     DEFAULT_SETTINGS["allow_chromium_fallback"],
                 )
             ):
+                chrome_fallback_reason = str(exc)
                 launch_args.pop("channel", None)
                 self.log(
                     f"Chrome channel unavailable; falling back to bundled Chromium. Detail: {exc}",
                     "WARNING",
                 )
                 self.browser = self.playwright.chromium.launch(**launch_args)
+                effective_launch_args = dict(launch_args)
+                chrome_fallback_used = True
             else:
                 raise
         self.new_context(initial_url=startup_url)
+        self._capture_browser_foundation_diagnostics(
+            requested_launch_kwargs=requested_launch_args,
+            effective_launch_kwargs=effective_launch_args,
+            user_data_dir=None,
+            fallback_used=chrome_fallback_used,
+            fallback_reason=chrome_fallback_reason,
+        )
 
     def context_arguments(
         self, storage_state: dict[str, Any] | None = None

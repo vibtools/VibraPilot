@@ -1,3 +1,7 @@
+## v1.0.6.18 browser foundation stabilization
+
+See `updates/v1.0.6.18-browser-foundation-stabilization.md`, `verification/V1.0.6.18_BROWSER_FOUNDATION_VERIFICATION.md` and `forensic/`. Windows-only tests remain pending.
+
 ## v1.0.6.17 browser capabilities
 
 The current candidate adds durable browser downloads, user-controlled website file chooser handling and unpacked extension manifest validation while preserving the managed browser, workspace, Closed Task, licensing and Razorpay/Test Mode contracts. See `updates/v1.0.6.17-browser-capabilities.md` and `verification/V1.0.6.17_BROWSER_CAPABILITIES_VERIFICATION.md`.

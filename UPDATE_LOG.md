@@ -1,3 +1,7 @@
+## v1.0.6.18 — VP-BROWSER-FOUNDATION-STABILIZATION-001 — 2026-08-09
+
+Browser diagnostics implemented from v1.0.6.17 baseline SHA `02d8d70a9c11365922121440edc0d6da8328ba3b9dcfb73fcc1f0885a05a38bf`. Windows-only validation remains pending; no blocked test is reported as PASS.
+
 ## v1.0.6.17 — VP-BROWSER-CAPABILITIES-001 — 2026-08-09
 
 Implemented the approved browser-capabilities phase against the verified v1.0.6.16 baseline commit `fd0cbe6e8f3fc37f92bdf49396364ce74583fd1e` and GitHub Actions run `31342562832`. Runtime changes are limited to `backend.py`, `qt_app.py` and new `browser_capabilities.py`.

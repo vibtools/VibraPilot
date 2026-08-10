@@ -1,4 +1,8 @@
-# VibraPilot v1.0.6.17 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.18 — Vib Tools Browser Automation Desktop
+
+## v1.0.6.18 Browser foundation stabilization
+
+Adds scope-locked browser identity/fallback/sandbox diagnostics without changing browser policy, workflow, profiles, capabilities, persistence or Task UI. Sandbox source default remains unchanged pending Windows acceptance.
 
 ## v1.0.6.17 Browser capabilities
 

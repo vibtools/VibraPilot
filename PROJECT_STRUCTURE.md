@@ -1,3 +1,10 @@
+## v1.0.6.18 browser-foundation surface
+
+- `src/vibrapilot/browser_diagnostics.py` — observational browser evidence.
+- `config/verification/v1.0.6.18_browser_foundation_scope.json` — scope lock.
+- `docs/forensic/` — permanent P0 evidence docs.
+- `tests/test_v10618_browser_foundation.py` — regression tests.
+
 ## v1.0.6.17 browser capability surface
 
 - `src/vibrapilot/browser_capabilities.py` — download-path/filename and unpacked-extension validation helpers.

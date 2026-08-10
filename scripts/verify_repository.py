@@ -36,6 +36,7 @@ WORKSPACE_PERSISTENCE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.
 WORKSPACE_PERSISTENCE_VERIFICATION_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.16_workspace_persistence_verification_fix_scope.json"
 BROWSER_CAPABILITIES_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.17_browser_capabilities_scope.json"
 TASKS_UI_POLISH_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.17_tasks_ui_polish_scope.json"
+BROWSER_FOUNDATION_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.18_browser_foundation_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -390,8 +391,24 @@ for relative, expected_sha in tasks_ui_scope.get("approved_target_file_sha256", 
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"Tasks-page UI polish approved target mismatch: {relative}")
 
+if not BROWSER_FOUNDATION_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.18 browser foundation scope contract is missing")
+browser_foundation_scope = json.loads(BROWSER_FOUNDATION_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+if browser_foundation_scope.get("plan_id") != "VP-BROWSER-FOUNDATION-STABILIZATION-001": fail("v1.0.6.18 browser foundation plan mismatch")
+if browser_foundation_scope.get("official_baseline_archive_sha256") != "02d8d70a9c11365922121440edc0d6da8328ba3b9dcfb73fcc1f0885a05a38bf": fail("v1.0.6.18 baseline hash mismatch")
+if browser_foundation_scope.get("target_version") != "1.0.6.18": fail("v1.0.6.18 target mismatch")
+browser_foundation_allowed_files = set(browser_foundation_scope.get("allowed_runtime_source_changes", []))
+if browser_foundation_allowed_files != {"src/vibrapilot/backend.py","src/vibrapilot/qt_app.py","src/vibrapilot/browser_diagnostics.py"}: fail("v1.0.6.18 runtime surface mismatch")
+if browser_foundation_scope.get("sandbox_default_change_applied"): fail("sandbox default changed without Windows acceptance")
+for relative, expected_sha in browser_foundation_scope.get("approved_target_file_sha256", {}).items():
+    path=ROOT/relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest()!=expected_sha: fail(f"v1.0.6.18 target runtime mismatch: {relative}")
+for relative, expected_sha in browser_foundation_scope.get("frozen_file_sha256", {}).items():
+    path=ROOT/relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest()!=expected_sha: fail(f"v1.0.6.18 frozen drift: {relative}")
+
 for relative, expected_sha in capability_scope.get("approved_target_file_sha256", {}).items():
-    if relative in tasks_ui_allowed_files:
+    if relative in tasks_ui_allowed_files or relative in browser_foundation_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
@@ -972,8 +989,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.17":
-    fail("AppConfig VERSION must be 1.0.6.17 for the browser capabilities release")
+if app_version != "1.0.6.18":
+    fail("AppConfig VERSION must be 1.0.6.18 for the browser foundation release")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -1087,8 +1104,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.17-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.17 release path")
+if "VibraPilot-1.0.6.18-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.18 release path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})
