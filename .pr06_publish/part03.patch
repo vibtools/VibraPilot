@@ -1,0 +1,129 @@
+     fail("v1.0.6.7 fix scope target version mismatch")
+ for relative, expected_sha in current_fix_scope.get("frozen_file_sha256", {}).items():
++    if relative in pr06_allowed_files:
++        continue
+     if relative in pr04_allowed_files:
+         continue
+     if (
+@@ -947,6 +1006,8 @@ for method_name, expected_sha in current_fix_scope.get("frozen_automationworker_
+ 
+ # Enforce the later Windows SQLite fix boundary against the clean v1.0.6.7 baseline.
+ for relative, expected_sha in windows_sqlite_fix_scope.get("frozen_file_sha256", {}).items():
++    if relative in pr06_allowed_files:
++        continue
+     if relative in pr04_allowed_files:
+         continue
+     if relative in workflow_allowed_files or relative in workflow_release_files or relative in qt_focus_allowed_files or relative in browser_ui_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files:
+@@ -976,6 +1037,8 @@ for method_name, expected_sha in windows_sqlite_fix_scope.get("frozen_automation
+ 
+ # Enforce VP-WORKFLOW-INPUTS-001 against the final v1.0.6.7 baseline.
+ for relative, expected_sha in workflow_inputs_scope.get("frozen_file_sha256", {}).items():
++    if relative in pr06_allowed_files:
++        continue
+     if relative in pr04_allowed_files:
+         continue
+     if relative in license_allowed_files or relative in qt_focus_allowed_files or relative in browser_ui_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files:
+@@ -1056,6 +1119,8 @@ workflow_fix_approved_methods = set(workflow_fix_scope.get("approved_mainwindow_
+ if workflow_fix_approved_methods != {"save_workflow_inputs", "reset_workflow_inputs"}:
+     fail("v1.0.6.9 approved MainWindow method surface mismatch")
+ for relative, expected_sha in workflow_fix_scope.get("frozen_file_sha256", {}).items():
++    if relative in pr06_allowed_files:
++        continue
+     if relative in pr04_allowed_files:
+         continue
+     if relative in license_allowed_files or relative in qt_focus_allowed_files or relative in browser_ui_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files:
+@@ -1076,6 +1141,8 @@ for method_name, expected_sha in workflow_fix_scope.get("frozen_mainwindow_metho
+ 
+ # v1.0.6.10 exact current scope verification.
+ for relative, expected_sha in license_fix_scope.get("frozen_file_sha256", {}).items():
++    if relative in pr06_allowed_files:
++        continue
+     if relative in pr04_allowed_files:
+         continue
+     if relative in qt_focus_allowed_files or relative in managed_allowed_files or relative in workspace_allowed_files or relative in capability_allowed_files or relative in capability_allowed_files:
+@@ -1175,6 +1242,8 @@ if PRIVATE_BASELINE.is_file():
+ 
+ # Current PR-04 exact boundary verification.
+ for relative, expected_sha in pr04_scope.get("frozen_file_sha256", {}).items():
++    if relative in pr06_allowed_files:
++        continue
+     path = ROOT / relative
+     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+         fail(f"v1.0.6.20 PR-04 frozen file drift detected: {relative}")
+@@ -1196,6 +1265,8 @@ for method_name, expected_sha in pr04_scope.get("frozen_automationworker_method_
+ 
+ 
+ for relative, expected_sha in pr04_ci_fix_scope.get("frozen_runtime_support_sha256", {}).items():
++    if relative in pr06_allowed_files:
++        continue
+     if relative in pr05_allowed_files:
+         continue
+     path = ROOT / relative
+@@ -1203,6 +1274,8 @@ for relative, expected_sha in pr04_ci_fix_scope.get("frozen_runtime_support_sha2
+         fail(f"v1.0.6.21 runtime/support drift detected outside approved PR-05 scope: {relative}")
+ 
+ for relative, expected_sha in pr05_scope.get("frozen_file_sha256", {}).items():
++    if relative in pr06_allowed_files:
++        continue
+     path = ROOT / relative
+     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+         fail(f"v1.0.6.22 PR-05 frozen file drift detected: {relative}")
+@@ -1217,6 +1290,31 @@ qt_text = (SRC / "qt_app.py").read_text(encoding="utf-8")
+ build_text = (ROOT / "build.py").read_text(encoding="utf-8")
+ package_init_text = (SRC / "__init__.py").read_text(encoding="utf-8")
+ 
++for relative, expected_sha in pr06_scope.get("frozen_file_sha256", {}).items():
++    path = ROOT / relative
++    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
++        fail(f"v1.0.6.23 PR-06 frozen file drift detected: {relative}")
++for method_name, expected_sha in pr06_scope.get("frozen_automationworker_method_canonical_ast_sha256", {}).items():
++    worker_node = production_nodes.get("AutomationWorker")
++    node = next((item for item in worker_node.body if isinstance(item, ast.FunctionDef) and item.name == method_name), None)
++    if node is None or ast_contract_sha(node) != expected_sha:
++        fail(f"v1.0.6.23 PR-06 safety-critical worker drift detected: {method_name}")
++for key in (
++    "same_workflow_noop", "corrupt_state_fail_closed", "unknown_state_fail_closed",
++    "no_silent_share_invite_fallback", "switch_block_running_tasks",
++    "switch_block_manual_review", "switch_block_concurrent_transaction",
++    "confirmation_required_for_real_switch", "precommit_rollback_required",
++    "workflow_state_replace_is_commit_point", "postcommit_restart_failure_does_not_rollback",
++    "source_and_frozen_restart_supported", "automatic_restart_loop_prohibited",
++    "no_new_ui_page", "no_workflow_showcase_ui", "no_dynamic_workflow_inputs",
++    "no_task_database_schema_change", "no_workspace_schema_change", "no_report_schema_change",
++    "no_browser_change", "no_dependency_change", "no_licensing_change",
++    "captcha_out_of_scope", "external_plugin_loading_prohibited",
++    "manifest_controlled_dynamic_import_prohibited",
++):
++    if pr06_scope.get(key) is not True:
++        fail(f"v1.0.6.23 PR-06 boundary missing: {key}")
++
+ app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
+ app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
+ app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
+@@ -1226,8 +1324,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
+ license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
+ homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
+ repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
+-if app_version != "1.0.6.22":
+-    fail("AppConfig VERSION must be 1.0.6.22 for the PR-05 Master Workflow Gate release")
++if app_version != "1.0.6.23":
++    fail("AppConfig VERSION must be 1.0.6.23 for the PR-06 Workflow State Atomic Switch release")
+ for name, value in {
+     "APP_ID": app_id,
+     "APP_NAME": app_name,
+@@ -1341,8 +1439,8 @@ for marker in (
+     if marker not in app_config_facade_text:
+         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
+ launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
+-if "VibraPilot-1.0.6.22-Windows-x64" not in launcher_text:
+-    fail("VibraPilot launcher must target the current v1.0.6.22 release path")
++if "VibraPilot-1.0.6.23-Windows-x64" not in launcher_text:
++    fail("VibraPilot launcher must target the current v1.0.6.23 release path")
+ 
+ pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+ project_meta = pyproject.get("project", {})
+diff --git a/src/vibrapilot/backend.py b/src/vibrapilot/backend.py
+index a41a6ba..d2d38e9 100644
+--- a/src/vibrapilot/backend.py
++++ b/src/vibrapilot/backend.py
+@@ -1706,6 +1706,7 @@ class AutomationWorker(threading.Thread):
