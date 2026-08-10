@@ -1,0 +1,116 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index c1ea64b..84854bc 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,3 +1,15 @@
++## v1.0.6.23 — PR-06 Workflow State Persistence and Atomic Switch/Restart — 2026-08-10
++
++### Added
++- Persistent schema-v1 `AppData/workflow_state.json` with first-run migration to the existing `share_invite` built-in workflow.
++- Fail-closed workflow-state validation, atomic state replacement, pre-commit rollback staging and interrupted-transaction recovery.
++- Application-level workflow switch service with same-workflow no-op, running/manual-review blockers, confirmation, deterministic worker settlement and restart-after-commit behavior.
++
++### Preserved
++- Production registry still contains only `share_invite`; no fake/demo workflow was added.
++- Task/report/workspace database schemas, Share Invite behavior, browser profiles/settings, exported Reports/FailedData/Logs, licensing/device identity and CAPTCHA policy remain unchanged.
++- No Workflow showcase page, workflow cards, activation UI or dynamic Workflow Inputs are introduced in PR-06.
++
+ ## v1.0.6.22 — PR-05 Master Workflow Gate Integration — 2026-08-10
+ 
+ ### Added
+diff --git a/CITATION.cff b/CITATION.cff
+index 88c2496..d32138b 100644
+--- a/CITATION.cff
++++ b/CITATION.cff
+@@ -2,7 +2,7 @@ cff-version: 1.2.0
+ title: "VibraPilot — Vib Tools Browser Automation Desktop"
+ message: "If you reference this software, cite the Vib Tools project."
+ type: software
+-version: 1.0.6.22
++version: 1.0.6.23
+ authors:
+   - name: "Vib Tools"
+ url: "https://vib.tools/"
+diff --git a/COMPATIBILITY.md b/COMPATIBILITY.md
+index ef46f30..e65d634 100644
+--- a/COMPATIBILITY.md
++++ b/COMPATIBILITY.md
+@@ -1,3 +1,7 @@
++## v1.0.6.23 PR-06 compatibility
++
++PR-06 adds only workflow-state persistence and atomic switch/restart orchestration. TaskRuntimeStore/workspace/report schemas remain unchanged. Share Invite behavior, browser launch/profile/download/upload/extension behavior, global App/Browser Settings, licensing/device identity and exported files remain compatible. No Workflow page, dynamic Workflow Inputs or external plugin loading is introduced.
++
+ ## v1.0.6.22 PR-05 compatibility
+ 
+ PR-05 preserves the current Share Invite runtime contract and all external Task/report/persistence behavior while inserting a fail-closed in-memory Master Workflow Gate. Existing browser lifecycle, profiles, downloads/uploads/extensions, App/Browser Settings, Workflow Inputs UI, database/workspace schemas, licensing protocol and dependency versions are unchanged.
+diff --git a/PROJECT_STRUCTURE.md b/PROJECT_STRUCTURE.md
+index 3782076..19a5cb9 100644
+--- a/PROJECT_STRUCTURE.md
++++ b/PROJECT_STRUCTURE.md
+@@ -1,3 +1,13 @@
++## v1.0.6.23 PR-06 Workflow State / Atomic Switch surface
++
++- `src/vibrapilot/workflow/state.py` — schema-v1 workflow state, atomic persistence, switch transaction staging and recovery.
++- `src/vibrapilot/qt_app.py` — startup state loading, switch blockers/confirmation, worker settlement, owner-approved clear/preserve orchestration and restart-after-commit service.
++- `src/vibrapilot/backend.py` — receives the already-validated active workflow identity; no hard-coded production fallback.
++- `config/verification/v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json` — exact baseline, authorized/frozen surfaces and transaction policy.
++- `tests/test_v10623_pr06_workflow_state_atomic_switch.py` — state/migration/fail-closed/rollback/restart/preserve regression coverage.
++
++No new navigation page, workflow card, task/report schema or second production workflow is added.
++
+ ## v1.0.6.22 PR-05 Master Workflow Gate surface
+ 
+ - `src/vibrapilot/workflow/contracts.py` — generic session/item/retry runtime protocol plus fail-closed workflow errors.
+diff --git a/README.md b/README.md
+index d8daa78..dcdbc4e 100644
+--- a/README.md
++++ b/README.md
+@@ -1,4 +1,10 @@
+-# VibraPilot v1.0.6.22 — Vib Tools Browser Automation Desktop
++# VibraPilot v1.0.6.23 — Vib Tools Browser Automation Desktop
++
++## v1.0.6.23 — PR-06 Workflow State Persistence and Atomic Switch/Restart
++
++VibraPilot now persists one validated active built-in workflow in `AppData/workflow_state.json`. Existing installations migrate once to `share_invite`; corrupt, unsupported or unknown persisted workflow state fails closed instead of silently falling back.
++
++A real workflow change is handled as an atomic transaction: same-workflow requests are no-ops, running/manual-review Tasks block switching, the user confirms before mutation, idle workers settle, approved workflow-scoped runtime state is staged for rollback and cleared, the new workflow state is atomically committed, and restart is requested only after commit. Global settings, licensing/device identity, browser profiles/settings and exported Reports/FailedData/Logs are preserved. PR-06 adds no Workflow page or second production workflow.
+ 
+ ## v1.0.6.22 — PR-05 Master Workflow Gate
+ 
+diff --git a/ROADMAP.md b/ROADMAP.md
+index 16f75f8..5ec7f8f 100644
+--- a/ROADMAP.md
++++ b/ROADMAP.md
+@@ -1,3 +1,9 @@
++## PR-06 Workflow State Persistence + Atomic Switch / Restart — v1.0.6.23
++
++PR-06 persists the single active built-in workflow, migrates existing users to `share_invite` on first state creation, and provides the safe transactional switch/restart service required by the later Workflow Showcase UI. Production still contains only `share_invite`; generic switch paths are verified with test-only synthetic workflows.
++
++**Next after PR-06 release verification:** PR-07 Workflow Showcase Page UI/UX.
++
+ ## PR-05 Master Workflow Gate — v1.0.6.22
+ 
+ PR-05 routes workflow-specific session, item execution and retry preparation through a validated in-memory active built-in workflow. The initial/current active workflow is `share_invite`, and invalid resolution fails closed without fallback.
+diff --git a/UPDATE_LOG.md b/UPDATE_LOG.md
+index 87469c0..949f9a2 100644
+--- a/UPDATE_LOG.md
++++ b/UPDATE_LOG.md
+@@ -1,3 +1,7 @@
++## v1.0.6.23 — PR-06 Workflow State Persistence + Atomic Switch / Restart — 2026-08-10
++
++Added schema-v1 active-workflow persistence and a fail-closed atomic switch/restart transaction. Existing users migrate to `share_invite` only when no workflow-state file exists; existing corrupt/unknown state does not silently default. Real switches block on running or manual-review Tasks, stage rollback state, clear only the owner-approved workflow-scoped runtime/input data, atomically commit the new workflow state, and restart once after commit. Global app/browser settings, licensing/device identity, browser profiles and exported Reports/FailedData/Logs are preserved.
++
+ ## v1.0.6.22 — PR-05 Master Workflow Gate — 2026-08-10
+ 
+ PR-05 introduces one in-memory Master Workflow execution gate. `AutomationWorker` resolves the active built-in workflow through `WorkflowManager`, while existing Share Invite compatibility methods route session verification, item execution and safe retry preparation through the resolved runtime. Invalid/missing workflows fail closed with no silent Share Invite fallback.
+diff --git a/VERSIONING.md b/VERSIONING.md
+index da1ba3c..95db431 100644
+--- a/VERSIONING.md
++++ b/VERSIONING.md
+@@ -1,3 +1,7 @@
++## v1.0.6.23 — PR-06 Workflow State Persistence + Atomic Switch / Restart
++
++Scope-locked fourth-segment production update from Official Baseline `VibraPilot_v1.0.6.22_Baseline_PR05.zip` SHA-256 `c5c2e3826cb4de9a1789215325cc95854f06483c87b99ca59ffeb07f3e4416a5` and GitHub commit `e5763852249d86db35d9838a61f276eada823f08`. PR-06 persists one active built-in workflow and adds the approved atomic switch/restart lifecycle without changing task/report schemas, browser/licensing behavior or introducing Workflow UI.
++
+ ## v1.0.6.22 — PR-05 Master Workflow Gate
+ 
