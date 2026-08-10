@@ -1,28 +1,32 @@
 name: PR07 Publisher
 
 on:
-  push:
+  pull_request:
     branches:
-      - pr07-publish-stage-20260810
+      - main
+    types:
+      - opened
+      - synchronize
 
 permissions:
   contents: write
 
 jobs:
   materialize:
-    if: github.event.head_commit.message == 'chore: stage PR-07 release payload'
+    if: github.head_ref == 'pr07-publish-stage-20260810'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout release branch
         uses: actions/checkout@v4
         with:
+          ref: pr07-publish-stage-20260810
           fetch-depth: 0
 
-      - name: Verify exact parent
+      - name: Verify release ancestry
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "0959c00d014d71909726b0e886aaaa88e38f3eae"
+          git merge-base --is-ancestor 0959c00d014d71909726b0e886aaaa88e38f3eae HEAD
 
       - name: Materialize verified PR-07 payload
         shell: bash
@@ -34,7 +38,7 @@ jobs:
           test ! -e /tmp/pr07_payload/project
           rsync -a /tmp/pr07_payload/ ./
 
-      - name: Verify exact public scope
+      - name: Verify exact public payload scope
         shell: bash
         run: |
           set -euo pipefail
@@ -88,6 +92,10 @@ EOF
         shell: bash
         run: |
           set -euo pipefail
+          if git diff --cached --quiet; then
+            echo 'PR-07 payload already materialized.'
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "feat: add workflow showcase page and promote v1.0.6.24"
