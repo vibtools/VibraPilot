@@ -1,3 +1,23 @@
+# v1.0.6.19 Windows Evidence Addendum
+
+The uploaded v1.0.6.18 baseline contains real Windows evidence under `Logs/BrowserDiagnostics/slot_1_latest.json`.
+
+Confirmed runtime values:
+
+- Google Chrome executable: `C:\Program Files\Google\Chrome\Application\chrome.exe`
+- Chrome product/version: `Chrome/151.0.7922.76`
+- Engine classification: `google_chrome`
+- Fallback: `false`
+- Managed profile: `C:\Users\Vib Tools\AppData\Local\Vib Tools\VibraPilot\BrowserProfiles\slot_1`
+- Sandbox requested: `false`
+- Effective process command line contains `--no-sandbox`
+- Playwright Python runtime: `1.60.0`
+- Project-required Playwright: `1.61.0`
+
+This upgrades the Sandbox-OFF launch chain from source/dependency-only evidence to **runtime-confirmed process evidence**. Sandbox-ON compatibility is still NOT VERIFIED.
+
+v1.0.6.19 does not change Sandbox policy. It hardens evidence redaction/fidelity and makes the Playwright runtime mismatch explicit.
+
 # Browser Launch / Sandbox / Identity Forensic Audit — v1.0.6.18
 
 Baseline: VibraPilot v1.0.6.17, SHA-256 `02d8d70a9c11365922121440edc0d6da8328ba3b9dcfb73fcc1f0885a05a38bf`.

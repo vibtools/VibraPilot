@@ -54,8 +54,10 @@ from .browser_capabilities import (
 )
 from .browser_diagnostics import (
     browser_diagnostics_summary,
+    browser_diagnostics_warnings,
     build_browser_diagnostics,
     persist_browser_diagnostics,
+    sanitize_diagnostic_text,
 )
 
 DISPLAY_APP_NAME = APP.display_name
@@ -2904,6 +2906,8 @@ class AutomationWorker(threading.Thread):
                 LOGS_DIR, self.state.slot_id, record
             )
             self.log(browser_diagnostics_summary(record))
+            for warning in browser_diagnostics_warnings(record):
+                self.log(warning, "WARNING")
             self.log(f"Browser diagnostics evidence saved: {timestamped}")
         except Exception as exc:
             self.log(f"Browser diagnostics could not be collected: {exc}", "WARNING")
@@ -3361,10 +3365,10 @@ class AutomationWorker(threading.Thread):
                 ):
                     fallback_args = dict(persistent_args)
                     fallback_args.pop("channel", None)
-                    chrome_fallback_reason = str(exc)
+                    chrome_fallback_reason = sanitize_diagnostic_text(str(exc))
                     self.log(
                         f"Chrome channel persistent launch unavailable; falling back "
-                        f"to bundled Chromium. Detail: {exc}",
+                        f"to bundled Chromium. Detail: {chrome_fallback_reason}",
                         "WARNING",
                     )
                     try:
@@ -3434,10 +3438,11 @@ class AutomationWorker(threading.Thread):
                     DEFAULT_SETTINGS["allow_chromium_fallback"],
                 )
             ):
-                chrome_fallback_reason = str(exc)
+                chrome_fallback_reason = sanitize_diagnostic_text(str(exc))
                 launch_args.pop("channel", None)
                 self.log(
-                    f"Chrome channel unavailable; falling back to bundled Chromium. Detail: {exc}",
+                    "Chrome channel unavailable; falling back to bundled Chromium. "
+                    f"Detail: {chrome_fallback_reason}",
                     "WARNING",
                 )
                 self.browser = self.playwright.chromium.launch(**launch_args)

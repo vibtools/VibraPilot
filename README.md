@@ -1,4 +1,10 @@
-# VibraPilot v1.0.6.18 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.19 — Vib Tools Browser Automation Desktop
+
+## v1.0.6.19 Browser foundation forensic verification/fix
+
+v1.0.6.19 verifies the v1.0.6.18 browser-foundation implementation against the uploaded v1.0.6.18 baseline and its captured Windows browser evidence. The evidence confirms Google Chrome Stable `151.0.7922.76` was launched from `C:\Program Files\Google\Chrome\Application\chrome.exe`, using the managed `slot_1` profile with no Chromium fallback, and confirms `--no-sandbox` on the real process command line while `sandbox_enabled=false`.
+
+The same Windows evidence records Playwright Python `1.60.0` although the project pins `1.61.0`. v1.0.6.19 makes this dependency mismatch explicit in diagnostics/Live Logs, improves diagnostic redaction and nested-value fidelity, and adds evidence-validation tooling. Browser policy, Sandbox source default, profiles, workflows, database/workspace schemas, capabilities and UI remain unchanged. Sandbox-ON, CAPTCHA causality and the remaining capability/lifecycle matrix still require real Windows evidence before any behavioral change.
 
 ## v1.0.6.18 Browser foundation stabilization
 

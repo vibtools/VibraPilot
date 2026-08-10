@@ -1,3 +1,9 @@
+## v1.0.6.19 browser foundation verification/fix
+
+The uploaded v1.0.6.18 baseline contains real Windows launch evidence confirming Google Chrome Stable, the managed profile and `--no-sandbox`, plus a Playwright runtime/version mismatch (`1.60.0` captured vs `1.61.0` required). v1.0.6.19 hardens diagnostics without changing browser policy.
+
+See `updates/v1.0.6.19-browser-foundation-verification-fix.md`, `verification/V1.0.6.19_BROWSER_FOUNDATION_FORENSIC_VERIFICATION.md`, and the updated `forensic/` records.
+
 ## v1.0.6.18 browser foundation stabilization
 
 See `updates/v1.0.6.18-browser-foundation-stabilization.md`, `verification/V1.0.6.18_BROWSER_FOUNDATION_VERIFICATION.md` and `forensic/`. Windows-only tests remain pending.
@@ -16,7 +22,7 @@ The current candidate restores normal active Task cards, selected page and safe 
 
 # VibraPilot Documentation
 
-This documentation accompanies **VibraPilot v1.0.6.17 — Browser Capabilities candidate**.
+This documentation accompanies **VibraPilot v1.0.6.19 — Browser Foundation verification/fix candidate**.
 
 Start with:
 

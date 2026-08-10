@@ -1,3 +1,7 @@
+## v1.0.6.19 acceptance
+
+Before browser-foundation acceptance, install the exact project dependencies with `python -m pip install -r requirements.txt`, then run `python scripts/diagnostics/verify_browser_foundation_evidence.py` after opening a Task browser. The evidence must report the required Playwright `1.61.0` runtime before Sandbox/CAPTCHA/capability conclusions are accepted. Sandbox-ON remains a separate Windows test and is not implied by this source patch.
+
 ## v1.0.6.18 acceptance
 
 Run the v1.0.6.18 source and Windows browser-foundation gates before promotion. Browser diagnostics are evidence, not proof that blocked Windows tests passed.

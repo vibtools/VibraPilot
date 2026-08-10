@@ -1,3 +1,19 @@
+## v1.0.6.19 — Browser foundation verification / diagnostics hardening — 2026-08-09
+
+### Confirmed
+- Uploaded Windows evidence confirms actual Google Chrome Stable `151.0.7922.76` at `C:\Program Files\Google\Chrome\Application\chrome.exe`, `fallback_used=false`, the managed `slot_1` profile, and a real process command line containing `--no-sandbox`.
+- The same evidence exposes a runtime dependency mismatch: Playwright Python `1.60.0` was running while project metadata pins `1.61.0`.
+
+### Fixed
+- Browser diagnostics now report expected-vs-actual Playwright compatibility and emit a non-fatal warning on mismatch.
+- Diagnostic fallback/error text is sanitized before persistence/logging, including secret-bearing switches and proxy credentials.
+- Nested launch diagnostic values retain their JSON scalar types instead of coercing numeric/boolean evidence to strings.
+- Added a standalone evidence validator for `Logs/BrowserDiagnostics/slot_N_latest.json`.
+
+### Preserved
+- `sandbox_enabled` source default remains unchanged because Sandbox-ON Windows acceptance is still not provided.
+- No browser launch policy, fallback behavior, profile architecture, download/upload/extension behavior, workflow, TaskRuntimeStore/WorkspaceState schema, licensing or UI behavior changes.
+
 ## v1.0.6.18 — Browser foundation stabilization — 2026-08-09
 
 ### Added

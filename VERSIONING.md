@@ -1,3 +1,11 @@
+## v1.0.6.19 — Browser foundation verification/fix
+
+Verification/fix release based on uploaded v1.0.6.18 baseline SHA-256 `d18277ea00ae581ede45c8d3e647cd0f41625aeb0d5b8aad71715c19e4e29ae9`.
+
+Runtime changes are limited to `src/vibrapilot/backend.py` and `src/vibrapilot/browser_diagnostics.py`. The v1.0.6.18 launch policy is preserved. Sandbox default is not changed because Sandbox-ON Windows acceptance remains unavailable. No dependency declaration, database/workspace schema, Browser Settings key, UI page, workflow or licensing behavior changes.
+
+v1.0.6.19 is the next Official Development Baseline Freeze after source/delta verification; Windows Sandbox-ON/CAPTCHA/capability gates remain explicit pending acceptance.
+
 ## v1.0.6.18 — Browser foundation stabilization
 
 Candidate from official v1.0.6.17 baseline. Windows browser acceptance is required before the next Official Baseline Freeze.
@@ -22,7 +30,7 @@ Version **1.0.6.14** is the scope-locked managed-persistent-browser and Closed T
 
 VibraPilot uses a four-segment production release version for hardening/configuration/security maintenance on top of the validated v1.0.6 automation baseline.
 
-Current release candidate: **1.0.6.14**
+Current release candidate: **1.0.6.19**
 
 Version **1.0.6.13** is the verification/CI-stability correction anchored to uploaded v1.0.6.12 archive SHA-256 `becd6add21d377e98e458ce856c9c3baa710a113459bde0c737507c122c2a9b5` and GitHub v1.0.6.12 commit `a9cfec319285db2fb9fbff8d4bf0ede8ac87686b`.
 

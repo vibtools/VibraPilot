@@ -1,3 +1,11 @@
+## v1.0.6.19 browser-foundation verification surface
+
+- `src/vibrapilot/browser_diagnostics.py` — evidence fidelity, redaction and Playwright runtime compatibility classification.
+- `src/vibrapilot/backend.py` — sanitized fallback diagnostic logging and compatibility warning emission.
+- `scripts/diagnostics/verify_browser_foundation_evidence.py` — non-invasive evidence validator.
+- `config/verification/v1.0.6.19_browser_foundation_verification_fix_scope.json` — exact scope/frozen-hash contract.
+- `tests/test_v10619_browser_foundation_verification_fix.py` — regression coverage.
+
 ## v1.0.6.18 browser-foundation surface
 
 - `src/vibrapilot/browser_diagnostics.py` — observational browser evidence.

@@ -1,3 +1,12 @@
+## v1.0.6.19 — Browser foundation forensic verification/fix — 2026-08-09
+
+Audited the exact uploaded v1.0.6.18 baseline SHA `d18277ea00ae581ede45c8d3e647cd0f41625aeb0d5b8aad71715c19e4e29ae9`. Real Windows evidence confirms Google Chrome Stable, the managed Task profile and the effective `--no-sandbox` command line. It also reveals Playwright runtime `1.60.0` versus the source-required `1.61.0`.
+
+The patch changes only browser-foundation diagnostics/runtime logging plus verification tooling: dependency mismatch is explicit, fallback diagnostic text is sanitized, nested launch-value types are preserved, and an evidence validator is added. Sandbox default and all validation-only browser behaviors remain frozen pending Windows evidence.
+
+Detailed note: `docs/updates/v1.0.6.19-browser-foundation-verification-fix.md`
+Verification: `docs/verification/V1.0.6.19_BROWSER_FOUNDATION_FORENSIC_VERIFICATION.md`
+
 ## v1.0.6.18 — VP-BROWSER-FOUNDATION-STABILIZATION-001 — 2026-08-09
 
 Browser diagnostics implemented from v1.0.6.17 baseline SHA `02d8d70a9c11365922121440edc0d6da8328ba3b9dcfb73fcc1f0885a05a38bf`. Windows-only validation remains pending; no blocked test is reported as PASS.

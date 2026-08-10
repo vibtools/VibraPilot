@@ -1,3 +1,7 @@
+## v1.0.6.19 browser-foundation verification compatibility
+
+No dependency declaration, database/workspace schema, settings key, browser launch policy, profile behavior, Task UI, workflow or licensing protocol changes. The required Playwright version remains exactly `1.61.0`; diagnostics now warn when the actual runtime differs. Existing Windows PowerShell/CIM process evidence remains non-fatal.
+
 ## v1.0.6.18 browser-foundation compatibility
 
 No dependency, database/workspace schema, settings-key, Task UI or workflow change. Optional Windows process evidence uses PowerShell/CIM; diagnostic failure is non-fatal.

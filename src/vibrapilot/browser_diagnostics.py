@@ -17,6 +17,7 @@ from shutil import which
 from typing import Any
 
 BROWSER_DIAGNOSTICS_SCHEMA_VERSION = 1
+EXPECTED_PLAYWRIGHT_VERSION = "1.61.0"
 _SENSITIVE_SWITCH_TOKENS = (
     "password", "passwd", "secret", "token", "cookie", "authorization",
     "auth-token", "api-key", "apikey", "private-key",
@@ -68,6 +69,30 @@ def sanitize_command_line(command_line: str) -> str:
     return text
 
 
+def sanitize_diagnostic_text(value: str) -> str:
+    """Redact secret-bearing launch details while preserving forensic context."""
+    text = sanitize_command_line(str(value or ""))
+    text = re.sub(
+        r"(?i)(\b(?:password|passwd|secret|token|authorization|auth-token|api-key|apikey|private-key)\b\s*[:=]\s*)(\"[^\"]*\"|'[^']*'|[^,;\s}]+)",
+        lambda m: m.group(1) + "<redacted>",
+        text,
+    )
+    return _redact_proxy_credentials(text)
+
+
+def _sanitize_json_value(value: Any) -> Any:
+    """Keep diagnostic JSON types intact while sanitizing nested string values."""
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return sanitize_diagnostic_text(value) if isinstance(value, str) else value
+    if isinstance(value, (list, tuple)):
+        return [_sanitize_json_value(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _sanitize_json_value(item) for key, item in value.items()}
+    return sanitize_diagnostic_text(str(value))
+
+
 def sanitize_launch_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
     """Return a JSON-safe, non-secret view of Playwright launch kwargs."""
     result: dict[str, Any] = {}
@@ -91,16 +116,7 @@ def sanitize_launch_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
         if key in {"storage_state", "http_credentials", "extra_http_headers"}:
             result[key] = "<configured>" if value else None
             continue
-        if isinstance(value, Path):
-            result[key] = str(value)
-        elif isinstance(value, (str, int, float, bool)) or value is None:
-            result[key] = value
-        elif isinstance(value, (list, tuple)):
-            result[key] = [str(item) for item in value]
-        elif isinstance(value, dict):
-            result[key] = {str(k): str(v) for k, v in value.items()}
-        else:
-            result[key] = str(value)
+        result[key] = _sanitize_json_value(value)
     return result
 
 
@@ -293,11 +309,19 @@ def build_browser_diagnostics(*, slot_id: int, settings: dict[str, Any],
     if not command_line and isinstance(cdp.get("browser_command_line_arguments"), list):
         command_line = " ".join(str(v) for v in cdp["browser_command_line_arguments"])
     profile = str(Path(user_data_dir).resolve()) if user_data_dir else None
+    actual_playwright_version = playwright_package_version()
+    playwright_version_matches = actual_playwright_version == EXPECTED_PLAYWRIGHT_VERSION
     return {
         "schema_version": BROWSER_DIAGNOSTICS_SCHEMA_VERSION,
         "captured_at": _now_iso(),
         "slot_id": int(slot_id),
-        "playwright_python_version": playwright_package_version(),
+        # Retained for compatibility with v1.0.6.18 evidence readers.
+        "playwright_python_version": actual_playwright_version,
+        "playwright": {
+            "expected_version": EXPECTED_PLAYWRIGHT_VERSION,
+            "actual_version": actual_playwright_version,
+            "matches_expected": playwright_version_matches,
+        },
         "requested": {
             "channel": requested_channel,
             "executable_path": requested_executable,
@@ -318,7 +342,7 @@ def build_browser_diagnostics(*, slot_id: int, settings: dict[str, Any],
             "requested_kwargs": sanitize_launch_kwargs(requested_launch_kwargs),
             "effective_kwargs": sanitize_launch_kwargs(effective_launch_kwargs),
             "fallback_used": bool(fallback_used),
-            "fallback_reason": str(fallback_reason or ""),
+            "fallback_reason": sanitize_diagnostic_text(str(fallback_reason or "")),
         },
         "actual": {
             "engine": engine,
@@ -354,15 +378,43 @@ def persist_browser_diagnostics(logs_dir: str | Path, slot_id: int,
     return timestamped, latest
 
 
+def browser_diagnostics_warnings(record: dict[str, Any]) -> list[str]:
+    """Return non-fatal compatibility warnings derived from captured evidence."""
+    warnings: list[str] = []
+    playwright = record.get("playwright") if isinstance(record.get("playwright"), dict) else {}
+    actual_version = str(
+        playwright.get("actual_version")
+        or record.get("playwright_python_version")
+        or "unknown"
+    )
+    expected_version = str(playwright.get("expected_version") or EXPECTED_PLAYWRIGHT_VERSION)
+    if actual_version != "unknown" and actual_version != expected_version:
+        warnings.append(
+            "Browser diagnostics dependency mismatch: "
+            f"Playwright runtime={actual_version}, project-required={expected_version}. "
+            "Reinstall the exact project dependencies before production acceptance."
+        )
+    return warnings
+
+
 def browser_diagnostics_summary(record: dict[str, Any]) -> str:
     actual = record.get("actual") if isinstance(record.get("actual"), dict) else {}
     requested = record.get("requested") if isinstance(record.get("requested"), dict) else {}
     launch = record.get("launch") if isinstance(record.get("launch"), dict) else {}
+    playwright = record.get("playwright") if isinstance(record.get("playwright"), dict) else {}
+    playwright_actual = str(
+        playwright.get("actual_version")
+        or record.get("playwright_python_version")
+        or "unknown"
+    )
+    playwright_expected = str(playwright.get("expected_version") or EXPECTED_PLAYWRIGHT_VERSION)
+    playwright_status = "match" if playwright_actual == playwright_expected else "mismatch"
     return (
         f"Browser diagnostics: engine={actual.get('engine', 'unknown')} "
         f"product={actual.get('product') or 'version unavailable'} "
         f"fallback={'yes' if launch.get('fallback_used') else 'no'} "
         f"sandbox={'on' if requested.get('sandbox_enabled') else 'off'} "
+        f"playwright={playwright_actual}/{playwright_expected}:{playwright_status} "
         f"executable={actual.get('executable_path') or 'executable path not captured'} "
         f"profile={actual.get('profile_path') or requested.get('profile_path') or 'profile unavailable'}"
     )

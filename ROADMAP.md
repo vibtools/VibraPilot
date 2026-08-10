@@ -1,3 +1,9 @@
+## Browser Foundation verification/fix — v1.0.6.19
+
+v1.0.6.18 Windows evidence now confirms actual Google Chrome Stable, managed profile identity and the Sandbox-OFF `--no-sandbox` process command line. v1.0.6.19 hardens evidence correctness and surfaces the detected Playwright `1.60.0` vs required `1.61.0` runtime mismatch.
+
+Remaining browser-foundation gates: reinstall/verify exact Playwright `1.61.0`, run Sandbox-ON acceptance, controlled normal-Chrome vs VibraPilot CAPTCHA comparison, real download/upload/unpacked-extension tests, cookie/localStorage/IndexedDB/history persistence, manual-close/process-kill lifecycle, and 1/2/4 Task isolation. Master Workflow Engine work remains blocked until those foundation gates are explicitly accepted.
+
 ## Phase-1 Browser Foundation Stabilization — v1.0.6.18 Candidate
 
 Identity/fallback/sandbox evidence is implemented. Windows Sandbox/CAPTCHA/capability/lifecycle/multi-Task acceptance remains required before Master Workflow Engine work.
