@@ -1,0 +1,192 @@
++        settings_snapshot = dict(self.settings.data)
++
++        self._workflow_switch_in_progress = True
++        transaction = WorkflowSwitchTransaction(
++            data_root=APP_DATA_DIR,
++            transaction_root=self.workflow_switch_root,
++            old_workflow_id=current,
++            target_workflow_id=target,
++        )
++        committed = False
++        try:
++            if not self._settle_workflow_workers():
++                raise WorkflowSwitchBlockedError(
++                    "One or more Task workers could not settle safely; workflow switch aborted."
++                )
++            transaction.prepare(self._workflow_switch_paths())
++            try:
++                self._clear_workflow_scoped_state(workspace_snapshot)
++                new_state = self.workflow_state_store.commit_active_workflow(
++                    target, expected_current_workflow_id=current
++                )
++                committed = True
++            except BaseException:
++                transaction.rollback()
++                self._restore_after_failed_workflow_switch(settings_snapshot)
++                raise
++
++            # The workflow-state os.replace above is the commit point. From here
++            # onward the target workflow is authoritative and old data must not be
++            # restored, even if restart spawning fails.
++            try:
++                transaction.mark_committed()
++            except Exception as exc:
++                logging.exception("Workflow switch committed but transaction marker update failed")
++                self.log_ui(
++                    f"Workflow switch committed; transaction cleanup will be recovered on restart: {exc}",
++                    "WARNING",
++                )
++            self._finalize_committed_workflow_switch(new_state.active_workflow_id)
++            try:
++                transaction.cleanup()
++            except Exception as exc:
++                logging.exception("Committed workflow switch staging cleanup failed")
++                self.log_ui(
++                    f"Workflow switch committed; stale transaction staging will be cleaned on restart: {exc}",
++                    "WARNING",
++                )
++
++            self._workflow_restart_required = True
++            try:
++                self._spawn_workflow_restart()
++            except Exception as exc:
++                logging.exception("Workflow switch restart spawn failed")
++                _message(
++                    self,
++                    "Manual restart required",
++                    "Workflow switch was committed successfully, but VibraPilot could not "
++                    f"start the replacement process. Restart VibraPilot manually.\n\n{exc}",
++                    "error",
++                )
++                return "committed_restart_required"
++
++            QTimer.singleShot(0, self.close)
++            return "switched"
++        except WorkflowSwitchBlockedError:
++            if not committed:
++                self._workflow_switch_in_progress = False
++            raise
++        except BaseException:
++            if not committed:
++                self._workflow_switch_in_progress = False
++            raise
++
+     def _refresh_report_task_filter(self) -> None:
+         if not hasattr(self, "report_task"):
+             return
+@@ -3043,6 +3357,8 @@ class MainWindow(QMainWindow):
+         self.report_task.blockSignals(False)
+ 
+     def offer_task_recovery(self) -> None:
++        if self.workflow_state_error or not self.active_workflow_id:
++            return
+         recoverable = self.runtime_store.recoverable_runs()
+         for summary in recoverable:
+             run_id = str(summary.get("run_id", ""))
+diff --git a/src/vibrapilot/workflow/__init__.py b/src/vibrapilot/workflow/__init__.py
+index f3b31bf..2c16ac9 100644
+--- a/src/vibrapilot/workflow/__init__.py
++++ b/src/vibrapilot/workflow/__init__.py
+@@ -15,8 +15,21 @@ from .contracts import (
+     WorkflowRuntime,
+     WorkflowRuntimeFactory,
+     WorkflowRuntimeResolutionError,
++    WorkflowStateCorruptError,
++    WorkflowStateError,
++    WorkflowSwitchBlockedError,
++    WorkflowSwitchError,
+ )
+ from .manager import WorkflowManager
++from .state import (
++    DEFAULT_ACTIVE_WORKFLOW_ID,
++    TRANSACTION_COMMITTED,
++    TRANSACTION_PREPARED,
++    WORKFLOW_STATE_SCHEMA_VERSION,
++    WorkflowState,
++    WorkflowStateStore,
++    WorkflowSwitchTransaction,
++)
+ from .registry import (
+     WorkflowRegistry,
+     builtin_workflow_manifests,
+@@ -37,6 +50,17 @@ __all__ = [
+     "WorkflowRuntime",
+     "WorkflowRuntimeFactory",
+     "WorkflowRuntimeResolutionError",
++    "WorkflowState",
++    "WorkflowStateCorruptError",
++    "WorkflowStateError",
++    "WorkflowStateStore",
++    "WorkflowSwitchBlockedError",
++    "WorkflowSwitchError",
++    "WorkflowSwitchTransaction",
++    "WORKFLOW_STATE_SCHEMA_VERSION",
++    "DEFAULT_ACTIVE_WORKFLOW_ID",
++    "TRANSACTION_PREPARED",
++    "TRANSACTION_COMMITTED",
+     "builtin_workflow_manifests",
+     "builtin_workflow_runtime_factories",
+     "create_builtin_registry",
+diff --git a/src/vibrapilot/workflow/contracts.py b/src/vibrapilot/workflow/contracts.py
+index a86493c..4e1f8b9 100644
+--- a/src/vibrapilot/workflow/contracts.py
++++ b/src/vibrapilot/workflow/contracts.py
+@@ -44,6 +44,22 @@ class WorkflowRuntimeResolutionError(WorkflowError):
+     """Raised when a built-in workflow runtime cannot be resolved safely."""
+ 
+ 
++class WorkflowStateError(WorkflowError):
++    """Raised when persistent active-workflow state cannot be used safely."""
++
++
++class WorkflowStateCorruptError(WorkflowStateError):
++    """Raised after corrupt/invalid workflow state is quarantined fail-closed."""
++
++
++class WorkflowSwitchError(WorkflowError):
++    """Raised when an atomic workflow switch cannot complete safely."""
++
++
++class WorkflowSwitchBlockedError(WorkflowSwitchError):
++    """Raised when workflow switching is blocked before destructive mutation."""
++
++
+ def _required_text(value: str, field_name: str) -> str:
+     if not isinstance(value, str):
+         raise WorkflowManifestError(f"{field_name} must be a string")
+diff --git a/src/vibrapilot/workflow/manager.py b/src/vibrapilot/workflow/manager.py
+index 1cd9fa2..8db98d7 100644
+--- a/src/vibrapilot/workflow/manager.py
++++ b/src/vibrapilot/workflow/manager.py
+@@ -75,6 +75,16 @@ class WorkflowManager:
+             )
+         return self.require_workflow(workflow_id)
+ 
++    def require_runtime_factory(self, workflow_id: str) -> WorkflowRuntimeFactory:
++        """Return the source-controlled runtime factory or fail closed."""
++        manifest = self.require_workflow(workflow_id)
++        factory = self._runtime_factories.get(manifest.workflow_id)
++        if factory is None:
++            raise WorkflowRuntimeResolutionError(
++                f"no source-controlled runtime is registered for workflow_id: {manifest.workflow_id}"
++            )
++        return factory
++
+     def resolve_active_runtime(self, *args: Any, **kwargs: Any) -> WorkflowRuntime:
+         manifest = self.require_active_workflow()
+         factory = self._runtime_factories.get(manifest.workflow_id)
+diff --git a/tests/test_app_config.py b/tests/test_app_config.py
+index 20f805d..d8e7c65 100644
+--- a/tests/test_app_config.py
++++ b/tests/test_app_config.py
+@@ -24,7 +24,7 @@ class AppConfigTest(unittest.TestCase):
+         self.assertEqual(APP.app_id, "vibrapilot")
+         self.assertEqual(APP.app_name, "VibraPilot")
+         self.assertEqual(APP.display_name, "VibraPilot")
+-        self.assertEqual(APP.version, "1.0.6.22")
++        self.assertEqual(APP.version, "1.0.6.23")
+         self.assertEqual(APP.owner_name, "Vib Tools")
+         self.assertEqual(APP.license_identifier, "GPL-3.0-only")
+         self.assertEqual(APP.updated_date, "2026-08-10")
+diff --git a/tests/test_pr03_workflow_contracts_registry.py b/tests/test_pr03_workflow_contracts_registry.py
+index 8caee40..7f813ec 100644
