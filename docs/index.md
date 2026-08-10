@@ -1,3 +1,9 @@
+## v1.0.6.21 PR-04 CI portability verification fix
+
+The v1.0.6.20 Share Invite runtime is unchanged. v1.0.6.21 corrects only the PR-04 semantic-parity verification harness so supported Windows/Python 3.12 and development Python 3.13 use the same canonical AST contract.
+
+See `updates/v1.0.6.21-pr04-ci-portability-fix.md` and `verification/V1.0.6.21_PR04_CI_PORTABILITY_VERIFICATION.md`.
+
 ## v1.0.6.20 PR-04 Share Invite workflow extraction
 
 The verified Share Invite implementation is now the first source-controlled built-in workflow under `src/vibrapilot/workflow/share_invite/`. The release preserves the existing Send safety/retry/manual-review behavior and does not enable workflow switching or change browser/UI/schema/CAPTCHA behavior.

@@ -1,3 +1,7 @@
+## PR-04 CI closure — v1.0.6.21
+
+PR-04 implementation remains behaviorally frozen from v1.0.6.20. v1.0.6.21 addresses only the Windows/Python 3.12 parity-test portability failure from Actions run `31379910982`. PR-05 remains blocked until the v1.0.6.21 GitHub CI gate is green and PR-04 is formally closed.
+
 ## PR-04 Share Invite workflow extraction — v1.0.6.20
 
 PR-04 converts the existing verified Share Invite automation into VibraPilot's first source-controlled built-in workflow. The extraction preserves Test Mode, selector order, Send/retry/manual-review semantics, `SecurityChallenge`, existing exceptions and report/data contracts.

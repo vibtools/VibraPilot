@@ -1,3 +1,9 @@
+## v1.0.6.21 — PR-04 CI portability verification fix
+
+Verification-only fourth-segment release from official v1.0.6.20 PR-04 baseline commit `37a1faf1a53a2330669788b87c3d467995cf4348`. Runtime/workflow/UI/browser/settings/dependency/schema behavior is frozen; only the cross-version semantic-AST parity harness, release metadata and verification/documentation state change.
+
+GitHub Actions acceptance is required before v1.0.6.21 is frozen as the next official baseline.
+
 ## v1.0.6.20 — PR-04 Share Invite workflow extraction
 
 Scope-locked fourth-segment production update from the reconciled PR-02/PR-03 v1.0.6.19 baseline at GitHub commit `999212b947583927204535f59832f1379d9306f4`. PR-04 extracts the existing Share Invite implementation behind the built-in workflow framework while preserving the safety-critical worker state machine and all out-of-scope application behavior.

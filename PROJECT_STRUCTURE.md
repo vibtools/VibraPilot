@@ -1,3 +1,10 @@
+## v1.0.6.21 PR-04 CI portability verification surface
+
+- `config/verification/v1.0.6.21_pr04_ci_portability_fix_scope.json` — baseline/run identity, canonical semantic hashes and runtime/support freeze.
+- `tests/test_v10620_pr04_share_invite_workflow_parity.py` — same PR-04 behavior tests with Python-minor-stable semantic hashing.
+- `scripts/verify_repository.py` — v1.0.6.21 metadata/freeze verification only; no runtime source integration change.
+- `docs/updates/v1.0.6.21-pr04-ci-portability-fix.md` and `docs/verification/V1.0.6.21_PR04_CI_PORTABILITY_VERIFICATION.md` — public release/verification evidence.
+
 ## v1.0.6.20 PR-04 workflow extraction surface
 
 - `src/vibrapilot/workflow/share_invite/` — first source-controlled built-in workflow: manifest, existing logo asset and extracted Share Invite runtime implementation.

@@ -1,4 +1,10 @@
-# VibraPilot v1.0.6.20 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.21 — Vib Tools Browser Automation Desktop
+
+## v1.0.6.21 — PR-04 Windows/Python 3.12 CI verification fix
+
+The v1.0.6.20 PR-04 runtime extraction remains unchanged. GitHub Actions exposed a verification-only portability defect: semantic parity hashes were based on Python 3.13 `ast.dump(...)` output and therefore differed on the supported Python 3.12 runner. v1.0.6.21 switches that gate to the existing canonical AST serializer and freezes all PR-04 runtime/support files.
+
+No Share Invite, UI, browser, settings, persistence, licensing or CAPTCHA behavior changes are included.
 
 ## v1.0.6.20 — PR-04 Share Invite workflow extraction
 

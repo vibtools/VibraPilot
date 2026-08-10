@@ -1,3 +1,7 @@
+## v1.0.6.21 — PR-04 CI portability correction — 2026-08-10
+
+GitHub Actions run `31379910982` / job `93427549108` failed only in the PR-04 semantic-AST parity test on supported Windows/Python 3.12. The verifier used `ast.dump(...)` hashes generated under Python 3.13, so version-specific empty AST fields produced a false mismatch although static repository verification and the remaining 276 pytest tests passed. v1.0.6.21 makes this parity gate Python-minor-stable without changing runtime behavior.
+
 ## v1.0.6.20 — PR-04 Share Invite workflow extraction — 2026-08-10
 
 Extracted the current verified Share Invite implementation into the first source-controlled built-in workflow without redesigning its behavior. Added `share_invite/manifest.json`, workflow-local logo, runtime implementation, deterministic built-in registration, parity scope contract and dedicated tests. Existing `AutomationWorker` safety state machine, Test Mode/Send/retry/manual-review behavior, browser lifecycle, UI, schemas, settings, licensing and CAPTCHA policy remain unchanged.

@@ -40,6 +40,7 @@ BROWSER_FOUNDATION_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.1
 BROWSER_FOUNDATION_VERIFICATION_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.19_browser_foundation_verification_fix_scope.json"
 CHROME_WEBSTORE_EXTENSION_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.19_chrome_webstore_extension_install_fix_scope.json"
 PR04_SHARE_INVITE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.20_pr04_share_invite_workflow_extraction_scope.json"
+PR04_CI_PORTABILITY_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.21_pr04_ci_portability_fix_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -419,6 +420,38 @@ for key in (
 ):
     if pr04_scope.get(key) is not True:
         fail(f"v1.0.6.20 PR-04 boundary missing: {key}")
+
+# v1.0.6.21 corrects only the PR-04 semantic-parity verification harness so
+# the supported Python 3.12 CI runner and development Python 3.13 serialize
+# equivalent ASTs identically. Runtime/workflow/UI/browser/settings behavior is frozen.
+if not PR04_CI_PORTABILITY_FIX_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.21 PR-04 CI portability fix scope contract is missing")
+try:
+    pr04_ci_fix_scope = json.loads(
+        PR04_CI_PORTABILITY_FIX_SCOPE_CONTRACT.read_text(encoding="utf-8")
+    )
+except Exception as exc:
+    fail(f"v1.0.6.21 PR-04 CI portability scope contract is invalid: {exc}")
+if pr04_ci_fix_scope.get("plan_id") != "VP-PR04-CI-PORTABILITY-001":
+    fail("v1.0.6.21 PR-04 CI portability plan identifier mismatch")
+if pr04_ci_fix_scope.get("baseline_github_commit") != "37a1faf1a53a2330669788b87c3d467995cf4348":
+    fail("v1.0.6.21 PR-04 CI portability baseline GitHub commit mismatch")
+if pr04_ci_fix_scope.get("target_version") != "1.0.6.21":
+    fail("v1.0.6.21 PR-04 CI portability target mismatch")
+if pr04_ci_fix_scope.get("official_baseline_archive_sha256") != "986e09fbc7fb3ecbe0666917947da9a4f74ab977a3d2f41292d8ca94266af7c2":
+    fail("v1.0.6.21 PR-04 CI portability baseline archive mismatch")
+for key in (
+    "runtime_source_change_authorized", "ui_change_authorized",
+    "workflow_behavior_change_authorized", "browser_change_authorized",
+    "settings_change_authorized", "dependency_change_authorized",
+    "database_schema_change_authorized",
+):
+    if pr04_ci_fix_scope.get(key) is not False:
+        fail(f"v1.0.6.21 PR-04 CI portability preservation boundary mismatch: {key}")
+if pr04_ci_fix_scope.get("semantic_hash_algorithm") != "canonical-semantic-ast-v2":
+    fail("v1.0.6.21 PR-04 CI portability semantic hash algorithm mismatch")
+if hashlib.sha256(PR04_SHARE_INVITE_SCOPE_CONTRACT.read_bytes()).hexdigest() != pr04_ci_fix_scope.get("historical_pr04_scope_sha256"):
+    fail("v1.0.6.21 historical PR-04 scope contract drift detected")
 
 if not BROWSER_FOUNDATION_SCOPE_CONTRACT.is_file():
     fail("v1.0.6.18 browser foundation scope contract is missing")
@@ -1145,6 +1178,11 @@ for method_name, expected_sha in pr04_scope.get("frozen_automationworker_method_
     if node is None or ast_contract_sha(node) != expected_sha:
         fail(f"v1.0.6.20 PR-04 safety-critical worker drift detected: {method_name}")
 
+for relative, expected_sha in pr04_ci_fix_scope.get("frozen_runtime_support_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.21 runtime/support drift detected outside verification-only fix: {relative}")
+
 print("[5/8] AppConfig, licensing and safety invariants")
 backend_text = (SRC / "backend.py").read_text(encoding="utf-8")
 qt_text = (SRC / "qt_app.py").read_text(encoding="utf-8")
@@ -1160,8 +1198,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.20":
-    fail("AppConfig VERSION must be 1.0.6.20 for the PR-04 Share Invite workflow extraction release")
+if app_version != "1.0.6.21":
+    fail("AppConfig VERSION must be 1.0.6.21 for the PR-04 CI portability verification fix release")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -1275,8 +1313,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.20-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.20 release path")
+if "VibraPilot-1.0.6.21-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.21 release path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})

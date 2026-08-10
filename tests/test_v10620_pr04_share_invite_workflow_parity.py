@@ -24,6 +24,7 @@ from vibrapilot.workflow.share_invite.workflow import (
 
 ROOT = Path(__file__).resolve().parents[1]
 SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.20_pr04_share_invite_workflow_extraction_scope.json"
+PR04_CI_FIX_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.21_pr04_ci_portability_fix_scope.json"
 BASELINE_BACKEND = ROOT / "project" / "research" / "source_baseline" / "VibraPilot_v1.0.6_original_app.py"
 
 ALG = "canonical-semantic-ast-v2"
@@ -71,6 +72,10 @@ def _backend_nodes():
 
 def _scope() -> dict:
     return json.loads(SCOPE_PATH.read_text(encoding="utf-8"))
+
+
+def _ci_fix_scope() -> dict:
+    return json.loads(PR04_CI_FIX_SCOPE_PATH.read_text(encoding="utf-8"))
 
 
 def _strip_annotations(function: ast.FunctionDef) -> ast.FunctionDef:
@@ -175,15 +180,19 @@ class _ExtractedWorkflowParityNormalizer(ast.NodeTransformer):
 
 
 def _extracted_method_semantic_hash(function: ast.FunctionDef) -> str:
+    """Return a Python-minor-stable semantic AST hash for extracted methods.
+
+    ``ast.dump`` includes version-specific empty AST fields (for example
+    ``type_params``), which made the v1.0.6.20 parity gate pass on Python 3.13
+    but fail on the supported Python 3.12 CI runner.  The existing canonical
+    serializer intentionally omits empty/None fields and is therefore used for
+    the release parity contract.
+    """
     normalized = _ExtractedWorkflowParityNormalizer().visit(
         _strip_annotations(function)
     )
     normalized = ast.fix_missing_locations(normalized)
-    return hashlib.sha256(
-        ast.dump(normalized, annotate_fields=True, include_attributes=False).encode(
-            "utf-8"
-        )
-    ).hexdigest()
+    return _ast_hash(normalized)
 
 
 def _errors() -> ShareInviteRuntimeErrors:
@@ -378,7 +387,7 @@ def test_send_limit_uses_existing_backend_exception_identity(monkeypatch):
 
 
 def test_all_extracted_share_invite_methods_are_semantically_identical_to_baseline():
-    scope = _scope()
+    scope = _ci_fix_scope()
     tree = ast.parse(
         (ROOT / "src/vibrapilot/workflow/share_invite/workflow.py").read_text(
             encoding="utf-8"
@@ -395,9 +404,24 @@ def test_all_extracted_share_invite_methods_are_semantically_identical_to_baseli
         if isinstance(node, ast.FunctionDef)
     }
     for name, expected in scope[
-        "baseline_extracted_method_semantic_ast_sha256"
+        "baseline_extracted_method_canonical_ast_sha256"
     ].items():
         assert _extracted_method_semantic_hash(methods[name]) == expected, name
+
+
+
+def test_pr04_ci_portability_contract_pins_historical_scope_and_algorithm():
+    scope = _ci_fix_scope()
+    assert scope["plan_id"] == "VP-PR04-CI-PORTABILITY-001"
+    assert scope["baseline_github_commit"] == "37a1faf1a53a2330669788b87c3d467995cf4348"
+    assert scope["target_version"] == "1.0.6.21"
+    assert scope["semantic_hash_algorithm"] == ALG
+    assert hashlib.sha256(SCOPE_PATH.read_bytes()).hexdigest() == scope[
+        "historical_pr04_scope_sha256"
+    ]
+    # Empty version-specific AST fields must not participate in the canonical payload.
+    canonical_payload = json.dumps(_canonical(ast.parse("def f(x):\n    return x\n").body[0]))
+    assert "type_params" not in canonical_payload
 
 
 def test_backend_compatibility_methods_delegate_to_share_invite_runtime():

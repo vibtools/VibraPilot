@@ -1,3 +1,12 @@
+## v1.0.6.21 — PR-04 Windows/Python 3.12 CI parity verification fix — 2026-08-10
+
+### Fixed
+- Replaced Python-minor-dependent `ast.dump(...)` hashing in the PR-04 extracted-workflow parity test with the existing canonical semantic AST serializer (`canonical-semantic-ast-v2`).
+- Added a v1.0.6.21 verification scope that pins the failed v1.0.6.20 GitHub Actions run/job, the historical PR-04 scope hash, canonical baseline-equivalent method hashes, and byte-frozen runtime/support files.
+
+### Preserved
+- No production runtime source, Share Invite behavior, selector order, Test Mode/session enforcement, retry/manual-review safety, UI/UX, browser configuration, settings, dependencies, database/workspace schemas or licensing behavior changes.
+
 ## v1.0.6.20 — PR-04 Share Invite workflow extraction — 2026-08-10
 
 ### Added

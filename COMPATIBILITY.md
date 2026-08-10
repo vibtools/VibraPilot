@@ -1,3 +1,7 @@
+## v1.0.6.21 CI-verification compatibility
+
+v1.0.6.21 changes only PR-04 verification portability and release metadata. Production runtime files and the GitHub Actions workflow remain byte-frozen from v1.0.6.20. The canonical semantic AST hash intentionally omits empty/`None` AST fields so equivalent Share Invite method semantics verify consistently on supported Python 3.12 and development Python 3.13.
+
 ## v1.0.6.20 PR-04 Share Invite compatibility
 
 PR-04 preserves the existing Share Invite external/runtime behavior while moving workflow-specific implementation ownership behind `ShareInviteWorkflow`. Existing selectors and priority, Test Mode checks, email validation, retry/backoff limits, Test Send Limit, SecurityChallenge handling, post-Send manual-review/no-duplicate-retry behavior, exception identities, TaskItem/report result contracts and persistence schemas remain compatible.
