@@ -1,0 +1,150 @@
+ Scope-locked fourth-segment production update from official v1.0.6.21 baseline `8aa8de7df68cb5d402bd3d2ae2400efc36189fbcca8f36bddb23679dbc78ff14` and GitHub commit `cb4337812c0ac4f0e944093b7a7d4400fe618d57`. PR-05 adds only the in-memory Master Workflow execution gate and fail-closed built-in runtime resolution. Active workflow persistence/switching remains reserved for PR-06.
+@@ -40,7 +44,7 @@ Version **1.0.6.14** is the scope-locked managed-persistent-browser and Closed T
+ 
+ VibraPilot uses a four-segment production release version for hardening/configuration/security maintenance on top of the validated v1.0.6 automation baseline.
+ 
+-Current release candidate: **1.0.6.22**
++Current release candidate: **1.0.6.23**
+ 
+ Version **1.0.6.13** is the verification/CI-stability correction anchored to uploaded v1.0.6.12 archive SHA-256 `becd6add21d377e98e458ce856c9c3baa710a113459bde0c737507c122c2a9b5` and GitHub v1.0.6.12 commit `a9cfec319285db2fb9fbff8d4bf0ede8ac87686b`.
+ 
+diff --git a/config/AppConfig/app.py b/config/AppConfig/app.py
+index e9bb919..6860860 100644
+--- a/config/AppConfig/app.py
++++ b/config/AppConfig/app.py
+@@ -12,7 +12,7 @@ SHORT_NAME = "VP"
+ DESCRIPTION = "VibraPilot browser automation desktop application by Vib Tools."
+ TAGLINE = "Authorized browser automation desktop application."
+ 
+-VERSION = "1.0.6.22"
++VERSION = "1.0.6.23"
+ CREATED_DATE = "2026-08-07"
+ RELEASE_DATE = "2026-08-10"
+ UPDATED_DATE = "2026-08-10"
+diff --git a/docs/docs.manifest.ygit b/docs/docs.manifest.ygit
+index ad156e7..4d7eb4a 100644
+--- a/docs/docs.manifest.ygit
++++ b/docs/docs.manifest.ygit
+@@ -3,8 +3,8 @@
+   "documentation": {
+     "id": "vibrapilot",
+     "title": "VibraPilot Documentation",
+-    "description": "Documentation for VibraPilot v1.0.6.22 by Vib Tools.",
+-    "version": "1.0.6.22",
++    "description": "Documentation for VibraPilot v1.0.6.23 by Vib Tools.",
++    "version": "1.0.6.23",
+     "root": "docs",
+     "home": "index.md"
+   }
+diff --git a/docs/index.md b/docs/index.md
+index 387e532..1468105 100644
+--- a/docs/index.md
++++ b/docs/index.md
+@@ -1,3 +1,9 @@
++## v1.0.6.23 PR-06 Workflow State Persistence + Atomic Switch / Restart
++
++One active built-in workflow is now persisted in a schema-v1 state file and switched only through a fail-closed atomic transaction. Existing installations migrate to `share_invite` only when state is absent. No Workflow showcase UI or second production workflow is introduced.
++
++See `updates/v1.0.6.23-pr06-workflow-state-atomic-switch.md` and `verification/V1.0.6.23_PR06_WORKFLOW_STATE_ATOMIC_SWITCH.md`.
++
+ ## v1.0.6.22 PR-05 Master Workflow Gate
+ 
+ Task workflow execution now passes through an in-memory, fail-closed Master Workflow Gate. `share_invite` remains the current source-controlled built-in runtime; workflow switching/persistence and new Workflow UI remain out of scope.
+diff --git a/pyproject.toml b/pyproject.toml
+index a10dc5e..cc48928 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -1,6 +1,6 @@
+ [project]
+ name = "vibrapilot"
+-version = "1.0.6.22"
++version = "1.0.6.23"
+ description = "VibraPilot browser automation desktop application by Vib Tools."
+ requires-python = ">=3.12,<3.13"
+ license = {text = "GPL-3.0-only"}
+diff --git a/scripts/Start-VibraPilot.ps1 b/scripts/Start-VibraPilot.ps1
+index 5c7c1fc..8f04738 100644
+--- a/scripts/Start-VibraPilot.ps1
++++ b/scripts/Start-VibraPilot.ps1
+@@ -10,7 +10,7 @@ if (-not $ExePath) {
+     if (Test-Path $Candidate) {
+         $ExePath = $Candidate
+     } else {
+-        $ExePath = Join-Path $Root "release\VibraPilot-1.0.6.22-Windows-x64\VibraPilot.exe"
++        $ExePath = Join-Path $Root "release\VibraPilot-1.0.6.23-Windows-x64\VibraPilot.exe"
+     }
+ }
+ 
+diff --git a/scripts/verify_repository.py b/scripts/verify_repository.py
+index cce4877..86584fc 100644
+--- a/scripts/verify_repository.py
++++ b/scripts/verify_repository.py
+@@ -42,6 +42,7 @@ CHROME_WEBSTORE_EXTENSION_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification"
+ PR04_SHARE_INVITE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.20_pr04_share_invite_workflow_extraction_scope.json"
+ PR04_CI_PORTABILITY_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.21_pr04_ci_portability_fix_scope.json"
+ PR05_MASTER_WORKFLOW_GATE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.22_pr05_master_workflow_gate_scope.json"
++PR06_WORKFLOW_STATE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json"
+ APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
+ APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
+ 
+@@ -175,6 +176,24 @@ def ast_contract_sha(node: ast.AST) -> str:
+     return hashlib.sha256(AST_HASH_ALGORITHM.encode("ascii") + b"\0" + payload).hexdigest()
+ 
+ 
++if not PR06_WORKFLOW_STATE_SCOPE_CONTRACT.is_file():
++    fail("v1.0.6.23 PR-06 workflow-state scope contract is missing")
++try:
++    pr06_scope = json.loads(PR06_WORKFLOW_STATE_SCOPE_CONTRACT.read_text(encoding="utf-8"))
++except Exception as exc:
++    fail(f"v1.0.6.23 PR-06 workflow-state scope contract is invalid: {exc}")
++if pr06_scope.get("plan_id") != "VP-PR06-WORKFLOW-STATE-ATOMIC-SWITCH-001":
++    fail("v1.0.6.23 PR-06 plan identifier mismatch")
++if pr06_scope.get("official_baseline_archive_sha256") != "c5c2e3826cb4de9a1789215325cc95854f06483c87b99ca59ffeb07f3e4416a5":
++    fail("v1.0.6.23 PR-06 official baseline archive mismatch")
++if pr06_scope.get("baseline_github_commit") != "e5763852249d86db35d9838a61f276eada823f08":
++    fail("v1.0.6.23 PR-06 baseline GitHub commit mismatch")
++if pr06_scope.get("baseline_github_actions_run_id") != 31389336441 or pr06_scope.get("baseline_ci_result") != "PASS":
++    fail("v1.0.6.23 PR-06 prerequisite CI evidence mismatch")
++if pr06_scope.get("target_version") != "1.0.6.23":
++    fail("v1.0.6.23 PR-06 target mismatch")
++pr06_allowed_files = set(pr06_scope.get("allowed_runtime_source_changes", []))
++
+ print("[1/8] Python syntax")
+ for path in sorted(ROOT.rglob("*.py")):
+     if any(part in {".venv", "build", "dist", "release", "__pycache__"} for part in path.parts):
+@@ -392,6 +411,8 @@ if not all(
+ ):
+     fail("Tasks-page UI polish preservation boundary mismatch")
+ for relative, expected_sha in tasks_ui_scope.get("approved_target_file_sha256", {}).items():
++    if relative in pr06_allowed_files:
++        continue
+     path = ROOT / relative
+     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+         fail(f"Tasks-page UI polish approved target mismatch: {relative}")
+@@ -511,6 +532,8 @@ if browser_foundation_fix_scope.get("sandbox_default_change_applied"):
+     fail("v1.0.6.19 sandbox default changed without Sandbox-ON acceptance")
+ 
+ for relative, expected_sha in browser_foundation_scope.get("approved_target_file_sha256", {}).items():
++    if relative in pr06_allowed_files:
++        continue
+     if relative in pr04_allowed_files:
+         continue
+     if relative in browser_foundation_fix_allowed_files:
+@@ -519,6 +542,8 @@ for relative, expected_sha in browser_foundation_scope.get("approved_target_file
+     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+         fail(f"v1.0.6.18 target runtime mismatch: {relative}")
+ for relative, expected_sha in browser_foundation_scope.get("frozen_file_sha256", {}).items():
++    if relative in pr06_allowed_files:
++        continue
+     if relative in pr04_allowed_files:
+         continue
+     path = ROOT / relative
+@@ -546,6 +571,8 @@ if not chrome_webstore_fix_scope.get("no_policy_change"):
+     fail("Chrome Web Store extension fix must not change Chrome policy")
+ 
+ for relative, expected_sha in browser_foundation_fix_scope.get("approved_target_file_sha256", {}).items():
++    if relative in pr06_allowed_files:
++        continue
+     if relative in pr04_allowed_files:
+         continue
+     if relative in chrome_webstore_fix_allowed_files:
