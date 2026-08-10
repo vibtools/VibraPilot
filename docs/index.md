@@ -1,3 +1,9 @@
+## v1.0.6.22 PR-05 Master Workflow Gate
+
+Task workflow execution now passes through an in-memory, fail-closed Master Workflow Gate. `share_invite` remains the current source-controlled built-in runtime; workflow switching/persistence and new Workflow UI remain out of scope.
+
+See `updates/v1.0.6.22-pr05-master-workflow-gate.md` and `verification/V1.0.6.22_PR05_MASTER_WORKFLOW_GATE.md`.
+
 ## v1.0.6.21 PR-04 CI portability verification fix
 
 The v1.0.6.20 Share Invite runtime is unchanged. v1.0.6.21 corrects only the PR-04 semantic-parity verification harness so supported Windows/Python 3.12 and development Python 3.13 use the same canonical AST contract.
@@ -34,7 +40,7 @@ The current candidate restores normal active Task cards, selected page and safe 
 
 # VibraPilot Documentation
 
-This documentation accompanies **VibraPilot v1.0.6.20 — PR-04 Share Invite workflow extraction**.
+This documentation accompanies **VibraPilot v1.0.6.22 — PR-05 Master Workflow Gate Integration**.
 
 Start with:
 

@@ -59,6 +59,7 @@ from .browser_diagnostics import (
     persist_browser_diagnostics,
     sanitize_diagnostic_text,
 )
+from .workflow import WorkflowManager, WorkflowRuntime, WorkflowRuntimeResolutionError
 from .workflow.share_invite import ShareInviteRuntimeErrors, ShareInviteWorkflow
 
 DISPLAY_APP_NAME = APP.display_name
@@ -1753,6 +1754,12 @@ class AutomationWorker(threading.Thread):
         self._pending_file_chooser_request_id: str | None = None
         self._pending_file_chooser_page_id: int | None = None
         self.browser_launch_diagnostics: dict[str, Any] = {}
+        # PR-05 Master Workflow Gate: in-memory only. No settings/database/workspace
+        # persistence or switching surface exists in this phase.
+        self._workflow_manager = WorkflowManager.with_builtin_workflows(
+            active_workflow_id="share_invite"
+        )
+        self._active_workflow_runtime_cache: WorkflowRuntime | None = None
 
     def emit(self, kind: str, payload: dict[str, Any]) -> None:
         payload["slot_id"] = self.state.slot_id
@@ -2515,11 +2522,11 @@ class AutomationWorker(threading.Thread):
             self.stopped_event.set()
             self.emit("done", {"status": self.state.status})
 
-    def _share_invite_runtime(self) -> ShareInviteWorkflow:
-        """Return the fixed built-in Share Invite runtime used by the current app."""
-        runtime = getattr(self, "_share_invite_workflow_runtime", None)
+    def _workflow_runtime(self) -> WorkflowRuntime:
+        """Resolve the active built-in workflow through the PR-05 master gate."""
+        runtime = self._active_workflow_runtime_cache
         if runtime is None:
-            runtime = ShareInviteWorkflow(
+            runtime = self._workflow_manager.resolve_active_runtime(
                 self,
                 default_settings=DEFAULT_SETTINGS,
                 errors=ShareInviteRuntimeErrors(
@@ -2530,14 +2537,35 @@ class AutomationWorker(threading.Thread):
                     invite_rejected=InviteRejected,
                 ),
             )
-            self._share_invite_workflow_runtime = runtime
+            self._active_workflow_runtime_cache = runtime
         return runtime
+
+    def _share_invite_runtime(self) -> ShareInviteWorkflow:
+        """Preserve the PR-04 compatibility surface without bypassing the master gate."""
+        runtime = self._workflow_runtime()
+        if not isinstance(runtime, ShareInviteWorkflow):
+            raise WorkflowRuntimeResolutionError(
+                "active workflow runtime is not the built-in Share Invite runtime"
+            )
+        return runtime
+
+    def workflow_session_ready(self, page) -> bool:
+        return self._workflow_runtime().session_ready(page)
+
+    def ensure_workflow_session(self) -> None:
+        self._workflow_runtime().ensure_session()
+
+    def execute_workflow_item(self, item: TaskItem) -> str:
+        return self._workflow_runtime().execute_item(item)
+
+    def prepare_workflow_retry(self) -> None:
+        self._workflow_runtime().prepare_retry()
 
     def test_mode_banner_ready(self, page) -> bool:
         return self._share_invite_runtime().test_mode_banner_ready(page)
 
     def authenticated_test_session_ready(self, page) -> bool:
-        return self._share_invite_runtime().authenticated_test_session_ready(page)
+        return self.workflow_session_ready(page)
 
     def refresh_login_verification(self, force_emit: bool = False) -> bool:
         if self.processing_event.is_set() or not self.browser_ready_event.is_set():
@@ -2581,7 +2609,7 @@ class AutomationWorker(threading.Thread):
         return self._share_invite_runtime().wait_for_authenticated_test_session()
 
     def ensure_authenticated_test_session(self) -> None:
-        self._share_invite_runtime().ensure_authenticated_test_session()
+        self.ensure_workflow_session()
 
     def assert_test_mode(self, page) -> None:
         self._share_invite_runtime().assert_test_mode(page)
@@ -4298,7 +4326,7 @@ class AutomationWorker(threading.Thread):
             return
 
     def execute_flow(self, item: TaskItem) -> str:
-        return self._share_invite_runtime().execute_flow(item)
+        return self.execute_workflow_item(item)
 
     def ensure_share_entry(self, page) -> None:
         self._share_invite_runtime().ensure_share_entry(page)
@@ -4319,7 +4347,7 @@ class AutomationWorker(threading.Thread):
         self._share_invite_runtime().open_share_modal(page)
 
     def prepare_invite_retry(self) -> None:
-        self._share_invite_runtime().prepare_invite_retry()
+        self.prepare_workflow_retry()
 
     def fill_invite_email(self, page, email: str) -> None:
         self._share_invite_runtime().fill_invite_email(page, email)

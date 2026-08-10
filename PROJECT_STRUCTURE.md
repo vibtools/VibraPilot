@@ -1,3 +1,15 @@
+## v1.0.6.22 PR-05 Master Workflow Gate surface
+
+- `src/vibrapilot/workflow/contracts.py` — generic session/item/retry runtime protocol plus fail-closed workflow errors.
+- `src/vibrapilot/workflow/registry.py` — explicit source-controlled built-in runtime factory map; no external discovery.
+- `src/vibrapilot/workflow/manager.py` — in-memory active workflow identity, validation and runtime resolution.
+- `src/vibrapilot/workflow/share_invite/workflow.py` — generic adapters delegating to the existing verified Share Invite methods.
+- `src/vibrapilot/backend.py` — Master Workflow Gate ownership and compatibility-boundary routing; safety-critical processing state machine remains frozen.
+- `config/verification/v1.0.6.22_pr05_master_workflow_gate_scope.json` — exact baseline/scope/frozen-hash contract.
+- `tests/test_v10622_pr05_master_workflow_gate.py` — fail-closed, delegation and safety regression coverage.
+
+No new application page, settings key, persistence column/table or external plugin surface is introduced.
+
 ## v1.0.6.21 PR-04 CI portability verification surface
 
 - `config/verification/v1.0.6.21_pr04_ci_portability_fix_scope.json` — baseline/run identity, canonical semantic hashes and runtime/support freeze.

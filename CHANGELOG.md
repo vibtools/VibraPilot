@@ -1,3 +1,16 @@
+## v1.0.6.22 — PR-05 Master Workflow Gate Integration — 2026-08-10
+
+### Added
+- In-memory active built-in workflow identity with fail-closed resolution through `WorkflowManager`.
+- Source-controlled built-in runtime factory resolution for the existing `share_invite` workflow.
+- Generic workflow session, item execution and retry adapters used by `AutomationWorker` through one Master Workflow Gate.
+- PR-05 scope contract and dedicated gate/fail-closed regression tests.
+
+### Preserved
+- Share Invite selectors, Test Mode/session semantics, email verification, retry/backoff, Test Send Limit, `SecurityChallenge`, `InviteRejected`, uncertain-Send/manual-review and duplicate-send protection are unchanged.
+- `process_item`, `process_batch`, `_register_send_click_attempt`, report/persistence schemas, UI/UX, settings, browser lifecycle/configuration, licensing and CAPTCHA policy remain unchanged.
+- Active workflow persistence/switching, Workflow UI and dynamic Workflow Inputs remain out of scope for later phases.
+
 ## v1.0.6.21 — PR-04 Windows/Python 3.12 CI parity verification fix — 2026-08-10
 
 ### Fixed

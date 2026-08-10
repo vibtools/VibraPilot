@@ -1,3 +1,9 @@
+## v1.0.6.22 — PR-05 Master Workflow Gate — 2026-08-10
+
+PR-05 introduces one in-memory Master Workflow execution gate. `AutomationWorker` resolves the active built-in workflow through `WorkflowManager`, while existing Share Invite compatibility methods route session verification, item execution and safe retry preparation through the resolved runtime. Invalid/missing workflows fail closed with no silent Share Invite fallback.
+
+No workflow switching/persistence/UI, database/workspace/report schema, browser, settings, licensing, dependency or CAPTCHA changes are included.
+
 ## v1.0.6.21 — PR-04 CI portability correction — 2026-08-10
 
 GitHub Actions run `31379910982` / job `93427549108` failed only in the PR-04 semantic-AST parity test on supported Windows/Python 3.12. The verifier used `ast.dump(...)` hashes generated under Python 3.13, so version-specific empty AST fields produced a false mismatch although static repository verification and the remaining 276 pytest tests passed. v1.0.6.21 makes this parity gate Python-minor-stable without changing runtime behavior.

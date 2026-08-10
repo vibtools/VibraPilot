@@ -1,3 +1,9 @@
+## PR-05 Master Workflow Gate — v1.0.6.22
+
+PR-05 routes workflow-specific session, item execution and retry preparation through a validated in-memory active built-in workflow. The initial/current active workflow is `share_invite`, and invalid resolution fails closed without fallback.
+
+**Next after PR-05 release verification:** PR-06 Workflow State Persistence + Atomic Switch / Restart. PR-05 intentionally does not persist or switch workflows and adds no Workflow UI.
+
 ## PR-04 CI closure — v1.0.6.21
 
 PR-04 implementation remains behaviorally frozen from v1.0.6.20. v1.0.6.21 addresses only the Windows/Python 3.12 parity-test portability failure from Actions run `31379910982`. PR-05 remains blocked until the v1.0.6.21 GitHub CI gate is green and PR-04 is formally closed.

@@ -41,6 +41,7 @@ BROWSER_FOUNDATION_VERIFICATION_FIX_SCOPE_CONTRACT = ROOT / "config" / "verifica
 CHROME_WEBSTORE_EXTENSION_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.19_chrome_webstore_extension_install_fix_scope.json"
 PR04_SHARE_INVITE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.20_pr04_share_invite_workflow_extraction_scope.json"
 PR04_CI_PORTABILITY_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.21_pr04_ci_portability_fix_scope.json"
+PR05_MASTER_WORKFLOW_GATE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.22_pr05_master_workflow_gate_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -452,6 +453,36 @@ if pr04_ci_fix_scope.get("semantic_hash_algorithm") != "canonical-semantic-ast-v
     fail("v1.0.6.21 PR-04 CI portability semantic hash algorithm mismatch")
 if hashlib.sha256(PR04_SHARE_INVITE_SCOPE_CONTRACT.read_bytes()).hexdigest() != pr04_ci_fix_scope.get("historical_pr04_scope_sha256"):
     fail("v1.0.6.21 historical PR-04 scope contract drift detected")
+
+# v1.0.6.22 PR-05 adds only the approved in-memory Master Workflow Gate.
+if not PR05_MASTER_WORKFLOW_GATE_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.22 PR-05 Master Workflow Gate scope contract is missing")
+try:
+    pr05_scope = json.loads(PR05_MASTER_WORKFLOW_GATE_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.22 PR-05 scope contract is invalid: {exc}")
+if pr05_scope.get("plan_id") != "VP-PR05-MASTER-WORKFLOW-GATE-001":
+    fail("v1.0.6.22 PR-05 plan identifier mismatch")
+if pr05_scope.get("official_baseline_archive_sha256") != "8aa8de7df68cb5d402bd3d2ae2400efc36189fbcca8f36bddb23679dbc78ff14":
+    fail("v1.0.6.22 PR-05 baseline archive mismatch")
+if pr05_scope.get("baseline_github_commit") != "cb4337812c0ac4f0e944093b7a7d4400fe618d57":
+    fail("v1.0.6.22 PR-05 baseline GitHub commit mismatch")
+if pr05_scope.get("baseline_github_actions_run_id") != 31383176348 or pr05_scope.get("baseline_ci_result") != "PASS":
+    fail("v1.0.6.22 PR-05 prerequisite CI evidence mismatch")
+if pr05_scope.get("target_version") != "1.0.6.22":
+    fail("v1.0.6.22 PR-05 target mismatch")
+if pr05_scope.get("initial_active_workflow_id") != "share_invite":
+    fail("v1.0.6.22 PR-05 initial active workflow mismatch")
+for key in (
+    "no_workflow_switching", "no_active_workflow_persistence", "no_new_ui",
+    "no_settings_change", "no_database_schema_change", "no_workspace_schema_change",
+    "no_report_schema_change", "no_browser_change", "no_dependency_change",
+    "no_licensing_change", "captcha_out_of_scope", "external_plugin_loading_prohibited",
+    "manifest_controlled_dynamic_import_prohibited",
+):
+    if pr05_scope.get(key) is not True:
+        fail(f"v1.0.6.22 PR-05 preservation boundary mismatch: {key}")
+pr05_allowed_files = set(pr05_scope.get("allowed_runtime_source_changes", []))
 
 if not BROWSER_FOUNDATION_SCOPE_CONTRACT.is_file():
     fail("v1.0.6.18 browser foundation scope contract is missing")
@@ -1179,9 +1210,20 @@ for method_name, expected_sha in pr04_scope.get("frozen_automationworker_method_
         fail(f"v1.0.6.20 PR-04 safety-critical worker drift detected: {method_name}")
 
 for relative, expected_sha in pr04_ci_fix_scope.get("frozen_runtime_support_sha256", {}).items():
+    if relative in pr05_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
-        fail(f"v1.0.6.21 runtime/support drift detected outside verification-only fix: {relative}")
+        fail(f"v1.0.6.21 runtime/support drift detected outside approved PR-05 scope: {relative}")
+
+for relative, expected_sha in pr05_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.22 PR-05 frozen file drift detected: {relative}")
+for method_name, expected_sha in pr05_scope.get("frozen_automationworker_method_canonical_ast_sha256", {}).items():
+    node = automation_worker_methods.get(method_name)
+    if node is None or ast_contract_sha(node) != expected_sha:
+        fail(f"v1.0.6.22 PR-05 safety-critical worker drift detected: {method_name}")
 
 print("[5/8] AppConfig, licensing and safety invariants")
 backend_text = (SRC / "backend.py").read_text(encoding="utf-8")
@@ -1198,8 +1240,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.21":
-    fail("AppConfig VERSION must be 1.0.6.21 for the PR-04 CI portability verification fix release")
+if app_version != "1.0.6.22":
+    fail("AppConfig VERSION must be 1.0.6.22 for the PR-05 Master Workflow Gate release")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -1313,8 +1355,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.21-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.21 release path")
+if "VibraPilot-1.0.6.22-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.22 release path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})

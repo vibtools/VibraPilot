@@ -202,6 +202,22 @@ class ShareInviteWorkflow:
         self.submit_share_invite(page, email, notification_state)
         return f"{page.url} | invite=sent"
 
+    def session_ready(self, page: Any) -> bool:
+        """Generic PR-05 session gate adapter; Share Invite semantics are unchanged."""
+        return self.authenticated_test_session_ready(page)
+
+    def ensure_session(self) -> None:
+        """Generic PR-05 session enforcement adapter."""
+        self.ensure_authenticated_test_session()
+
+    def execute_item(self, item: Any) -> str:
+        """Generic PR-05 item execution adapter."""
+        return self.execute_flow(item)
+
+    def prepare_retry(self) -> None:
+        """Generic PR-05 pre-Send retry adapter."""
+        self.prepare_invite_retry()
+
     def ensure_share_entry(self, page) -> None:
         """Use the pre-opened authenticated Test Mode page first; fail closed otherwise."""
         if self.authenticated_test_session_ready(page):

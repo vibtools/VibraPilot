@@ -1,3 +1,9 @@
+## v1.0.6.22 PR-05 compatibility
+
+PR-05 preserves the current Share Invite runtime contract and all external Task/report/persistence behavior while inserting a fail-closed in-memory Master Workflow Gate. Existing browser lifecycle, profiles, downloads/uploads/extensions, App/Browser Settings, Workflow Inputs UI, database/workspace schemas, licensing protocol and dependency versions are unchanged.
+
+No active workflow persistence or switching is introduced; `share_invite` remains the only current built-in workflow runtime.
+
 ## v1.0.6.21 CI-verification compatibility
 
 v1.0.6.21 changes only PR-04 verification portability and release metadata. Production runtime files and the GitHub Actions workflow remain byte-frozen from v1.0.6.20. The canonical semantic AST hash intentionally omits empty/`None` AST fields so equivalent Share Invite method semantics verify consistently on supported Python 3.12 and development Python 3.13.

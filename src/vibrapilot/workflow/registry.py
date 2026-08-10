@@ -3,7 +3,12 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from .contracts import DuplicateWorkflowError, UnknownWorkflowError, WorkflowManifest
+from .contracts import (
+    DuplicateWorkflowError,
+    UnknownWorkflowError,
+    WorkflowManifest,
+    WorkflowRuntimeFactory,
+)
 
 
 class WorkflowRegistry:
@@ -67,3 +72,14 @@ def builtin_workflow_manifests() -> tuple[WorkflowManifest, ...]:
 def create_builtin_registry() -> WorkflowRegistry:
     """Build a registry containing only VibraPilot's source-controlled workflows."""
     return WorkflowRegistry(builtin_workflow_manifests())
+
+
+def builtin_workflow_runtime_factories() -> dict[str, WorkflowRuntimeFactory]:
+    """Return the explicit source-controlled built-in runtime factory map.
+
+    The map is intentionally authored in code. No manifest value, filesystem scan,
+    Python entry-point discovery, or arbitrary import participates in resolution.
+    """
+    from .share_invite import ShareInviteWorkflow
+
+    return {"share_invite": ShareInviteWorkflow}

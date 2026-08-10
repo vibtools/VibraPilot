@@ -436,7 +436,11 @@ def test_backend_compatibility_methods_delegate_to_share_invite_runtime():
         "wait_invite_result",
     ):
         assert f"def {method}" in source
-    assert "ShareInviteWorkflow(" in source
+    # PR-05 preserves these compatibility methods but moves runtime construction
+    # behind WorkflowManager; direct ShareInviteWorkflow construction in backend is
+    # intentionally no longer required.
+    assert "WorkflowManager.with_builtin_workflows" in source
+    assert "resolve_active_runtime(" in source
     assert "ShareInviteRuntimeErrors(" in source
 
 
@@ -478,14 +482,18 @@ def test_no_external_plugin_or_manifest_driven_dynamic_import_surface():
         assert forbidden not in texts
 
 
-def test_no_workflow_switching_or_active_workflow_persistence_was_added():
+def test_pr05_allows_only_in_memory_active_workflow_resolution_without_switching_or_persistence():
     workflow_tree = ROOT / "src/vibrapilot/workflow"
-    text = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in workflow_tree.rglob("*.py")
-    )
-    assert "active_workflow_id" not in text
-    manager_tree = ast.parse((workflow_tree / "manager.py").read_text(encoding="utf-8"))
+    manager_text = (workflow_tree / "manager.py").read_text(encoding="utf-8")
+    assert "active_workflow_id" in manager_text
+    manager_tree = ast.parse(manager_text)
     manager_class = next(node for node in manager_tree.body if isinstance(node, ast.ClassDef) and node.name == "WorkflowManager")
     method_names = {node.name for node in manager_class.body if isinstance(node, ast.FunctionDef)}
+    assert {"require_active_workflow", "resolve_active_runtime"} <= method_names
     assert not method_names & {"activate", "switch", "restart", "persist_active_workflow", "set_active_workflow"}
+    for relative in (
+        ROOT / "config/settings.defaults.json",
+        ROOT / "src/vibrapilot/task_runtime_store.py",
+        ROOT / "src/vibrapilot/workspace_state.py",
+    ):
+        assert "active_workflow_id" not in relative.read_text(encoding="utf-8")

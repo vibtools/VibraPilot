@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Callable, Protocol, runtime_checkable
 
 _WORKFLOW_ID_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 _VERSION_RE = re.compile(r"^[0-9]+(?:\.[0-9]+){0,3}$")
@@ -34,6 +34,14 @@ class DuplicateWorkflowError(WorkflowRegistrationError):
 
 class UnknownWorkflowError(WorkflowError, LookupError):
     """Raised when a requested workflow ID is not registered."""
+
+
+class ActiveWorkflowRequiredError(WorkflowError):
+    """Raised when execution is attempted without a configured active workflow."""
+
+
+class WorkflowRuntimeResolutionError(WorkflowError):
+    """Raised when a built-in workflow runtime cannot be resolved safely."""
 
 
 def _required_text(value: str, field_name: str) -> str:
@@ -100,10 +108,25 @@ class WorkflowManifest:
 
 @runtime_checkable
 class WorkflowRuntime(Protocol):
-    """Minimum execution contract required by a built-in workflow runtime."""
+    """Minimum generic execution contract for one built-in workflow runtime."""
 
     manifest: WorkflowManifest
 
-    def execute_flow(self, item: Any) -> str:
-        """Execute the workflow for one existing task item."""
+    def session_ready(self, page: Any) -> bool:
+        """Return whether the current browser page satisfies this workflow's session gate."""
         ...
+
+    def ensure_session(self) -> None:
+        """Fail closed unless the current browser session is ready for this workflow."""
+        ...
+
+    def execute_item(self, item: Any) -> str:
+        """Execute one existing task item using this workflow."""
+        ...
+
+    def prepare_retry(self) -> None:
+        """Restore deterministic workflow state before a safe pre-Send retry."""
+        ...
+
+
+WorkflowRuntimeFactory = Callable[..., WorkflowRuntime]

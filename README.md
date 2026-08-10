@@ -1,4 +1,10 @@
-# VibraPilot v1.0.6.21 — Vib Tools Browser Automation Desktop
+# VibraPilot v1.0.6.22 — Vib Tools Browser Automation Desktop
+
+## v1.0.6.22 — PR-05 Master Workflow Gate
+
+VibraPilot now resolves the current source-controlled built-in workflow through one fail-closed Master Workflow Gate before workflow-specific session, item execution and retry operations. The current in-memory active workflow is `share_invite`; no persistent workflow selection or switching is introduced in this phase.
+
+The verified Share Invite behavior remains unchanged. Browser lifecycle, pause/resume/stop ownership, duplicate-send/manual-review safety, UI/UX, Workflow Inputs, App/Browser Settings, task/workspace/report schemas, licensing, dependencies and CAPTCHA policy are preserved.
 
 ## v1.0.6.21 — PR-04 Windows/Python 3.12 CI verification fix
 

@@ -1,3 +1,7 @@
+## v1.0.6.22 — PR-05 Master Workflow Gate
+
+Scope-locked fourth-segment production update from official v1.0.6.21 baseline `8aa8de7df68cb5d402bd3d2ae2400efc36189fbcca8f36bddb23679dbc78ff14` and GitHub commit `cb4337812c0ac4f0e944093b7a7d4400fe618d57`. PR-05 adds only the in-memory Master Workflow execution gate and fail-closed built-in runtime resolution. Active workflow persistence/switching remains reserved for PR-06.
+
 ## v1.0.6.21 — PR-04 CI portability verification fix
 
 Verification-only fourth-segment release from official v1.0.6.20 PR-04 baseline commit `37a1faf1a53a2330669788b87c3d467995cf4348`. Runtime/workflow/UI/browser/settings/dependency/schema behavior is frozen; only the cross-version semantic-AST parity harness, release metadata and verification/documentation state change.
