@@ -1,3 +1,7 @@
+## v1.0.6.28 — PR-11 E2E Windows / Multi-Task Regression — 2026-08-10
+
+Adds verification-only target-Windows acceptance tooling for browser lifecycle, capabilities, Sandbox OFF/ON compatibility, Chrome/fallback identity, and 1/2/4-Task isolation. No production runtime/source change is introduced.
+
 ## v1.0.6.27 — PR-10 Workflow Error Handling / Recovery — 2026-08-10
 
 Adds explicit fail-closed workflow-state and Workflow Input recovery, crash-safe recovery transaction handling and active-runtime preflight without changing frozen Task/Browser/Share Invite/database/report behavior.

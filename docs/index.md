@@ -1,3 +1,12 @@
+# VibraPilot Documentation — v1.0.6.28 PR-11 Candidate
+
+Current release baseline: **v1.0.6.27 / PR-10 — RELEASE COMPLETE**. Current development candidate: **v1.0.6.28 / PR-11 E2E Windows / Multi-Task Regression**.
+
+PR-11 adds verification-only Windows acceptance tooling and evidence contracts. Production runtime source remains byte-frozen; PR-12 Packaging is not started.
+
+- `updates/v1.0.6.28-pr11-windows-multitask-regression.md`
+- `verification/V1.0.6.28_PR11_WINDOWS_MULTITASK_REGRESSION.md`
+
 # VibraPilot Documentation — v1.0.6.27 PR-10 Candidate
 
 Current release baseline: **v1.0.6.26 / PR-09 — RELEASE COMPLETE**. Current development candidate: **v1.0.6.27 / PR-10 Workflow Error Handling / Recovery**.

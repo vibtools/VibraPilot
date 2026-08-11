@@ -1,3 +1,7 @@
+## v1.0.6.28 PR-11 compatibility
+
+PR-11 is verification-first and preserves every production `src/vibrapilot/**` file byte-for-byte from v1.0.6.27. Target acceptance covers Windows x64 / CPython 3.12 / Playwright 1.61.0 / Chrome Stable, 1/2/4-Task isolation, browser lifecycle, downloads/uploads/storage/extensions, Sandbox OFF/ON compatibility and observable fallback behavior.
+
 ## v1.0.6.27 PR-10 compatibility
 
 PR-10 preserves workflow-state schema v1, Workflow Input schema v1, TaskRuntimeStore schema v1, TaskItem/workspace/report/export contracts and Share Invite execution. Recovery reuses the PR-09 live Task/runtime clear boundary; canonical per-workflow Workflow Inputs and exported durable artifacts remain preserved.

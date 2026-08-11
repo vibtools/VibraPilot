@@ -1,3 +1,13 @@
+## v1.0.6.28 — PR-11 E2E Windows / Multi-Task Regression — 2026-08-10
+
+### Added
+- Verification-only target-Windows acceptance runner with sanitized evidence and resumable 35-gate matrix.
+- Harmless localhost download/upload/storage fixtures for real browser capability checks.
+- Read-only PR-11 evidence verifier and zero-production-source freeze contract.
+
+### Preserved
+- Production `src/vibrapilot/**`, Browser/Task/workflow recovery behavior, schemas, licensing, dependencies, CI workflow and defaults remain frozen. PR-12 packaging is not started.
+
 ## v1.0.6.27 — PR-10 Workflow Error Handling / Recovery — 2026-08-10
 
 ### Added

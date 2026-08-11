@@ -1,10 +1,10 @@
-# VibraPilot v1.0.6.27 — PR-10 Workflow Error Handling / Recovery
+# VibraPilot v1.0.6.28 — PR-11 E2E Windows / Multi-Task Regression
 
 ## Current development candidate
 
-Current release baseline: **v1.0.6.26 / PR-09 — RELEASE COMPLETE**. PR-10 adds explicit fail-closed recovery for unavailable workflow state and Workflow Input state, crash-safe recovery staging, and active workflow runtime-factory preflight before browser creation.
+Current release baseline: **v1.0.6.27 / PR-10 — RELEASE COMPLETE**. PR-11 is a verification-first target-Windows acceptance phase. It adds only acceptance tooling/tests/version/docs; all production `src/vibrapilot/**` files remain frozen.
 
-Task/database/workspace/report schemas, Share Invite runtime, Browser behavior, licensing, CAPTCHA policy, dependencies and CI remain frozen. Production registry remains `share_invite` only; PR-11 is not started.
+The mandatory matrix covers Windows x64 / CPython 3.12, Google Chrome Stable, browser lifecycle, real download/upload/storage/extension capability checks, Sandbox OFF/ON compatibility, observable fallback behavior, and 1/2/4 simultaneous Task isolation. PR-12 Packaging remains NOT STARTED.
 
 # VibraPilot v1.0.6.23 — PR-06 Workflow State Persistence + Atomic Switch/Restart
 

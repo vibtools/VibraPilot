@@ -1,3 +1,7 @@
+# Project Structure — v1.0.6.28 PR-11 Candidate
+
+PR-11 adds only verification contract/tests and `scripts/diagnostics/pr11_windows_acceptance_runner.py` plus `verify_pr11_windows_evidence.py`. Production `src/vibrapilot/**` structure is unchanged from v1.0.6.27.
+
 # Project Structure — v1.0.6.27 PR-10 Candidate
 
 PR-10 adds `src/vibrapilot/workflow/recovery.py` for explicit crash-safe workflow recovery and updates only the approved workflow control-plane/UI modules. Backend, TaskRuntimeStore, workspace/data I/O, Share Invite runtime, Browser and licensing modules remain frozen.

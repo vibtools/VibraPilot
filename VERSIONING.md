@@ -1,3 +1,10 @@
+# Versioning — PR-11 Candidate
+
+- Current release baseline: **v1.0.6.27 / PR-10**.
+- Current development candidate: **v1.0.6.28 / PR-11 E2E Windows / Multi-Task Regression**.
+- v1.0.6.28 is not RELEASE COMPLETE until target-Windows mandatory acceptance is PASS (or each residual is explicitly owner-accepted), owner local acceptance is PASS, exact GitHub publication completes and Windows/Python 3.12 CI passes.
+- Production `src/vibrapilot/**` remains byte-frozen from v1.0.6.27.
+
 # Versioning — PR-10 Candidate
 
 - Current release baseline: **v1.0.6.26 / PR-09**.

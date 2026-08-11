@@ -1,3 +1,11 @@
+# VibraPilot Roadmap — PR-11 Candidate
+
+- Current release baseline: **v1.0.6.27 / PR-10 — RELEASE COMPLETE**.
+- Current development candidate: **v1.0.6.28 / PR-11 E2E Windows / Multi-Task Regression**.
+- PR-11 scope: target-Windows evidence and 1/2/4-Task regression only; production runtime/source changes are zero unless a separately approved defect amendment is issued.
+- PR-12 Packaging: **NOT STARTED**.
+- Future CL Automation / Nuitka OneDir / WiX MSI requirement remains recorded for PR-12 only; no packaging implementation is authorized in PR-11.
+
 # VibraPilot Roadmap — PR-10 Candidate
 
 - Current release baseline: **v1.0.6.26 / PR-09 — RELEASE COMPLETE**.
