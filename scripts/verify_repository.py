@@ -45,6 +45,7 @@ PR05_MASTER_WORKFLOW_GATE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v
 PR06_WORKFLOW_STATE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json"
 PR07_WORKFLOW_SHOWCASE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.24_pr07_workflow_showcase_scope.json"
 PR08_DYNAMIC_WORKFLOW_INPUTS_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.25_pr08_dynamic_workflow_inputs_scope.json"
+PR09_DATA_COMPATIBILITY_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.26_pr09_data_persistence_reporting_compatibility_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -1516,6 +1517,92 @@ for forbidden in ("importlib", "entry_points", "__import__", "eval(", "exec("):
     if forbidden in workflow_inputs_text_current + input_state_text_current:
         fail(f"v1.0.6.25 PR-08 executable/discovery surface detected: {forbidden}")
 
+if not PR09_DATA_COMPATIBILITY_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.26 PR-09 data/persistence/reporting compatibility scope contract is missing")
+try:
+    pr09_scope = json.loads(PR09_DATA_COMPATIBILITY_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.26 PR-09 scope contract is invalid: {exc}")
+if pr09_scope.get("plan_id") != "VP-PR09-DATA-PERSISTENCE-REPORTING-COMPAT-001":
+    fail("v1.0.6.26 PR-09 plan identifier mismatch")
+if pr09_scope.get("official_baseline_archive_sha256") != "05c98db56204bf4ee057fe9422da3dd20695a91ae8fad13419ec9f3ad32fe353":
+    fail("v1.0.6.26 PR-09 official baseline archive mismatch")
+if pr09_scope.get("baseline_github_commit") != "8b62a48982f1497c272a68cb3b428f5bd1b0d3c0":
+    fail("v1.0.6.26 PR-09 baseline GitHub commit mismatch")
+if pr09_scope.get("target_version") != "1.0.6.26":
+    fail("v1.0.6.26 PR-09 target mismatch")
+if pr09_scope.get("allowed_production_source_changes") != [] or pr09_scope.get("production_runtime_changes") != "none":
+    fail("v1.0.6.26 PR-09 must not authorize production runtime source changes")
+for key, expected in {
+    "one_active_workflow": True,
+    "task_runtime_schema_version": 1,
+    "workflow_id_database_column": False,
+    "database_migration": False,
+    "taskitem_redesign": False,
+    "workspace_schema_change": False,
+    "report_schema_change": False,
+    "dynamic_task_import_schema": False,
+    "cross_workflow_live_report_history": False,
+    "real_switch_clears_live_task_runtime": True,
+    "real_switch_clears_live_results": True,
+    "same_workflow_zero_mutation": True,
+    "cancelled_or_blocked_switch_zero_mutation": True,
+    "precommit_rollback_preserves_old_runtime": True,
+    "postcommit_old_runtime_resurrection_prohibited": True,
+    "exported_reports_preserved": True,
+    "failed_data_preserved": True,
+    "logs_preserved": True,
+    "canonical_workflow_inputs_preserved": True,
+    "no_browser_change": True,
+    "no_licensing_change": True,
+    "captcha_out_of_scope": True,
+    "no_dependency_change": True,
+    "no_ci_workflow_change": True,
+    "pr10_not_started": True,
+}.items():
+    if pr09_scope.get(key) != expected:
+        fail(f"v1.0.6.26 PR-09 boundary mismatch: {key}")
+if pr09_scope.get("production_workflows") != ["share_invite"]:
+    fail("v1.0.6.26 PR-09 production workflow registry contract mismatch")
+if pr09_scope.get("canonical_workflow_inputs_path") != "AppData/workflow_inputs.json":
+    fail("v1.0.6.26 PR-09 canonical Workflow Input preservation path mismatch")
+if pr09_scope.get("live_report_columns") != ["timestamp", "slot_id", "email", "status", "message", "attempts", "target_url", "result"]:
+    fail("v1.0.6.26 PR-09 live report column contract mismatch")
+if pr09_scope.get("taskitem_fields") != ["email", "name", "status", "attempts", "message", "result"]:
+    fail("v1.0.6.26 PR-09 TaskItem contract mismatch")
+for relative, expected_sha in pr09_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.26 PR-09 frozen production/runtime drift detected: {relative}")
+for marker in (
+    'SCHEMA_VERSION = 1',
+    'CREATE TABLE IF NOT EXISTS runs',
+    'CREATE TABLE IF NOT EXISTS items',
+    'CREATE TABLE IF NOT EXISTS results',
+):
+    if marker not in (SRC / "task_runtime_store.py").read_text(encoding="utf-8"):
+        fail(f"v1.0.6.26 PR-09 TaskRuntimeStore compatibility marker missing: {marker}")
+if "workflow_id" in (SRC / "task_runtime_store.py").read_text(encoding="utf-8"):
+    fail("v1.0.6.26 PR-09 must not add workflow_id to TaskRuntimeStore")
+for marker in (
+    'Path(str(TASK_RUNTIME_DB) + "-wal")',
+    'Path(str(TASK_RUNTIME_DB) + "-shm")',
+    'APP_DATA_DIR.glob("slot_*_checkpoint.json")',
+    '"active_tasks": []',
+    '"next_slot_id": 1',
+    'self.report_rows = []',
+    'return "already_active"',
+    'return "cancelled"',
+    'transaction.rollback()',
+):
+    if marker not in qt_text:
+        fail(f"v1.0.6.26 PR-09 switch compatibility marker missing: {marker}")
+for forbidden in ("REPORTS_DIR", "FAILED_DATA_DIR", "LOGS_DIR"):
+    clear_start = qt_text.index("def _clear_workflow_scoped_state")
+    clear_end = qt_text.index("def _restore_after_failed_workflow_switch", clear_start)
+    if forbidden in qt_text[clear_start:clear_end]:
+        fail(f"v1.0.6.26 PR-09 preserved path entered destructive clear routine: {forbidden}")
+
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
 app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
@@ -1525,8 +1612,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.25":
-    fail("AppConfig VERSION must be 1.0.6.25 for the PR-08 Dynamic Workflow Inputs candidate")
+if app_version != "1.0.6.26":
+    fail("AppConfig VERSION must be 1.0.6.26 for the PR-09 data/persistence/reporting compatibility candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -1640,8 +1727,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.25-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.25 candidate path")
+if "VibraPilot-1.0.6.26-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.26 candidate path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})
@@ -2210,6 +2297,7 @@ required = [
     "config/verification/v1.0.6.16_workspace_persistence_verification_fix_scope.json",
     "config/verification/v1.0.6.17_browser_capabilities_scope.json",
     "config/verification/v1.0.6.25_pr08_dynamic_workflow_inputs_scope.json",
+    "config/verification/v1.0.6.26_pr09_data_persistence_reporting_compatibility_scope.json",
     "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
     "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "src/vibrapilot/workflow/input_state.py", "src/vibrapilot/workspace_state.py", "src/vibrapilot/browser_capabilities.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
@@ -2234,6 +2322,8 @@ required = [
     "docs/verification/V1.0.6.17_BROWSER_CAPABILITIES_VERIFICATION.md",
     "docs/verification/V1.0.6.25_PR08_DYNAMIC_WORKFLOW_INPUTS.md",
     "docs/updates/v1.0.6.25-pr08-dynamic-workflow-inputs.md",
+    "docs/verification/V1.0.6.26_PR09_DATA_PERSISTENCE_REPORTING_COMPATIBILITY.md",
+    "docs/updates/v1.0.6.26-pr09-data-persistence-reporting-compatibility.md",
     "docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md", "docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md",
     "docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md",
     "docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md",
@@ -2266,6 +2356,7 @@ required = [
     "tests/test_v10617_browser_capabilities.py",
     "tests/test_v10625_pr08_dynamic_workflow_inputs.py",
     "tests/test_v10625_pr08_workflow_input_state.py",
+    "tests/test_v10626_pr09_data_persistence_reporting_compatibility.py",
     "scripts/maintenance/Apply-v1.0.6.2-Phase01-Fix.cmd",
     "scripts/maintenance/PHASE01_V1.0.6.2_DELETE_PATHS.txt",
     "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",

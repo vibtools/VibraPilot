@@ -1,4 +1,11 @@
-# VibraPilot Documentation — v1.0.6.25 PR-08 Candidate
+# VibraPilot Documentation — v1.0.6.26 PR-09 Candidate
+
+Current release baseline: **v1.0.6.25 / PR-08 — RELEASE COMPLETE**. Current development candidate: **v1.0.6.26 / PR-09 Workflow Data/Persistence/Reporting Compatibility**.
+
+PR-09 verifies wrong-workflow recovery prevention, switch clear/preserve boundaries, schema-v1 TaskRuntimeStore compatibility, current import formats and report/export parity without production runtime/schema changes. Production remains `share_invite` only; PR-10 remains not started.
+
+- `updates/v1.0.6.26-pr09-data-persistence-reporting-compatibility.md`
+- `verification/V1.0.6.26_PR09_DATA_PERSISTENCE_REPORTING_COMPATIBILITY.md`
 
 Current release baseline: **v1.0.6.24 / PR-07 — RELEASE COMPLETE**. Current development candidate: **v1.0.6.25 / PR-08 Dynamic Workflow Inputs + per-workflow persistence**.
 

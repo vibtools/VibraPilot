@@ -1,3 +1,7 @@
+# Project Structure — v1.0.6.26 PR-09 Candidate
+
+PR-09 adds verification contracts/tests only; production runtime structure is unchanged from v1.0.6.25. `task_runtime_store.py`, `workspace_state.py`, `data_io.py`, workflow runtime/state modules and UI/backend remain frozen.
+
 # Project Structure — v1.0.6.25 PR-08 Candidate
 
 PR-08 adds `src/vibrapilot/workflow/input_state.py` for canonical atomic per-workflow Workflow Input persistence and expands `workflow_inputs.py` into the source-controlled declarative schema authority. `qt_app.py` renders the active schema dynamically and `backend.py` stores an immutable worker input snapshot.

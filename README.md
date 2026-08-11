@@ -1,12 +1,9 @@
-# VibraPilot v1.0.6.25 — PR-08 Dynamic Workflow Inputs + Per-Workflow Persistence
+# VibraPilot v1.0.6.26 — PR-09 Workflow Data/Persistence/Reporting Compatibility
 
 ## Current development candidate
 
-Current release baseline: **v1.0.6.24 / PR-07 Workflow Showcase Page — RELEASE COMPLETE**.
+Current release baseline: **v1.0.6.25 / PR-08 — RELEASE COMPLETE**. PR-09 verifies that the existing one-active-workflow + clear-on-real-switch model safely isolates live Task/runtime/results without a SQLite schema migration. Production runtime source remains unchanged; TaskRuntimeStore stays schema version 1, production registry stays `share_invite` only, and PR-10 is not started.
 
-PR-08 replaces the fixed Workflow Inputs form/persistence assumption with source-controlled declarative schemas and a canonical per-workflow `AppData/workflow_inputs.json` store. Existing Share Invite values migrate once from the four historical settings keys; those keys remain compatibility mirrors while canonical values survive workflow switches. Newly created workers receive an immutable validated input snapshot.
-
-Production still contains only **Share Invite**. PR-06 workflow-state/switch semantics, Share Invite runtime, Browser/licensing/CAPTCHA behavior, Task/workspace/report schemas, dependencies and CI workflow remain frozen. PR-09 workflow-aware data/report compatibility is not started.
 
 # VibraPilot v1.0.6.23 — PR-06 Workflow State Persistence + Atomic Switch/Restart
 

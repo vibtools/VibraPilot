@@ -1,3 +1,14 @@
+## v1.0.6.26 — PR-09 Workflow Data/Persistence/Reporting Compatibility — 2026-08-10
+
+### Verified
+- Current one-active-workflow + clear-on-real-switch model prevents wrong-workflow Task/runtime recovery without a SQLite schema change.
+- `TaskRuntimeStore.SCHEMA_VERSION` remains 1; no `workflow_id` table/column or migration is added.
+- Current TaskItem/import/report/export contracts remain backward compatible.
+- Real switches clear live Task/runtime/results while preserving exported Reports, FailedData, Logs and canonical per-workflow Workflow Inputs.
+
+### Preserved
+- Production runtime source is unchanged. Production registry remains `share_invite` only. Browser/licensing/CAPTCHA/dependencies/CI are unchanged. PR-10 remains NOT STARTED.
+
 ## v1.0.6.25 — PR-08 Dynamic Workflow Inputs + Per-Workflow Persistence — 2026-08-10
 
 ### Added

@@ -1,4 +1,8 @@
-# Versioning — PR-08 Candidate
+# Versioning — PR-09 Candidate
+
+- Current release baseline: **v1.0.6.25 / PR-08**.
+- Current development candidate: **v1.0.6.26 / PR-09 Workflow Data/Persistence/Reporting Compatibility**.
+- v1.0.6.26 is not RELEASE COMPLETE until owner local acceptance, exact GitHub publication and Windows/Python 3.12 CI PASS.
 
 - Current release baseline: **v1.0.6.24 / PR-07**.
 - Current development candidate: **v1.0.6.25 / PR-08 Dynamic Workflow Inputs + per-workflow persistence**.

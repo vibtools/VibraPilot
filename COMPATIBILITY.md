@@ -1,3 +1,7 @@
+## v1.0.6.26 PR-09 compatibility
+
+PR-09 preserves the current `TaskItem`, TaskRuntimeStore schema-v1 `runs/items/results` database, workspace schema and report/export columns. No `workflow_id` database/report column is introduced because successful real workflow switches clear live Task/runtime/results before the target workflow becomes operational. Exported Reports/FailedData/Logs and canonical per-workflow Workflow Inputs remain preserved.
+
 ## v1.0.6.25 PR-08 compatibility
 
 PR-08 retains the four historical Share Invite Workflow Input settings keys as compatibility mirrors while moving canonical persistence to schema-v1 `AppData/workflow_inputs.json`. Existing Share Invite values migrate once when the canonical store is absent. PR-06 workflow-state/switch/restart semantics, Share Invite runtime, TaskRuntimeStore/workspace/report schemas, Browser/licensing/CAPTCHA behavior, dependencies and CI remain unchanged. Production registry still contains only `share_invite`.

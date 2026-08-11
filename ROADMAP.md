@@ -1,4 +1,9 @@
-# VibraPilot Roadmap — PR-08 Candidate
+# VibraPilot Roadmap — PR-09 Candidate
+
+- Current release baseline: **v1.0.6.25 / PR-08 — RELEASE COMPLETE**.
+- Current development candidate: **v1.0.6.26 / PR-09 Workflow Data/Persistence/Reporting Compatibility**.
+- PR-09 is verification-only at production-runtime level: no database migration, no workflow_id columns, no Task/report/workspace schema redesign.
+- PR-10 Workflow Error Handling / Recovery: **NOT STARTED**.
 
 - Current release baseline: **v1.0.6.24 / PR-07 — RELEASE COMPLETE**.
 - Current development candidate: **v1.0.6.25 / PR-08 Dynamic Workflow Inputs + per-workflow persistence**.

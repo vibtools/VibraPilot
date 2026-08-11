@@ -1,3 +1,7 @@
+## v1.0.6.26 — PR-09 Workflow Data/Persistence/Reporting Compatibility — 2026-08-10
+
+Verification-only compatibility release candidate. It formally locks the existing schema-v1 active-workflow runtime model, switch clear/preserve boundary, import parity and report/export behavior. No production runtime or database schema change is introduced.
+
 ## v1.0.6.25 — PR-08 Dynamic Workflow Inputs + Per-Workflow Persistence — 2026-08-10
 
 Adds source-controlled dynamic Workflow Input schemas and canonical atomic per-workflow persistence while preserving the existing Share Invite compatibility keys as mirrors. Existing values migrate once when `workflow_inputs.json` is absent; canonical values survive workflow switches and newly created workers receive an immutable validated snapshot. Production registry remains `share_invite` only and PR-09 remains not started.
