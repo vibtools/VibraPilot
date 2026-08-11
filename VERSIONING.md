@@ -1,3 +1,9 @@
+# Versioning — PR-10 Candidate
+
+- Current release baseline: **v1.0.6.26 / PR-09**.
+- Current development candidate: **v1.0.6.27 / PR-10 Workflow Error Handling / Recovery**.
+- v1.0.6.27 is not RELEASE COMPLETE until owner local acceptance, exact GitHub publication and Windows/Python 3.12 CI PASS.
+
 # Versioning — PR-09 Candidate
 
 - Current release baseline: **v1.0.6.25 / PR-08**.

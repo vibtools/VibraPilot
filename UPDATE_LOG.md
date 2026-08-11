@@ -1,3 +1,7 @@
+## v1.0.6.27 — PR-10 Workflow Error Handling / Recovery — 2026-08-10
+
+Adds explicit fail-closed workflow-state and Workflow Input recovery, crash-safe recovery transaction handling and active-runtime preflight without changing frozen Task/Browser/Share Invite/database/report behavior.
+
 ## v1.0.6.26 — PR-09 Workflow Data/Persistence/Reporting Compatibility — 2026-08-10
 
 Verification-only compatibility release candidate. It formally locks the existing schema-v1 active-workflow runtime model, switch clear/preserve boundary, import parity and report/export behavior. No production runtime or database schema change is introduced.

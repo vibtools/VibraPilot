@@ -15,12 +15,20 @@ from .contracts import (
     WorkflowRuntime,
     WorkflowRuntimeFactory,
     WorkflowRuntimeResolutionError,
+    WorkflowRecoveryBlockedError,
+    WorkflowRecoveryError,
     WorkflowStateCorruptError,
     WorkflowStateError,
     WorkflowSwitchBlockedError,
     WorkflowSwitchError,
 )
 from .manager import WorkflowManager
+from .recovery import (
+    RECOVERY_COMMITTED,
+    RECOVERY_PREPARED,
+    WORKFLOW_RECOVERY_TRANSACTION_SCHEMA_VERSION,
+    WorkflowRecoveryTransaction,
+)
 from .state import (
     DEFAULT_ACTIVE_WORKFLOW_ID,
     TRANSACTION_COMMITTED,
@@ -50,6 +58,12 @@ __all__ = [
     "WorkflowRuntime",
     "WorkflowRuntimeFactory",
     "WorkflowRuntimeResolutionError",
+    "WorkflowRecoveryBlockedError",
+    "WorkflowRecoveryError",
+    "WorkflowRecoveryTransaction",
+    "WORKFLOW_RECOVERY_TRANSACTION_SCHEMA_VERSION",
+    "RECOVERY_PREPARED",
+    "RECOVERY_COMMITTED",
     "WorkflowState",
     "WorkflowStateCorruptError",
     "WorkflowStateError",

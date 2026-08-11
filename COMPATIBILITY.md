@@ -1,3 +1,7 @@
+## v1.0.6.27 PR-10 compatibility
+
+PR-10 preserves workflow-state schema v1, Workflow Input schema v1, TaskRuntimeStore schema v1, TaskItem/workspace/report/export contracts and Share Invite execution. Recovery reuses the PR-09 live Task/runtime clear boundary; canonical per-workflow Workflow Inputs and exported durable artifacts remain preserved.
+
 ## v1.0.6.26 PR-09 compatibility
 
 PR-09 preserves the current `TaskItem`, TaskRuntimeStore schema-v1 `runs/items/results` database, workspace schema and report/export columns. No `workflow_id` database/report column is introduced because successful real workflow switches clear live Task/runtime/results before the target workflow becomes operational. Exported Reports/FailedData/Logs and canonical per-workflow Workflow Inputs remain preserved.

@@ -127,6 +127,9 @@ from .workspace_state import WorkspaceStateStore
 from .workflow import (
     WorkflowError,
     WorkflowManager,
+    WorkflowRecoveryBlockedError,
+    WorkflowRecoveryError,
+    WorkflowRecoveryTransaction,
     WorkflowStateError,
     WorkflowSwitchBlockedError,
     WorkflowSwitchError,
@@ -1693,7 +1696,10 @@ class MainWindow(QMainWindow):
             APP_DATA_DIR / "workflow_state.json", manager=self.workflow_catalog
         )
         self.workflow_switch_root = APP_DATA_DIR / "WorkflowSwitch"
+        self.workflow_recovery_root = APP_DATA_DIR / "WorkflowRecovery"
         self.workflow_state_error = ""
+        self.workflow_recovery_error = ""
+        self.workflow_runtime_error = ""
         self.active_workflow_id: str | None = None
         self.workflow_input_state_store = WorkflowInputStateStore(
             APP_DATA_DIR / "workflow_inputs.json"
@@ -1702,21 +1708,43 @@ class MainWindow(QMainWindow):
         self.active_workflow_input_values: dict[str, Any] = {}
         self._workflow_recovery_actions: list[str] = []
         self._workflow_switch_in_progress = False
+        self._workflow_recovery_in_progress = False
         self._workflow_restart_required = False
+
         try:
-            self._workflow_recovery_actions = WorkflowSwitchTransaction.recover_all(
-                data_root=APP_DATA_DIR,
-                transaction_root=self.workflow_switch_root,
-                state_store=self.workflow_state_store,
+            self._workflow_recovery_actions.extend(
+                WorkflowSwitchTransaction.recover_all(
+                    data_root=APP_DATA_DIR,
+                    transaction_root=self.workflow_switch_root,
+                    state_store=self.workflow_state_store,
+                )
             )
-            if self._workflow_recovery_actions:
-                # A PREPARED recovery may have restored settings.json after the
-                # first SettingsManager read. Re-read it before constructing any
-                # subsystem that consumes settings.
-                self.settings = SettingsManager(SETTINGS_FILE)
+        except WorkflowSwitchError as exc:
+            self.workflow_recovery_error = (
+                "Unresolved WorkflowSwitch transaction requires manual repair: " + str(exc)
+            )
+
+        if not self.workflow_recovery_error:
+            try:
+                self._workflow_recovery_actions.extend(
+                    WorkflowRecoveryTransaction.recover_all(
+                        data_root=APP_DATA_DIR,
+                        transaction_root=self.workflow_recovery_root,
+                        state_store=self.workflow_state_store,
+                    )
+                )
+            except WorkflowRecoveryError as exc:
+                self.workflow_recovery_error = str(exc)
+
+        if self._workflow_recovery_actions:
+            # PREPARED transaction rollback can restore settings.json after the
+            # first SettingsManager read. Re-read it before any consumer starts.
+            self.settings = SettingsManager(SETTINGS_FILE)
+
+        try:
             workflow_state = self.workflow_state_store.load_or_migrate()
             self.active_workflow_id = workflow_state.active_workflow_id
-        except (WorkflowStateError, WorkflowSwitchError) as exc:
+        except WorkflowStateError as exc:
             self.workflow_state_error = str(exc)
 
         if not self.workflow_state_error and self.active_workflow_id:
@@ -1725,6 +1753,7 @@ class MainWindow(QMainWindow):
             except WorkflowInputStateError as exc:
                 self.workflow_input_state_error = str(exc)
                 self.active_workflow_input_values = {}
+            self._refresh_workflow_runtime_error()
 
         self.license_manager = LicenseManager(self.settings)
         self.runtime_store = TaskRuntimeStore(TASK_RUNTIME_DB)
@@ -1747,6 +1776,7 @@ class MainWindow(QMainWindow):
         self.workflow_input_form_layout: QVBoxLayout | None = None
         self.workflow_input_save_button: QPushButton | None = None
         self.workflow_input_reset_button: QPushButton | None = None
+        self.workflow_input_recover_button: QPushButton | None = None
         self.browser_setting_widgets: dict[str, QWidget] = {}
         self._workspace_active = False
         self._workspace_transitioning = False
@@ -2069,12 +2099,17 @@ class MainWindow(QMainWindow):
                 self._fit_workspace_to_screen()
             else:
                 self._restore_workspace_geometry(workspace_state.get("window"))
-                if not self.workflow_state_error and self.active_workflow_id:
+                if (
+                    not self.workflow_recovery_error
+                    and not self.workflow_state_error
+                    and self.active_workflow_id
+                ):
                     self._restore_active_workspace_tasks(workspace_state)
 
             if (
                 workspace_state is None
                 and not self.tasks
+                and not self.workflow_recovery_error
                 and not self.workflow_state_error
                 and self.active_workflow_id
             ):
@@ -2097,6 +2132,22 @@ class MainWindow(QMainWindow):
             for action in self._workflow_recovery_actions:
                 self.log_ui(f"Workflow switch recovery: {action}", "WARNING")
             self._workflow_recovery_actions.clear()
+            if self.workflow_recovery_error:
+                self.log_ui(
+                    f"Workflow recovery is hard-blocked: {self.workflow_recovery_error}",
+                    "ERROR",
+                )
+                QTimer.singleShot(
+                    0,
+                    lambda: _message(
+                        self,
+                        "Workflow recovery blocked",
+                        "VibraPilot detected an unresolved or ambiguous workflow recovery transaction. "
+                        "Automation and destructive workflow recovery are blocked until manual repair.\n\n"
+                        f"{self.workflow_recovery_error}",
+                        "error",
+                    ),
+                )
             if self.workflow_state_error:
                 self.log_ui(
                     f"Workflow state is unavailable; automation is blocked: {self.workflow_state_error}",
@@ -2111,6 +2162,11 @@ class MainWindow(QMainWindow):
                         f"Automation is blocked until the workflow state is repaired.\n\n{self.workflow_state_error}",
                         "error",
                     ),
+                )
+            if self.workflow_runtime_error:
+                self.log_ui(
+                    f"Active workflow runtime is unavailable; browser automation is blocked: {self.workflow_runtime_error}",
+                    "ERROR",
                 )
             if self.workflow_input_state_error:
                 self.log_ui(
@@ -2134,7 +2190,11 @@ class MainWindow(QMainWindow):
             if self.runtime_store.recovery_warning:
                 self.log_ui(self.runtime_store.recovery_warning, "ERROR")
                 self.runtime_store.recovery_warning = ""
-            if not self.workflow_state_error and self.active_workflow_id:
+            if (
+                not self.workflow_recovery_error
+                and not self.workflow_state_error
+                and self.active_workflow_id
+            ):
                 QTimer.singleShot(0, self.offer_task_recovery)
         finally:
             self._workspace_restore_in_progress = False
@@ -2615,25 +2675,51 @@ class MainWindow(QMainWindow):
         lay.addWidget(details)
 
         runtime_available = False
-        if state_available:
-            try:
-                self.workflow_catalog.require_runtime_factory(manifest.workflow_id)
-                runtime_available = True
-            except WorkflowError:
-                runtime_available = False
+        schema_available = False
+        try:
+            self.workflow_catalog.require_runtime_factory(manifest.workflow_id)
+            runtime_available = True
+        except WorkflowError:
+            runtime_available = False
+        try:
+            workflow_input_schema_for(manifest.workflow_id)
+            schema_available = True
+        except WorkflowInputSchemaError:
+            schema_available = False
+
+        recovery_blocker = self._workflow_recovery_block_reason()
+        recovery_available = bool(
+            not state_available
+            and runtime_available
+            and schema_available
+            and not recovery_blocker
+        )
 
         action_row = QWidget()
         action_lay = hbox(action_row, margins=(0, 0, 0, 0), spacing=CONST.action_gap)
         action_lay.addStretch(1)
-        if is_active:
+        if is_active and runtime_available:
             action = button("Active", "secondary")
             action.setObjectName("WorkflowActiveButton")
             action.setEnabled(False)
-        elif not state_available:
+        elif is_active and not runtime_available:
+            badge.setText("UNAVAILABLE")
             action = button("Unavailable", "secondary")
             action.setObjectName("WorkflowUnavailableButton")
             action.setEnabled(False)
-        elif not runtime_available:
+        elif recovery_available:
+            badge.setText("RECOVERY")
+            action = button(f"Recover as {manifest.name}", "danger")
+            action.setObjectName("WorkflowRecoverButton")
+            action.clicked.connect(
+                lambda _=False, workflow_id=manifest.workflow_id: self._recover_workflow_from_showcase(workflow_id)
+            )
+        elif not state_available:
+            badge.setText("UNAVAILABLE")
+            action = button("Unavailable", "secondary")
+            action.setObjectName("WorkflowUnavailableButton")
+            action.setEnabled(False)
+        elif not runtime_available or not schema_available:
             badge.setText("UNAVAILABLE")
             action = button("Unavailable", "secondary")
             action.setObjectName("WorkflowUnavailableButton")
@@ -2671,13 +2757,38 @@ class MainWindow(QMainWindow):
             self.workflow_state_error = str(exc)
 
         if state_available:
-            self.workflow_showcase_notice.hide()
+            self._refresh_workflow_runtime_error()
+            if self.workflow_recovery_error:
+                self.workflow_showcase_notice_title.setText("Workflow recovery blocked")
+                self.workflow_showcase_notice_text.setText(
+                    "Manual repair is required before automation or destructive workflow recovery. "
+                    + self.workflow_recovery_error
+                )
+                self.workflow_showcase_notice.show()
+            elif self.workflow_runtime_error:
+                self.workflow_showcase_notice_title.setText("Active workflow runtime unavailable")
+                self.workflow_showcase_notice_text.setText(
+                    "Browser automation is blocked, but switching to another valid registered workflow remains allowed. "
+                    + self.workflow_runtime_error
+                )
+                self.workflow_showcase_notice.show()
+            else:
+                self.workflow_showcase_notice.hide()
         else:
-            self.workflow_showcase_notice_title.setText("Workflow state unavailable")
-            self.workflow_showcase_notice_text.setText(
-                "Workflow activation is disabled until the persisted workflow state is valid. "
-                + (self.workflow_state_error or "No active workflow state is available.")
-            )
+            self.workflow_runtime_error = ""
+            if self.workflow_recovery_error:
+                self.workflow_showcase_notice_title.setText("Workflow recovery blocked")
+                self.workflow_showcase_notice_text.setText(
+                    "Workflow state is unavailable and an unresolved transaction prevents automatic recovery. "
+                    "Manual repair is required.\n\n" + self.workflow_recovery_error
+                )
+            else:
+                self.workflow_showcase_notice_title.setText("Workflow State Recovery Required")
+                self.workflow_showcase_notice_text.setText(
+                    "The persisted active workflow state is unavailable. Select Recover on a valid source-controlled "
+                    "workflow card to perform an explicit destructive recovery.\n\n"
+                    + (self.workflow_state_error or "No active workflow state is available.")
+                )
             self.workflow_showcase_notice.show()
 
         manifests = self.workflow_catalog.list_workflows()
@@ -2709,6 +2820,18 @@ class MainWindow(QMainWindow):
         elif result == "committed_restart_required":
             self.refresh_workflow_showcase()
         elif result == "switched":
+            return
+
+    def _recover_workflow_from_showcase(self, workflow_id: str) -> None:
+        try:
+            result = self.request_workflow_state_recovery(workflow_id)
+        except WorkflowError as exc:
+            self.refresh_workflow_showcase()
+            _message(self, "Workflow recovery unavailable", str(exc), "warning")
+            return
+        if result in {"cancelled", "committed_restart_required"}:
+            self.refresh_workflow_showcase()
+        elif result == "recovered":
             return
 
     def make_reports_page(self) -> QWidget:
@@ -3093,6 +3216,20 @@ class MainWindow(QMainWindow):
         self.workflow_input_state_error = ""
         return schema, dict(values)
 
+    def _refresh_workflow_runtime_error(self) -> str:
+        """Preflight the active source-controlled runtime factory without instantiation."""
+        if self.workflow_state_error or not self.active_workflow_id:
+            self.workflow_runtime_error = ""
+            return ""
+        try:
+            self.workflow_catalog.require_workflow(self.active_workflow_id)
+            self.workflow_catalog.require_runtime_factory(self.active_workflow_id)
+        except WorkflowError as exc:
+            self.workflow_runtime_error = str(exc)
+            return self.workflow_runtime_error
+        self.workflow_runtime_error = ""
+        return ""
+
     def current_workflow_input_snapshot(self) -> dict[str, Any]:
         """Return a detached validated snapshot for a newly created worker."""
         if self.workflow_input_state_error or not self.active_workflow_id:
@@ -3146,13 +3283,17 @@ class MainWindow(QMainWindow):
         save_btn.clicked.connect(self.save_workflow_inputs)
         reset_btn = button("Reset Workflow Inputs", "danger")
         reset_btn.clicked.connect(self.reset_workflow_inputs)
+        recover_btn = button("Recover Workflow Inputs", "danger")
+        recover_btn.clicked.connect(self.recover_workflow_inputs)
+        recover_btn.hide()
         self.workflow_input_save_button = save_btn
         self.workflow_input_reset_button = reset_btn
+        self.workflow_input_recover_button = recover_btn
         root.addWidget(
             page_header(
                 "Workflow Inputs",
                 "Workflow-specific values are rendered from the active source-controlled schema and persisted per workflow.",
-                [save_btn, reset_btn],
+                [recover_btn, save_btn, reset_btn],
             )
         )
 
@@ -3338,7 +3479,7 @@ class MainWindow(QMainWindow):
         self.schedule_workspace_save()
 
     def open_closed_tasks(self) -> None:
-        if self.workflow_state_error or not self.active_workflow_id:
+        if self.workflow_recovery_error or self.workflow_state_error or not self.active_workflow_id:
             _message(
                 self,
                 "Workflow state blocked",
@@ -3431,7 +3572,12 @@ class MainWindow(QMainWindow):
 
     def can_open_task_browser(self, slot: TaskSlotWidget) -> tuple[bool, str]:
         if self._workflow_restart_required:
-            return False, "Workflow switch is committed. Restart VibraPilot before opening automation browsers."
+            return False, "Workflow change is committed. Restart VibraPilot before opening automation browsers."
+        if self.workflow_recovery_error:
+            return False, (
+                "Workflow recovery state is unresolved. Automation is hard-blocked until manual repair. "
+                + self.workflow_recovery_error
+            )
         if self.workflow_state_error or not self.active_workflow_id:
             return False, (
                 "Active workflow state is unavailable. Automation is fail-closed until "
@@ -3441,6 +3587,12 @@ class MainWindow(QMainWindow):
             return False, (
                 "Active Workflow Inputs are unavailable. Automation is fail-closed until "
                 "the Workflow Input state is repaired. " + self.workflow_input_state_error
+            )
+        runtime_error = self._refresh_workflow_runtime_error()
+        if runtime_error:
+            return False, (
+                "Active workflow runtime is unavailable. Browser creation is blocked before worker startup. "
+                + runtime_error
             )
         limit = max(1, int(self.settings.get("max_concurrent_tasks", DEFAULT_SETTINGS["max_concurrent_tasks"])))
         active = [
@@ -3462,6 +3614,176 @@ class MainWindow(QMainWindow):
             return False, str(exc)
         return True, ""
 
+    @staticmethod
+    def _transaction_root_has_directories(root: Path) -> bool:
+        return Path(root).is_dir() and any(path.is_dir() for path in Path(root).iterdir())
+
+    def _workflow_recovery_block_reason(self) -> str:
+        if self.workflow_recovery_error:
+            return self.workflow_recovery_error
+        if self._workflow_switch_in_progress or self._workflow_recovery_in_progress:
+            return "Another workflow control-plane transaction is already in progress."
+        if self._transaction_root_has_directories(self.workflow_switch_root):
+            return "A WorkflowSwitch transaction is still present; restart or manual repair is required before recovery."
+        if self._transaction_root_has_directories(self.workflow_recovery_root):
+            return "A WorkflowRecovery transaction is still present; restart or manual repair is required before another recovery."
+        running = [task.slot_id for task in self.tasks.values() if task.is_running()]
+        if running:
+            return "Workflow recovery is blocked while Tasks are running: " + ", ".join(
+                str(value) for value in running
+            )
+        manual = [
+            task.slot_id
+            for task in self.tasks.values()
+            if bool(task.state.manual_review_required)
+        ]
+        if manual:
+            return "Workflow recovery is blocked while Tasks require manual review: " + ", ".join(
+                str(value) for value in manual
+            )
+        return ""
+
+    def _workflow_input_recovery_block_reason(self) -> str:
+        if self.workflow_recovery_error:
+            return "Workflow Input recovery is blocked by unresolved workflow recovery state: " + self.workflow_recovery_error
+        if self.workflow_state_error or not self.active_workflow_id:
+            return "A valid active workflow state is required before Workflow Input recovery."
+        if self._workflow_switch_in_progress or self._workflow_recovery_in_progress:
+            return "Another workflow control-plane transaction is already in progress."
+        live = [
+            task.slot_id
+            for task in self.tasks.values()
+            if task.worker and task.worker.is_alive()
+        ]
+        if live:
+            return "Close all live Task browsers before Workflow Input recovery: " + ", ".join(
+                str(value) for value in live
+            )
+        return ""
+
+    def _confirm_workflow_state_recovery(self, target: str) -> bool:
+        return _confirm(
+            self,
+            "Recover workflow state",
+            f"Recover the unavailable workflow state as {target}?\n\n"
+            "The previous active workflow identity cannot be trusted. This recovery will clear "
+            "current live Task/runtime/results, Task checkpoints, workspace Task references and "
+            "the four legacy Workflow Input compatibility mirrors.\n\n"
+            "Canonical per-workflow Workflow Inputs, exported Reports, FailedData, Logs, Browser "
+            "Settings/profiles/session storage, downloads/extensions, license/device identity, user "
+            "source files, window geometry, selected page and quarantined forensic state files will "
+            "be preserved.\n\nVibraPilot will restart after recovery is committed.",
+        )
+
+    def request_workflow_state_recovery(self, target_workflow_id: str) -> str:
+        """Explicitly recover unavailable workflow state through a crash-safe transaction."""
+        target = str(target_workflow_id).strip()
+        if not target:
+            raise WorkflowRecoveryBlockedError("Recovery target workflow ID is empty.")
+        if self.workflow_recovery_error:
+            raise WorkflowRecoveryBlockedError(self.workflow_recovery_error)
+        try:
+            existing = self.workflow_state_store.load_existing()
+        except WorkflowStateError as exc:
+            self.workflow_state_error = str(exc)
+        else:
+            raise WorkflowRecoveryBlockedError(
+                f"Workflow state recovery is not permitted while valid canonical state exists: {existing.active_workflow_id}."
+            )
+
+        self.workflow_catalog.require_workflow(target)
+        self.workflow_catalog.require_runtime_factory(target)
+        try:
+            workflow_input_schema_for(target)
+        except WorkflowInputSchemaError as exc:
+            raise WorkflowRecoveryBlockedError(
+                f"Recovery target Workflow Input schema is unavailable: {exc}"
+            ) from exc
+
+        blocker = self._workflow_recovery_block_reason()
+        if blocker:
+            raise WorkflowRecoveryBlockedError(blocker)
+        if not self._confirm_workflow_state_recovery(target):
+            return "cancelled"
+
+        if self.workspace_save_timer.isActive():
+            self.workspace_save_timer.stop()
+        self.save_workspace_state()
+        workspace_snapshot = self._workspace_snapshot()
+        settings_snapshot = dict(self.settings.data)
+
+        self._workflow_recovery_in_progress = True
+        transaction = WorkflowRecoveryTransaction(
+            data_root=APP_DATA_DIR,
+            transaction_root=self.workflow_recovery_root,
+            target_workflow_id=target,
+        )
+        committed = False
+        try:
+            if not self._settle_workflow_workers():
+                raise WorkflowRecoveryBlockedError(
+                    "One or more Task workers could not settle safely; workflow recovery aborted."
+                )
+            transaction.prepare(self._workflow_switch_paths())
+            try:
+                self._clear_workflow_scoped_state(workspace_snapshot)
+                new_state = self.workflow_state_store.recover_active_workflow(target)
+                committed = True
+            except BaseException:
+                try:
+                    transaction.rollback()
+                    self._restore_after_failed_workflow_switch(settings_snapshot)
+                except Exception as rollback_exc:
+                    self.workflow_recovery_error = (
+                        "Workflow recovery failed before commit and rollback also failed: "
+                        + str(rollback_exc)
+                    )
+                    raise WorkflowRecoveryError(self.workflow_recovery_error) from rollback_exc
+                raise
+
+            try:
+                transaction.mark_committed()
+            except Exception as exc:
+                logging.exception("Workflow recovery committed but transaction marker update failed")
+                self.log_ui(
+                    f"Workflow recovery committed; transaction cleanup will be recovered on restart: {exc}",
+                    "WARNING",
+                )
+            self.workflow_state_error = ""
+            self._finalize_committed_workflow_switch(new_state.active_workflow_id)
+            try:
+                transaction.cleanup()
+            except Exception as exc:
+                logging.exception("Committed workflow recovery staging cleanup failed")
+                self.log_ui(
+                    f"Workflow recovery committed; stale recovery staging will be cleaned on restart: {exc}",
+                    "WARNING",
+                )
+
+            self._workflow_restart_required = True
+            try:
+                self._spawn_workflow_restart()
+            except Exception as exc:
+                logging.exception("Workflow recovery restart spawn failed")
+                _message(
+                    self,
+                    "Manual restart required",
+                    "Workflow recovery was committed successfully, but VibraPilot could not start "
+                    f"the replacement process. Restart VibraPilot manually.\n\n{exc}",
+                    "error",
+                )
+                return "committed_restart_required"
+            QTimer.singleShot(0, self.close)
+            return "recovered"
+        except WorkflowRecoveryBlockedError:
+            if not committed:
+                self._workflow_recovery_in_progress = False
+            raise
+        except BaseException:
+            if not committed:
+                self._workflow_recovery_in_progress = False
+            raise
+
     def _workflow_switch_paths(self) -> list[Path]:
         """Return only the approved workflow-scoped persistence files."""
         paths = [
@@ -3475,8 +3797,13 @@ class MainWindow(QMainWindow):
         return paths
 
     def _workflow_switch_block_reason(self) -> str:
-        if self._workflow_switch_in_progress:
-            return "Another workflow switch transaction is already in progress."
+        if self.workflow_recovery_error:
+            return (
+                "Workflow switching is blocked by unresolved workflow recovery state: "
+                + self.workflow_recovery_error
+            )
+        if self._workflow_switch_in_progress or self._workflow_recovery_in_progress:
+            return "Another workflow control-plane transaction is already in progress."
         if self.workflow_state_error or not self.active_workflow_id:
             return "Active workflow state is invalid or unavailable."
         if self.workflow_input_state_error:
@@ -3619,6 +3946,12 @@ class MainWindow(QMainWindow):
         # runtime factory before asking the user to confirm any destructive action.
         self.workflow_catalog.require_workflow(target)
         self.workflow_catalog.require_runtime_factory(target)
+        try:
+            workflow_input_schema_for(target)
+        except WorkflowInputSchemaError as exc:
+            raise WorkflowSwitchBlockedError(
+                f"Target workflow input schema is unavailable: {exc}"
+            ) from exc
         blocker = self._workflow_switch_block_reason()
         if blocker:
             raise WorkflowSwitchBlockedError(blocker)
@@ -3716,7 +4049,7 @@ class MainWindow(QMainWindow):
         self.report_task.blockSignals(False)
 
     def offer_task_recovery(self) -> None:
-        if self.workflow_state_error or not self.active_workflow_id:
+        if self.workflow_recovery_error or self.workflow_state_error or not self.active_workflow_id:
             return
         recoverable = self.runtime_store.recoverable_runs()
         for summary in recoverable:
@@ -4179,9 +4512,14 @@ class MainWindow(QMainWindow):
                 self.workflow_input_save_button.setEnabled(False)
             if self.workflow_input_reset_button is not None:
                 self.workflow_input_reset_button.setEnabled(False)
+            if self.workflow_input_recover_button is not None:
+                blocker = self._workflow_input_recovery_block_reason()
+                self.workflow_input_recover_button.setVisible(True)
+                self.workflow_input_recover_button.setEnabled(not blocker)
+                self.workflow_input_recover_button.setToolTip(blocker or "Explicitly recover Workflow Inputs from source-controlled defaults.")
             blocked = card(
                 "Workflow Inputs unavailable",
-                "Workflow Input persistence or schema state is invalid. Automation and workflow switching remain fail-closed until this state is repaired.\n\n"
+                "Workflow Input persistence or schema state is invalid. Automation and workflow switching remain fail-closed until this state is explicitly recovered.\n\n"
                 + self.workflow_input_state_error,
             )
             layout.addWidget(blocked)
@@ -4192,6 +4530,9 @@ class MainWindow(QMainWindow):
             self.workflow_input_save_button.setEnabled(True)
         if self.workflow_input_reset_button is not None:
             self.workflow_input_reset_button.setEnabled(True)
+        if self.workflow_input_recover_button is not None:
+            self.workflow_input_recover_button.hide()
+            self.workflow_input_recover_button.setEnabled(False)
 
         form_card = card(
             schema.title,
@@ -4277,6 +4618,102 @@ class MainWindow(QMainWindow):
 
         self.active_workflow_input_values = dict(canonical)
         self.workflow_input_state_error = ""
+
+    def recover_workflow_inputs(self) -> None:
+        if not self.workflow_input_state_error:
+            _message(self, "Workflow Inputs", "Workflow Input state is healthy; recovery is not required.")
+            return
+        blocker = self._workflow_input_recovery_block_reason()
+        if blocker:
+            _message(self, "Workflow Input recovery blocked", blocker, "warning")
+            return
+        assert self.active_workflow_id is not None
+        try:
+            schema = workflow_input_schema_for(self.active_workflow_id)
+            self.workflow_catalog.require_workflow(self.active_workflow_id)
+        except (WorkflowInputSchemaError, WorkflowError) as exc:
+            _message(self, "Workflow Input recovery blocked", str(exc), "error")
+            return
+        if not _confirm(
+            self,
+            "Recover Workflow Inputs",
+            "The unusable canonical Workflow Input store will be quarantined when present. "
+            f"{schema.title} will be recreated from source-controlled defaults. Existing values inside "
+            "the unusable store cannot be trusted or automatically recovered. Legacy Share Invite "
+            "settings will not be used as migration input. Continue?",
+        ):
+            return
+
+        previous_settings = dict(self.settings.data)
+        settings_existed = SETTINGS_FILE.is_file()
+        previous_settings_bytes = SETTINGS_FILE.read_bytes() if settings_existed else b""
+        quarantine: Path | None = None
+        try:
+            recovered, quarantine = self.workflow_input_state_store.recover_workflow_defaults(
+                self.active_workflow_id
+            )
+            values = self.workflow_input_state_store.values_for(
+                self.active_workflow_id, state=recovered
+            )
+            try:
+                self._rehydrate_legacy_workflow_input_mirror(
+                    self.active_workflow_id, values, persist=True
+                )
+            except Exception as exc:
+                rollback_errors: list[str] = []
+                try:
+                    self.workflow_input_state_store.rollback_recovery(quarantine)
+                except Exception as rollback_exc:
+                    rollback_errors.append(f"canonical rollback: {rollback_exc}")
+                self.settings.data = dict(previous_settings)
+                try:
+                    if settings_existed:
+                        temporary = SETTINGS_FILE.with_name(SETTINGS_FILE.name + ".recovery-rollback")
+                        try:
+                            SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+                            with temporary.open("wb") as handle:
+                                handle.write(previous_settings_bytes)
+                                handle.flush()
+                                try:
+                                    os.fsync(handle.fileno())
+                                except OSError:
+                                    pass
+                            os.replace(temporary, SETTINGS_FILE)
+                        finally:
+                            temporary.unlink(missing_ok=True)
+                    else:
+                        SETTINGS_FILE.unlink(missing_ok=True)
+                except Exception as settings_rollback_exc:
+                    rollback_errors.append(f"settings rollback: {settings_rollback_exc}")
+                if rollback_errors:
+                    self.workflow_recovery_error = (
+                        "Workflow Input recovery failed and rollback is incomplete: "
+                        + str(exc) + "; " + "; ".join(rollback_errors)
+                    )
+                    self.workflow_input_state_error = str(exc)
+                    raise WorkflowRecoveryError(self.workflow_recovery_error) from exc
+                self.workflow_input_state_error = (
+                    "Workflow Input recovery failed; original canonical/settings state was restored: "
+                    + str(exc)
+                )
+                raise WorkflowInputStateError(self.workflow_input_state_error) from exc
+
+            self.active_workflow_input_values = dict(values)
+            self.workflow_input_state_error = ""
+            self.log_ui(
+                f"Workflow Inputs explicitly recovered from source-controlled defaults for {self.active_workflow_id}."
+            )
+            self.refresh_workflow_input_widgets()
+            _message(
+                self,
+                "Workflow Inputs recovered",
+                "Workflow Inputs were recovered from source-controlled defaults. The prior unusable "
+                "canonical file was preserved as quarantined forensic evidence when it existed.",
+            )
+        except Exception as exc:
+            if not self.workflow_recovery_error:
+                self.workflow_input_state_error = str(exc)
+            _message(self, "Workflow Input recovery error", str(exc), "error")
 
     def save_workflow_inputs(self) -> None:
         try:

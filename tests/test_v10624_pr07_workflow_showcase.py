@@ -15,6 +15,7 @@ QT_PATH = ROOT / "src/vibrapilot/qt_app.py"
 QT_TEXT = QT_PATH.read_text(encoding="utf-8")
 QT_TREE = ast.parse(QT_TEXT, filename=str(QT_PATH))
 SCOPE_PATH = ROOT / "config/verification/v1.0.6.24_pr07_workflow_showcase_scope.json"
+PR10_SCOPE_PATH = ROOT / "config/verification/v1.0.6.27_pr10_workflow_error_recovery_scope.json"
 
 
 def _scope() -> dict:
@@ -127,7 +128,10 @@ def test_invalid_persisted_state_disables_activation_and_does_not_migrate():
     assert "self.workflow_state_store.load_existing()" in refresh
     assert "load_or_migrate" not in refresh
     assert 'button("Unavailable", "secondary")' in card_source
-    assert "if state_available:" in card_source
+    # PR-10 explicitly supersedes the old unavailable-only state with a
+    # user-confirmed recovery action; normal Activate is still impossible.
+    assert "recovery_available" in card_source
+    assert "elif not state_available:" in card_source
 
 
 def test_runtime_availability_uses_existing_fail_closed_factory_resolution():
@@ -189,8 +193,11 @@ def test_frozen_runtime_config_dependency_and_ci_files_are_byte_identical():
         "src/vibrapilot/backend.py",
         "src/vibrapilot/workflow_inputs.py",
     }
+    pr10_authorized_supersession = set(
+        json.loads(PR10_SCOPE_PATH.read_text(encoding="utf-8"))["allowed_production_source_changes"]
+    )
     for relative, expected in _scope()["frozen_file_sha256"].items():
-        if relative in pr08_authorized_supersession:
+        if relative in pr08_authorized_supersession | pr10_authorized_supersession:
             continue
         assert hashlib.sha256((ROOT / relative).read_bytes()).hexdigest() == expected, relative
 

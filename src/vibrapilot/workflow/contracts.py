@@ -60,6 +60,14 @@ class WorkflowSwitchBlockedError(WorkflowSwitchError):
     """Raised when workflow switching is blocked before destructive mutation."""
 
 
+class WorkflowRecoveryError(WorkflowError):
+    """Raised when explicit workflow recovery cannot complete safely."""
+
+
+class WorkflowRecoveryBlockedError(WorkflowRecoveryError):
+    """Raised when workflow recovery is blocked before destructive mutation."""
+
+
 def _required_text(value: str, field_name: str) -> str:
     if not isinstance(value, str):
         raise WorkflowManifestError(f"{field_name} must be a string")

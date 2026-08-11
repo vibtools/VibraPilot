@@ -1,3 +1,14 @@
+## v1.0.6.27 — PR-10 Workflow Error Handling / Recovery — 2026-08-10
+
+### Added
+- Explicit user-confirmed workflow-state recovery with crash-safe PREPARED/COMMITTED staging.
+- Explicit Workflow Input recovery from source-controlled defaults with forensic quarantine preservation.
+- Distinct `workflow_recovery_error` and `workflow_runtime_error` control-plane domains.
+- Active source-controlled runtime-factory preflight before browser worker creation.
+
+### Preserved
+- PR-09 Task/database/workspace/report schemas, Share Invite runtime, Browser behavior, licensing, CAPTCHA policy, dependencies and CI remain unchanged. Production registry remains `share_invite` only. PR-11 remains NOT STARTED.
+
 ## v1.0.6.26 — PR-09 Workflow Data/Persistence/Reporting Compatibility — 2026-08-10
 
 ### Verified

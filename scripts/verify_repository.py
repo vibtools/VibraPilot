@@ -46,6 +46,7 @@ PR06_WORKFLOW_STATE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.
 PR07_WORKFLOW_SHOWCASE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.24_pr07_workflow_showcase_scope.json"
 PR08_DYNAMIC_WORKFLOW_INPUTS_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.25_pr08_dynamic_workflow_inputs_scope.json"
 PR09_DATA_COMPATIBILITY_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.26_pr09_data_persistence_reporting_compatibility_scope.json"
+PR10_WORKFLOW_ERROR_RECOVERY_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.27_pr10_workflow_error_recovery_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -247,6 +248,14 @@ if pr08_allowed_files != {
     fail("v1.0.6.25 PR-08 production source scope mismatch")
 if pr08_scope.get("canonical_input_state_path") != "AppData/workflow_inputs.json":
     fail("v1.0.6.25 PR-08 canonical persistence path mismatch")
+
+if not PR10_WORKFLOW_ERROR_RECOVERY_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.27 PR-10 workflow error/recovery scope contract is missing")
+try:
+    pr10_scope = json.loads(PR10_WORKFLOW_ERROR_RECOVERY_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.27 PR-10 scope contract is invalid: {exc}")
+pr10_allowed_files = set(pr10_scope.get("allowed_production_source_changes", []))
 if pr08_scope.get("input_state_schema_version") != 1:
     fail("v1.0.6.25 PR-08 input-state schema mismatch")
 if pr08_scope.get("supported_field_kinds") != ["text", "integer", "boolean", "choice"]:
@@ -1423,7 +1432,7 @@ build_text = (ROOT / "build.py").read_text(encoding="utf-8")
 package_init_text = (SRC / "__init__.py").read_text(encoding="utf-8")
 
 for relative, expected_sha in pr06_scope.get("frozen_file_sha256", {}).items():
-    if relative in pr08_allowed_files:
+    if relative in pr08_allowed_files or relative in pr10_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
@@ -1450,7 +1459,7 @@ for key in (
         fail(f"v1.0.6.23 PR-06 boundary missing: {key}")
 
 for relative, expected_sha in pr07_scope.get("frozen_file_sha256", {}).items():
-    if relative in pr08_allowed_files:
+    if relative in pr08_allowed_files or relative in pr10_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
@@ -1485,6 +1494,8 @@ if "return (SHARE_INVITE_MANIFEST,)" not in registry_text or "other_workflow" in
     fail("v1.0.6.24 PR-07 production workflow registry drift detected")
 
 for relative, expected_sha in pr08_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr10_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.25 PR-08 frozen file drift detected: {relative}")
@@ -1570,7 +1581,10 @@ if pr09_scope.get("live_report_columns") != ["timestamp", "slot_id", "email", "s
     fail("v1.0.6.26 PR-09 live report column contract mismatch")
 if pr09_scope.get("taskitem_fields") != ["email", "name", "status", "attempts", "message", "result"]:
     fail("v1.0.6.26 PR-09 TaskItem contract mismatch")
+pr10_allowed = set(pr10_allowed_files)
 for relative, expected_sha in pr09_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr10_allowed:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.26 PR-09 frozen production/runtime drift detected: {relative}")
@@ -1603,6 +1617,87 @@ for forbidden in ("REPORTS_DIR", "FAILED_DATA_DIR", "LOGS_DIR"):
     if forbidden in qt_text[clear_start:clear_end]:
         fail(f"v1.0.6.26 PR-09 preserved path entered destructive clear routine: {forbidden}")
 
+if pr10_scope.get("plan_id") != "VP-PR10-WORKFLOW-ERROR-RECOVERY-001":
+    fail("v1.0.6.27 PR-10 plan identifier mismatch")
+if pr10_scope.get("official_baseline_archive_sha256") != "1e464918eb8d9aa5e89170144a2c020e2374b5d8dd9c9563ab6676cdc167e569":
+    fail("v1.0.6.27 PR-10 official baseline mismatch")
+if pr10_scope.get("baseline_github_commit") != "e0e443a7cac808b1e0fa22749307e641b288869d":
+    fail("v1.0.6.27 PR-10 baseline GitHub commit mismatch")
+if pr10_scope.get("target_version") != "1.0.6.27":
+    fail("v1.0.6.27 PR-10 target mismatch")
+expected_pr10_allowed = {
+    "src/vibrapilot/workflow/contracts.py",
+    "src/vibrapilot/workflow/state.py",
+    "src/vibrapilot/workflow/input_state.py",
+    "src/vibrapilot/workflow/recovery.py",
+    "src/vibrapilot/workflow/__init__.py",
+    "src/vibrapilot/qt_app.py",
+}
+if pr10_allowed != expected_pr10_allowed:
+    fail("v1.0.6.27 PR-10 production source scope mismatch")
+for key, expected in {
+    "workflow_state_schema_version": 1,
+    "workflow_input_state_schema_version": 1,
+    "workflow_recovery_transaction_schema_version": 1,
+    "automatic_workflow_state_recovery": False,
+    "automatic_workflow_input_recovery": False,
+    "legacy_input_remigration_during_recovery": False,
+    "runtime_factory_preflight_before_browser": True,
+    "runtime_error_blocks_browser": True,
+    "runtime_error_alone_blocks_switch_away": False,
+    "unresolved_switch_transaction_hard_blocks_recovery": True,
+    "unresolved_recovery_transaction_hard_blocks_automation": True,
+    "input_recovery_uses_source_defaults": True,
+    "input_recovery_preserves_quarantine": True,
+    "input_recovery_blocked_with_live_worker": True,
+    "input_recovery_rolls_back_on_compatibility_save_failure": True,
+    "task_runtime_schema_version": 1,
+    "task_database_schema_change": False,
+    "workspace_schema_change": False,
+    "report_schema_change": False,
+    "share_invite_runtime_change": False,
+    "browser_change": False,
+    "licensing_change": False,
+    "captcha_bypass_change": False,
+    "dependency_change": False,
+    "ci_workflow_change": False,
+    "new_or_fake_workflow": False,
+    "pr11_not_started": True,
+    "packaging_implementation": False,
+}.items():
+    if pr10_scope.get(key) != expected:
+        fail(f"v1.0.6.27 PR-10 boundary mismatch: {key}")
+if pr10_scope.get("production_workflows") != ["share_invite"]:
+    fail("v1.0.6.27 PR-10 production registry contract mismatch")
+if pr10_scope.get("error_domains") != [
+    "workflow_state_error", "workflow_input_state_error",
+    "workflow_recovery_error", "workflow_runtime_error",
+]:
+    fail("v1.0.6.27 PR-10 error-domain contract mismatch")
+for relative, expected_sha in pr10_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.27 PR-10 frozen surface drift detected: {relative}")
+recovery_text = (SRC / "workflow" / "recovery.py").read_text(encoding="utf-8")
+for marker in (
+    'WORKFLOW_RECOVERY_TRANSACTION_SCHEMA_VERSION = 1',
+    'RECOVERY_PREPARED = "PREPARED"',
+    'RECOVERY_COMMITTED = "COMMITTED"',
+    'class WorkflowRecoveryTransaction:',
+    'def recover_active_workflow(self, target_workflow_id: str)',
+    'def recover_workflow_defaults(',
+    'self.workflow_recovery_error',
+    'self.workflow_runtime_error',
+    'def request_workflow_state_recovery(',
+    'button("Recover Workflow Inputs"',
+    'runtime_error = self._refresh_workflow_runtime_error()',
+):
+    if marker not in (recovery_text + (SRC / "workflow" / "state.py").read_text(encoding="utf-8") + (SRC / "workflow" / "input_state.py").read_text(encoding="utf-8") + qt_text):
+        fail(f"v1.0.6.27 PR-10 recovery marker missing: {marker}")
+for forbidden in ("Nuitka", "WiX", "CL Automation"):
+    if forbidden in qt_text + recovery_text:
+        fail(f"v1.0.6.27 PR-10 packaging implementation leaked into runtime: {forbidden}")
+
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
 app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
@@ -1612,8 +1707,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.26":
-    fail("AppConfig VERSION must be 1.0.6.26 for the PR-09 data/persistence/reporting compatibility candidate")
+if app_version != "1.0.6.27":
+    fail("AppConfig VERSION must be 1.0.6.27 for the PR-10 workflow error/recovery candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -1727,8 +1822,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.26-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.26 candidate path")
+if "VibraPilot-1.0.6.27-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.27 candidate path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})
@@ -2298,8 +2393,9 @@ required = [
     "config/verification/v1.0.6.17_browser_capabilities_scope.json",
     "config/verification/v1.0.6.25_pr08_dynamic_workflow_inputs_scope.json",
     "config/verification/v1.0.6.26_pr09_data_persistence_reporting_compatibility_scope.json",
+    "config/verification/v1.0.6.27_pr10_workflow_error_recovery_scope.json",
     "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
-    "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "src/vibrapilot/workflow/input_state.py", "src/vibrapilot/workspace_state.py", "src/vibrapilot/browser_capabilities.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
+    "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "src/vibrapilot/workflow/input_state.py", "src/vibrapilot/workflow/recovery.py", "src/vibrapilot/workspace_state.py", "src/vibrapilot/browser_capabilities.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
     "docs/updates/v1.0.6.1-vibrapilot-branding.md", "docs/updates/v1.0.6.1-github-ci-repository-hygiene-fix.md",
     "docs/updates/v1.0.6.1-github-ci-deterministic-ast-contract-fix.md",
@@ -2324,6 +2420,8 @@ required = [
     "docs/updates/v1.0.6.25-pr08-dynamic-workflow-inputs.md",
     "docs/verification/V1.0.6.26_PR09_DATA_PERSISTENCE_REPORTING_COMPATIBILITY.md",
     "docs/updates/v1.0.6.26-pr09-data-persistence-reporting-compatibility.md",
+    "docs/verification/V1.0.6.27_PR10_WORKFLOW_ERROR_RECOVERY.md",
+    "docs/updates/v1.0.6.27-pr10-workflow-error-recovery.md",
     "docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md", "docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md",
     "docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md",
     "docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md",
@@ -2357,6 +2455,8 @@ required = [
     "tests/test_v10625_pr08_dynamic_workflow_inputs.py",
     "tests/test_v10625_pr08_workflow_input_state.py",
     "tests/test_v10626_pr09_data_persistence_reporting_compatibility.py",
+    "tests/test_v10627_pr10_workflow_error_recovery.py",
+    "tests/test_v10627_pr10_workflow_recovery_transaction.py",
     "scripts/maintenance/Apply-v1.0.6.2-Phase01-Fix.cmd",
     "scripts/maintenance/PHASE01_V1.0.6.2_DELETE_PATHS.txt",
     "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",

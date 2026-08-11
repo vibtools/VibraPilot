@@ -1,3 +1,12 @@
+# VibraPilot Documentation — v1.0.6.27 PR-10 Candidate
+
+Current release baseline: **v1.0.6.26 / PR-09 — RELEASE COMPLETE**. Current development candidate: **v1.0.6.27 / PR-10 Workflow Error Handling / Recovery**.
+
+PR-10 adds explicit user-confirmed workflow control-plane recovery and active-runtime preflight while preserving Task/database/report/Browser/Share Invite behavior. Production remains `share_invite` only; PR-11 is not started.
+
+- `updates/v1.0.6.27-pr10-workflow-error-recovery.md`
+- `verification/V1.0.6.27_PR10_WORKFLOW_ERROR_RECOVERY.md`
+
 # VibraPilot Documentation — v1.0.6.26 PR-09 Candidate
 
 Current release baseline: **v1.0.6.25 / PR-08 — RELEASE COMPLETE**. Current development candidate: **v1.0.6.26 / PR-09 Workflow Data/Persistence/Reporting Compatibility**.

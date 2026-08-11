@@ -3,12 +3,12 @@
   "documentation": {
     "id": "vibrapilot",
     "title": "VibraPilot Documentation",
-    "description": "Documentation for VibraPilot v1.0.6.26 PR-09 Workflow Data/Persistence/Reporting Compatibility development candidate by Vib Tools.",
-    "version": "1.0.6.26",
+    "description": "Documentation for VibraPilot v1.0.6.27 PR-10 Workflow Error Handling / Recovery development candidate by Vib Tools.",
+    "version": "1.0.6.27",
     "root": "docs",
     "home": "index.md"
   },
   "product": {
-    "description": "Documentation for VibraPilot v1.0.6.26 PR-09 compatibility verification; v1.0.6.25 PR-08 is the current release baseline until PR-09 release closure."
+    "description": "Documentation for VibraPilot v1.0.6.27 PR-10 recovery verification; v1.0.6.26 PR-09 is the current release baseline until PR-10 release closure."
   }
 }

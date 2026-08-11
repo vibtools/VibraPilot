@@ -26,6 +26,9 @@ QT_TREE = ast.parse(QT_TEXT, filename=str(QT_PATH))
 SCOPE = json.loads(
     (ROOT / "config/verification/v1.0.6.25_pr08_dynamic_workflow_inputs_scope.json").read_text(encoding="utf-8")
 )
+PR10_SCOPE = json.loads(
+    (ROOT / "config/verification/v1.0.6.27_pr10_workflow_error_recovery_scope.json").read_text(encoding="utf-8")
+)
 
 
 def _main_method(name: str) -> ast.FunctionDef:
@@ -142,7 +145,10 @@ def test_automationworker_snapshot_is_detached_and_immutable():
 
 
 def test_share_invite_runtime_and_pr06_workflow_engine_are_frozen():
+    pr10_authorized = set(PR10_SCOPE["allowed_production_source_changes"])
     for relative, expected in SCOPE["frozen_file_sha256"].items():
+        if relative in pr10_authorized:
+            continue
         assert hashlib.sha256((ROOT / relative).read_bytes()).hexdigest() == expected, relative
 
 

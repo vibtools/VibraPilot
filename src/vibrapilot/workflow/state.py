@@ -180,6 +180,34 @@ class WorkflowStateStore:
         _atomic_write_json(self.path, state.to_dict())
         return state
 
+    def recover_active_workflow(self, target_workflow_id: str) -> WorkflowState:
+        """Explicitly create a new canonical state after user-confirmed recovery.
+
+        A valid canonical state is never overwritten. Invalid existing canonical
+        state is quarantined by the normal fail-closed loader before recovery.
+        Quarantined forensic evidence is intentionally preserved.
+        """
+        if self.path.exists():
+            try:
+                current = self.load_existing()
+            except WorkflowStateError:
+                if self.path.exists():
+                    raise
+            else:
+                raise WorkflowStateError(
+                    f"workflow state recovery refused because a valid canonical state already exists: "
+                    f"{current.active_workflow_id}"
+                )
+        target = self._validate_workflow_id(target_workflow_id)
+        state = WorkflowState(
+            schema_version=WORKFLOW_STATE_SCHEMA_VERSION,
+            active_workflow_id=target,
+            revision=1,
+            updated_at=_now_iso(),
+        )
+        _atomic_write_json(self.path, state.to_dict())
+        return state
+
     def commit_active_workflow(
         self,
         target_workflow_id: str,

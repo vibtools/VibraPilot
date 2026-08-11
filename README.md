@@ -1,9 +1,10 @@
-# VibraPilot v1.0.6.26 — PR-09 Workflow Data/Persistence/Reporting Compatibility
+# VibraPilot v1.0.6.27 — PR-10 Workflow Error Handling / Recovery
 
 ## Current development candidate
 
-Current release baseline: **v1.0.6.25 / PR-08 — RELEASE COMPLETE**. PR-09 verifies that the existing one-active-workflow + clear-on-real-switch model safely isolates live Task/runtime/results without a SQLite schema migration. Production runtime source remains unchanged; TaskRuntimeStore stays schema version 1, production registry stays `share_invite` only, and PR-10 is not started.
+Current release baseline: **v1.0.6.26 / PR-09 — RELEASE COMPLETE**. PR-10 adds explicit fail-closed recovery for unavailable workflow state and Workflow Input state, crash-safe recovery staging, and active workflow runtime-factory preflight before browser creation.
 
+Task/database/workspace/report schemas, Share Invite runtime, Browser behavior, licensing, CAPTCHA policy, dependencies and CI remain frozen. Production registry remains `share_invite` only; PR-11 is not started.
 
 # VibraPilot v1.0.6.23 — PR-06 Workflow State Persistence + Atomic Switch/Restart
 

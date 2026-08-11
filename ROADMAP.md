@@ -1,3 +1,11 @@
+# VibraPilot Roadmap — PR-10 Candidate
+
+- Current release baseline: **v1.0.6.26 / PR-09 — RELEASE COMPLETE**.
+- Current development candidate: **v1.0.6.27 / PR-10 Workflow Error Handling / Recovery**.
+- PR-10 scope: explicit control-plane recovery, recovery transaction safety and active-runtime preflight only.
+- PR-11 E2E Windows / Multi-Task Regression: **NOT STARTED**.
+- Future CL Automation / Nuitka OneDir / WiX MSI requirement remains recorded for packaging only; no packaging implementation is authorized in PR-10.
+
 # VibraPilot Roadmap — PR-09 Candidate
 
 - Current release baseline: **v1.0.6.25 / PR-08 — RELEASE COMPLETE**.

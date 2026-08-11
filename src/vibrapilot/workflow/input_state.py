@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import os
+import uuid
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -139,6 +140,72 @@ class WorkflowInputStateStore:
         )
         self.save_state(state)
         return state
+
+    def recover_workflow_defaults(
+        self, workflow_id: str
+    ) -> tuple[WorkflowInputState, Path | None]:
+        """Explicitly quarantine unusable canonical state and rebuild defaults.
+
+        This never invokes legacy migration and never fabricates values for other
+        workflows. The returned quarantine path is retained as forensic evidence
+        after successful recovery and may be used only for rollback.
+        """
+        try:
+            schema = workflow_input_schema_for(workflow_id)
+            defaults = normalize_workflow_input_values(
+                schema, schema.defaults(), coerce=False, fill_defaults=True
+            )
+        except WorkflowInputSchemaError as exc:
+            raise WorkflowInputStateError(str(exc)) from exc
+
+        quarantine: Path | None = None
+        if self.path.exists():
+            quarantine = self.path.with_name(
+                f"{self.path.name}.corrupt-{uuid.uuid4().hex}"
+            )
+            try:
+                os.replace(self.path, quarantine)
+            except OSError as exc:
+                raise WorkflowInputStateError(
+                    f"Workflow Input state could not be quarantined for recovery: {exc}"
+                ) from exc
+
+        recovered = WorkflowInputState(
+            schema_version=WORKFLOW_INPUT_STATE_SCHEMA_VERSION,
+            workflows={workflow_id: defaults},
+        )
+        try:
+            self.save_state(recovered)
+        except Exception:
+            if quarantine is not None and quarantine.is_file() and not self.path.exists():
+                try:
+                    os.replace(quarantine, self.path)
+                except OSError as restore_exc:
+                    raise WorkflowInputStateError(
+                        f"Workflow Input recovery failed and original state could not be restored: "
+                        f"{restore_exc}"
+                    ) from restore_exc
+            raise
+        return recovered, quarantine
+
+    def rollback_recovery(self, quarantine: Path | None) -> None:
+        """Restore the pre-recovery canonical existence state exactly."""
+        try:
+            if self.path.exists():
+                self.path.unlink()
+            if quarantine is not None:
+                quarantine = Path(quarantine)
+                if not quarantine.is_file():
+                    raise WorkflowInputStateError(
+                        f"Workflow Input recovery rollback evidence is missing: {quarantine.name}"
+                    )
+                os.replace(quarantine, self.path)
+        except WorkflowInputStateError:
+            raise
+        except OSError as exc:
+            raise WorkflowInputStateError(
+                f"Workflow Input recovery rollback failed: {exc}"
+            ) from exc
 
     def save_workflow_values(
         self,

@@ -1,3 +1,7 @@
+# Project Structure — v1.0.6.27 PR-10 Candidate
+
+PR-10 adds `src/vibrapilot/workflow/recovery.py` for explicit crash-safe workflow recovery and updates only the approved workflow control-plane/UI modules. Backend, TaskRuntimeStore, workspace/data I/O, Share Invite runtime, Browser and licensing modules remain frozen.
+
 # Project Structure — v1.0.6.26 PR-09 Candidate
 
 PR-09 adds verification contracts/tests only; production runtime structure is unchanged from v1.0.6.25. `task_runtime_store.py`, `workspace_state.py`, `data_io.py`, workflow runtime/state modules and UI/backend remain frozen.
