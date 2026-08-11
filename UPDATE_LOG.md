@@ -1,3 +1,7 @@
+## v1.0.6.29 — PR-12 Packaging — 2026-08-11
+
+Migrates Windows packaging from PyInstaller to a GitHub Actions-only Nuitka OneDir build and adds WiX 6.0.2 MSI generation. Local Windows PCs download the generated artifact and perform install/runtime acceptance only. Runtime change is limited to packaged-root detection in `backend.py`; functional automation behavior remains frozen.
+
 ## v1.0.6.28 — PR-11 E2E Windows / Multi-Task Regression — 2026-08-10
 
 Adds verification-only target-Windows acceptance tooling for browser lifecycle, capabilities, Sandbox OFF/ON compatibility, Chrome/fallback identity, and 1/2/4-Task isolation. No production runtime/source change is introduced.

@@ -1,3 +1,15 @@
+## v1.0.6.29 — PR-12 Packaging — 2026-08-11
+
+### Changed
+- Replaced the PyInstaller packaging path with a deterministic CPython 3.12 x64 / Nuitka 4.1.3 standalone OneDir pipeline.
+- Added WiX Toolset 6.0.2 per-user MSI authoring with stable UpgradeCode, downgrade protection, Start Menu integration and packaged-file-only ownership.
+- Added explicit Nuitka `__compiled__.containing_dir` packaged-root compatibility while preserving existing PyInstaller/source behavior.
+- Packaging compilation now runs only in GitHub Actions via `PR-12 Package Build`; Windows PCs only download and accept-test the generated ZIP/MSI artifact.
+- Existing `CI` remains unchanged; PR-13 `CL Automation` and tag/release publication remain out of scope.
+
+### Preserved
+- Browser/workflow/Task/licensing/database/workspace/report behavior remains frozen; production registry remains `share_invite` only. CAPTCHA remains deferred/unverified. PR-13 CL Automation is not started.
+
 ## v1.0.6.28 — PR-11 E2E Windows / Multi-Task Regression — 2026-08-10
 
 ### Added

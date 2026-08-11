@@ -8,8 +8,8 @@
     "slug": "vibrapilot",
     "displayName": "VibraPilot",
     "description": "VibraPilot browser automation desktop application by Vib Tools.",
-    "summary": "VibraPilot v1.0.6.28 PR-11 provides target-Windows E2E and 1/2/4-Task regression tooling while keeping production runtime source frozen.",
-    "version": "1.0.6.28",
+    "summary": "VibraPilot v1.0.6.29 PR-12 implements deterministic Nuitka OneDir and WiX MSI packaging while preserving frozen runtime behavior.",
+    "version": "1.0.6.29",
     "status": "development",
     "visibility": "private",
     "category": "desktop-application",
@@ -70,7 +70,9 @@
       "cryptography",
       "openpyxl",
       "xlrd",
-      "defusedxml"
+      "defusedxml",
+      "Nuitka",
+      "WiX Toolset"
     ],
     "packageManagers": [
       "pip"

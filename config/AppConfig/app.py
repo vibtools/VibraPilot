@@ -12,10 +12,10 @@ SHORT_NAME = "VP"
 DESCRIPTION = "VibraPilot browser automation desktop application by Vib Tools."
 TAGLINE = "Authorized browser automation desktop application."
 
-VERSION = "1.0.6.28"
+VERSION = "1.0.6.29"
 CREATED_DATE = "2026-08-07"
-RELEASE_DATE = "2026-08-10"
-UPDATED_DATE = "2026-08-10"
+RELEASE_DATE = "2026-08-11"
+UPDATED_DATE = "2026-08-11"
 STATUS = "development"
 RELEASE_CHANNEL = "production"
 

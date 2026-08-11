@@ -1,3 +1,7 @@
+# Project Structure — v1.0.6.29 PR-12 Candidate
+
+PR-12 adds `installer/VibraPilot.wxs`, `.github/workflows/pr12-package-build.yml`, CI artifact verification, PC artifact/install acceptance tooling, and replaces the Windows build implementation in `build.py`. Packaging compilation is GitHub Actions-only. The only production runtime source change is the authorized Nuitka packaged-root compatibility block in `src/vibrapilot/backend.py`.
+
 # Project Structure — v1.0.6.28 PR-11 Candidate
 
 PR-11 adds only verification contract/tests and `scripts/diagnostics/pr11_windows_acceptance_runner.py` plus `verify_pr11_windows_evidence.py`. Production `src/vibrapilot/**` structure is unchanged from v1.0.6.27.

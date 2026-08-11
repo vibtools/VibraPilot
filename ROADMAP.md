@@ -1,3 +1,14 @@
+# VibraPilot Roadmap — PR-12 Candidate
+
+- Current release baseline: **v1.0.6.28 / PR-11 — RELEASE COMPLETE**.
+- Current development candidate: **v1.0.6.29 / PR-12 Packaging**.
+- Build execution: GitHub Actions only via **PR-12 Package Build** on Windows Server 2025 / CPython 3.12.10.
+- Packaging: Nuitka 4.1.3 standalone OneDir → portable ZIP + WiX Toolset 6.0.2 per-user MSI.
+- PC responsibility: download GitHub Actions artifact, install/test packaged app, then complete package acceptance; no Nuitka/WiX build toolchain required locally.
+- Existing `.github/workflows/ci.yml` remains unchanged.
+- PR-13 `CL Automation` and tag/release automation: **NOT STARTED**.
+- PR-14 final forensic v1.0.7.0 freeze: **NOT STARTED**.
+
 # VibraPilot Roadmap — PR-11 Candidate
 
 - Current release baseline: **v1.0.6.27 / PR-10 — RELEASE COMPLETE**.

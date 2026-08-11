@@ -71,11 +71,23 @@ RELEASE_DATE = APP.release_date
 # Secure licensing transport is owned by config/AppConfig/licensing_public.py.
 # No API v1 shared/master key is embedded in VibraPilot Phase-02.
 
-ROOT_DIR = (
-    Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
-    if getattr(sys, "frozen", False)
-    else Path(__file__).resolve().parents[2]
-)
+# PR-12 packaging compatibility: Nuitka intentionally does not set ``sys.frozen``.
+# ``__compiled__.containing_dir`` resolves the standalone distribution root, while
+# the existing PyInstaller/source paths remain preserved for backward compatibility.
+try:
+    _NUITKA_COMPILED = __compiled__
+except NameError:
+    _NUITKA_COMPILED = None
+
+if _NUITKA_COMPILED is not None and getattr(_NUITKA_COMPILED, "containing_dir", None):
+    ROOT_DIR = Path(_NUITKA_COMPILED.containing_dir).resolve()
+elif getattr(sys, "frozen", False):
+    ROOT_DIR = Path(
+        getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent)
+    ).resolve()
+else:
+    ROOT_DIR = Path(__file__).resolve().parents[2]
+
 DATA_ROOT_DIR = (
     Path(os.environ.get("VIB_TOOLS_DATA_DIR", ROOT_DIR)).expanduser().resolve()
 )

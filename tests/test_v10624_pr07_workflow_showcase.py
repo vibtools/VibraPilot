@@ -196,8 +196,11 @@ def test_frozen_runtime_config_dependency_and_ci_files_are_byte_identical():
     pr10_authorized_supersession = set(
         json.loads(PR10_SCOPE_PATH.read_text(encoding="utf-8"))["allowed_production_source_changes"]
     )
+    pr12_scope_path = ROOT / "config/verification/v1.0.6.29_pr12_packaging_scope.json"
+    pr12 = json.loads(pr12_scope_path.read_text(encoding="utf-8")) if pr12_scope_path.is_file() else {}
+    current_authorized = pr08_authorized_supersession | pr10_authorized_supersession | set(pr12.get("allowed_production_source_changes", [])) | set(pr12.get("authorized_nonproduction_files", []))
     for relative, expected in _scope()["frozen_file_sha256"].items():
-        if relative in pr08_authorized_supersession | pr10_authorized_supersession:
+        if relative in current_authorized:
             continue
         assert hashlib.sha256((ROOT / relative).read_bytes()).hexdigest() == expected, relative
 

@@ -81,6 +81,11 @@ class ProductionScopeFreezeTest(unittest.TestCase):
             | set(capability_data.get("allowed_runtime_source_changes", []))
             | set(pr04_data.get("allowed_runtime_source_changes", []))
         )
+        pr12_scope = ROOT / "config/verification/v1.0.6.29_pr12_packaging_scope.json"
+        if pr12_scope.is_file():
+            pr12 = json.loads(pr12_scope.read_text(encoding="utf-8"))
+            current_allowed |= set(pr12.get("allowed_production_source_changes", []))
+            current_allowed |= set(pr12.get("authorized_nonproduction_files", []))
         for relative, expected in CONTRACT["frozen_file_sha256"].items():
             if current_focus_scope.is_file() and relative == "vib_validation_app/focus_manager.py":
                 continue

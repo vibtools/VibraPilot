@@ -1,3 +1,12 @@
+# VibraPilot Documentation — v1.0.6.29 PR-12 Candidate
+
+Current release baseline: **v1.0.6.28 / PR-11 — RELEASE COMPLETE**. Current development candidate: **v1.0.6.29 / PR-12 Packaging**.
+
+PR-12 implements GitHub Actions-only Nuitka OneDir + WiX MSI packaging via `PR-12 Package Build`; the PC downloads artifacts for installation/runtime acceptance. PR-13 `CL Automation` remains not started.
+
+- `updates/v1.0.6.29-pr12-packaging.md`
+- `verification/V1.0.6.29_PR12_PACKAGING.md`
+
 # VibraPilot Documentation — v1.0.6.28 PR-11 Candidate
 
 Current release baseline: **v1.0.6.27 / PR-10 — RELEASE COMPLETE**. Current development candidate: **v1.0.6.28 / PR-11 E2E Windows / Multi-Task Regression**.

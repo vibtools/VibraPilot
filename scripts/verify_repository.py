@@ -48,6 +48,7 @@ PR08_DYNAMIC_WORKFLOW_INPUTS_SCOPE_CONTRACT = ROOT / "config" / "verification" /
 PR09_DATA_COMPATIBILITY_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.26_pr09_data_persistence_reporting_compatibility_scope.json"
 PR10_WORKFLOW_ERROR_RECOVERY_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.27_pr10_workflow_error_recovery_scope.json"
 PR11_WINDOWS_MULTITASK_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.28_pr11_windows_multitask_regression_scope.json"
+PR12_PACKAGING_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.29_pr12_packaging_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -240,6 +241,15 @@ if pr08_scope.get("baseline_github_commit") != "39e089da94d8d7fcb0126e46a9dd4e25
 if pr08_scope.get("target_version") != "1.0.6.25":
     fail("v1.0.6.25 PR-08 target mismatch")
 pr08_allowed_files = set(pr08_scope.get("allowed_production_source_changes", []))
+
+# PR-12 explicitly supersedes historical byte freezes only for its approved
+# packaging surface. Current PR-12 validation below independently enforces the
+# exact backend packaging block plus frozen hashes for every other runtime/CI file.
+pr12_packaging_allowed_files = {
+    "src/vibrapilot/backend.py",
+    "build.py",
+    "requirements-build.txt",
+}
 if pr08_allowed_files != {
     "src/vibrapilot/workflow_inputs.py",
     "src/vibrapilot/workflow/input_state.py",
@@ -499,6 +509,8 @@ if not all(
 ):
     fail("Tasks-page UI polish preservation boundary mismatch")
 for relative, expected_sha in tasks_ui_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -622,6 +634,8 @@ if browser_foundation_fix_scope.get("sandbox_default_change_applied"):
     fail("v1.0.6.19 sandbox default changed without Sandbox-ON acceptance")
 
 for relative, expected_sha in browser_foundation_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -634,6 +648,8 @@ for relative, expected_sha in browser_foundation_scope.get("approved_target_file
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.18 target runtime mismatch: {relative}")
 for relative, expected_sha in browser_foundation_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -665,6 +681,8 @@ if not chrome_webstore_fix_scope.get("no_policy_change"):
     fail("Chrome Web Store extension fix must not change Chrome policy")
 
 for relative, expected_sha in browser_foundation_fix_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -677,6 +695,8 @@ for relative, expected_sha in browser_foundation_fix_scope.get("approved_target_
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.19 target runtime mismatch: {relative}")
 for relative, expected_sha in browser_foundation_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -687,6 +707,8 @@ for relative, expected_sha in browser_foundation_fix_scope.get("frozen_file_sha2
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.19 frozen drift: {relative}")
 for relative, expected_sha in chrome_webstore_fix_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -697,6 +719,8 @@ for relative, expected_sha in chrome_webstore_fix_scope.get("approved_target_fil
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"Chrome Web Store extension fix target runtime mismatch: {relative}")
 for relative, expected_sha in chrome_webstore_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -708,6 +732,8 @@ for relative, expected_sha in chrome_webstore_fix_scope.get("frozen_file_sha256"
         fail(f"Chrome Web Store extension fix frozen drift: {relative}")
 
 for relative, expected_sha in capability_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -720,6 +746,8 @@ for relative, expected_sha in capability_scope.get("approved_target_file_sha256"
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.17 approved target runtime mismatch: {relative}")
 for relative, expected_sha in capability_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -767,6 +795,8 @@ for key in ("no_auto_browser_start", "no_auto_login_assumption", "no_auto_workfl
     if workspace_scope.get(key) is not True:
         fail(f"v1.0.6.15 safety boundary missing: {key}")
 for relative, expected_sha in workspace_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -779,6 +809,8 @@ for relative, expected_sha in workspace_scope.get("approved_target_file_sha256",
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.15 approved target runtime mismatch: {relative}")
 for relative, expected_sha in workspace_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -799,6 +831,8 @@ if workspace_fix_scope.get("official_baseline_github_commit") != "564dc159856e2e
 if workspace_fix_scope.get("no_production_runtime_change") is not True or workspace_fix_scope.get("required_taskruntime_schema_version") != 1:
     fail("v1.0.6.16 runtime/database boundary mismatch")
 for relative, expected_sha in workspace_fix_scope.get("runtime_byte_frozen_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -814,6 +848,8 @@ if "schedule_workspace_save=lambda: None" not in (ROOT / "tests/test_v10612_brow
     fail("v1.0.6.16 Qt fixture workspace-save callback is missing")
 
 for relative, expected_sha in managed_scope.get("approved_target_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -826,6 +862,8 @@ for relative, expected_sha in managed_scope.get("approved_target_file_sha256", {
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.14 approved target runtime mismatch: {relative}")
 for relative, expected_sha in managed_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -864,6 +902,8 @@ browser_ui_allowed_worker = set(browser_ui_scope.get("approved_automationworker_
 browser_ui_allowed_task = set(browser_ui_scope.get("approved_taskslotwidget_method_changes", []))
 browser_ui_allowed_main = set(browser_ui_scope.get("approved_mainwindow_method_changes", []))
 for relative, expected_sha in browser_ui_scope.get("approved_runtime_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -876,6 +916,8 @@ for relative, expected_sha in browser_ui_scope.get("approved_runtime_file_sha256
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.12 approved runtime file mismatch: {relative}")
 for relative, expected_sha in browser_ui_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -911,6 +953,8 @@ if phase01_verify_scope.get("target_version") != "1.0.6.13":
 if phase01_verify_scope.get("allowed_runtime_source_changes") != []:
     fail("v1.0.6.13 Phase-01 verification fix must not authorize runtime source changes")
 for relative, expected_sha in phase01_verify_scope.get("frozen_runtime_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -948,6 +992,8 @@ if qt_focus_allowed_files != {"vib_validation_app/focus_manager.py"}:
 if qt_focus_scope.get("approved_focus_manager_sha256") != EXPECTED_BRAND_HASHES["vib_validation_app/focus_manager.py"]:
     fail("v1.0.6.11 approved focus-manager hash does not match the current design contract")
 for relative, expected_sha in qt_focus_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -984,6 +1030,8 @@ settings_scope_payload = json.dumps(
 if hashlib.sha256(settings_scope_payload).hexdigest() != production_scope.get("baseline_settings_canonical_sha256"):
     fail("production scope changed an existing settings default outside the approved new setting")
 for relative, expected_sha in production_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -1083,6 +1131,8 @@ if current_fix_scope.get("official_baseline_archive_sha256") != "f391099de9d0d11
 if current_fix_scope.get("target_version") != "1.0.6.7":
     fail("v1.0.6.7 fix scope target version mismatch")
 for relative, expected_sha in current_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -1134,6 +1184,8 @@ for method_name, expected_sha in current_fix_scope.get("frozen_automationworker_
 
 # Enforce the later Windows SQLite fix boundary against the clean v1.0.6.7 baseline.
 for relative, expected_sha in windows_sqlite_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -1167,6 +1219,8 @@ for method_name, expected_sha in windows_sqlite_fix_scope.get("frozen_automation
 
 # Enforce VP-WORKFLOW-INPUTS-001 against the final v1.0.6.7 baseline.
 for relative, expected_sha in workflow_inputs_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -1251,6 +1305,8 @@ workflow_fix_approved_methods = set(workflow_fix_scope.get("approved_mainwindow_
 if workflow_fix_approved_methods != {"save_workflow_inputs", "reset_workflow_inputs"}:
     fail("v1.0.6.9 approved MainWindow method surface mismatch")
 for relative, expected_sha in workflow_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -1275,6 +1331,8 @@ for method_name, expected_sha in workflow_fix_scope.get("frozen_mainwindow_metho
 
 # v1.0.6.10 exact current scope verification.
 for relative, expected_sha in license_fix_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -1378,6 +1436,8 @@ if PRIVATE_BASELINE.is_file():
 
 # Current PR-04 exact boundary verification.
 for relative, expected_sha in pr04_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -1403,6 +1463,8 @@ for method_name, expected_sha in pr04_scope.get("frozen_automationworker_method_
 
 
 for relative, expected_sha in pr04_ci_fix_scope.get("frozen_runtime_support_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -1414,6 +1476,8 @@ for relative, expected_sha in pr04_ci_fix_scope.get("frozen_runtime_support_sha2
         fail(f"v1.0.6.21 runtime/support drift detected outside approved PR-05 scope: {relative}")
 
 for relative, expected_sha in pr05_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files:
         continue
     if relative in pr06_allowed_files:
@@ -1433,6 +1497,8 @@ build_text = (ROOT / "build.py").read_text(encoding="utf-8")
 package_init_text = (SRC / "__init__.py").read_text(encoding="utf-8")
 
 for relative, expected_sha in pr06_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files or relative in pr10_allowed_files:
         continue
     path = ROOT / relative
@@ -1460,6 +1526,8 @@ for key in (
         fail(f"v1.0.6.23 PR-06 boundary missing: {key}")
 
 for relative, expected_sha in pr07_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr08_allowed_files or relative in pr10_allowed_files:
         continue
     path = ROOT / relative
@@ -1495,6 +1563,8 @@ if "return (SHARE_INVITE_MANIFEST,)" not in registry_text or "other_workflow" in
     fail("v1.0.6.24 PR-07 production workflow registry drift detected")
 
 for relative, expected_sha in pr08_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr10_allowed_files:
         continue
     path = ROOT / relative
@@ -1584,6 +1654,8 @@ if pr09_scope.get("taskitem_fields") != ["email", "name", "status", "attempts", 
     fail("v1.0.6.26 PR-09 TaskItem contract mismatch")
 pr10_allowed = set(pr10_allowed_files)
 for relative, expected_sha in pr09_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     if relative in pr10_allowed:
         continue
     path = ROOT / relative
@@ -1676,6 +1748,8 @@ if pr10_scope.get("error_domains") != [
 ]:
     fail("v1.0.6.27 PR-10 error-domain contract mismatch")
 for relative, expected_sha in pr10_scope.get("frozen_file_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.27 PR-10 frozen surface drift detected: {relative}")
@@ -1753,10 +1827,14 @@ pr11_hashes = pr11_scope.get("frozen_production_sha256", {})
 if sorted(pr11_hashes) != expected_pr11_production:
     fail("v1.0.6.28 PR-11 frozen production inventory mismatch")
 for relative, expected_sha in pr11_hashes.items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.28 PR-11 production source drift detected: {relative}")
 for relative, expected_sha in pr11_scope.get("frozen_nonproduction_runtime_sha256", {}).items():
+    if relative in pr12_packaging_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.28 PR-11 frozen runtime/config drift detected: {relative}")
@@ -1786,6 +1864,114 @@ for forbidden in (
     if forbidden in pr11_runner_text:
         fail(f"v1.0.6.28 PR-11 unsafe runner behavior detected: {forbidden}")
 
+if not PR12_PACKAGING_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.29 PR-12 Packaging scope contract is missing")
+try:
+    pr12_scope = json.loads(PR12_PACKAGING_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.29 PR-12 scope contract is invalid: {exc}")
+if pr12_scope.get("plan_id") != "VP-PR12-PACKAGING-001":
+    fail("v1.0.6.29 PR-12 plan identifier mismatch")
+if pr12_scope.get("official_baseline_archive_sha256") != "e8fb841a9127eccf3302a840d7c414fdee7a30e16ba735d2080fc999a5af88c3":
+    fail("v1.0.6.29 PR-12 official baseline mismatch")
+if pr12_scope.get("baseline_github_commit") != "fff8160157d4d9b68b2d28b11105b0f7f38ed17d":
+    fail("v1.0.6.29 PR-12 GitHub baseline mismatch")
+if pr12_scope.get("target_version") != "1.0.6.29":
+    fail("v1.0.6.29 PR-12 target mismatch")
+if pr12_scope.get("allowed_production_source_changes") != ["src/vibrapilot/backend.py"]:
+    fail("v1.0.6.29 PR-12 production source scope mismatch")
+for key, expected in {
+    "nuitka_version": "4.1.3",
+    "nuitka_mode": "standalone",
+    "wix_version": "6.0.2",
+    "build_execution": "github_actions_only",
+    "github_actions_packaging": True,
+    "local_pc_build": False,
+    "local_pc_wix_required": False,
+    "wix_builder_auto_install": False,
+    "wix_ci_ephemeral_install": True,
+    "wix_eula_acceptance_automated": False,
+    "pc_acceptance_from_downloaded_artifact": True,
+    "msi_scope": "perUser",
+    "msi_product_version": "1.0.629",
+    "installer_tracks_packaged_files_only": True,
+    "task_runtime_schema_version": 1,
+    "workflow_state_schema_version": 1,
+    "workflow_input_state_schema_version": 1,
+    "workflow_recovery_transaction_schema_version": 1,
+    "production_workflows": ["share_invite"],
+    "sandbox_default": False,
+    "captcha_deferred_unverified": True,
+    "code_signing": False,
+    "onefile": False,
+    "msix": False,
+    "burn_bootstrapper": False,
+    "auto_update": False,
+    "cl_automation_implemented": False,
+    "ci_workflow_change": False,
+    "error_fix_verify_max_cycles_per_primary_error": 2,
+    "pr13_not_started": True,
+    "pr14_not_started": True,
+}.items():
+    if pr12_scope.get(key) != expected:
+        fail(f"v1.0.6.29 PR-12 boundary mismatch: {key}")
+for relative, expected_sha in pr12_scope.get("frozen_production_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.29 PR-12 frozen production drift detected: {relative}")
+for relative, expected_sha in pr12_scope.get("frozen_runtime_and_policy_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.29 PR-12 frozen runtime/policy drift detected: {relative}")
+backend_text_pr12 = (SRC / "backend.py").read_text(encoding="utf-8")
+block_start = backend_text_pr12.find("# PR-12 packaging compatibility:")
+block_end = backend_text_pr12.find("DATA_ROOT_DIR = (\n")
+if block_start < 0 or block_end <= block_start:
+    fail("v1.0.6.29 PR-12 authorized backend packaging block is missing")
+backend_normalized = (
+    backend_text_pr12[:block_start]
+    + "<PR12_AUTHORIZED_PACKAGED_ROOT_BLOCK>\n"
+    + backend_text_pr12[block_end:]
+)
+if hashlib.sha256(backend_normalized.encode()).hexdigest() != pr12_scope.get("backend_normalized_frozen_sha256"):
+    fail("v1.0.6.29 PR-12 backend drift exists outside the authorized packaged-root block")
+for marker in (
+    "_NUITKA_COMPILED = __compiled__",
+    'getattr(_NUITKA_COMPILED, "containing_dir", None)',
+    'getattr(sys, "frozen", False)',
+    'getattr(sys, "_MEIPASS"',
+):
+    if marker not in backend_text_pr12[block_start:block_end]:
+        fail(f"v1.0.6.29 PR-12 backend compatibility marker missing: {marker}")
+pr12_build_text = (ROOT / "build.py").read_text(encoding="utf-8")
+pr12_build_requirements = (ROOT / "requirements-build.txt").read_text(encoding="utf-8")
+pr12_wix_text = (ROOT / "installer" / "VibraPilot.wxs").read_text(encoding="utf-8")
+for marker in (
+    'NUITKA_VERSION = "4.1.3"',
+    'WIX_VERSION = "6.0.2"',
+    '"--mode=standalone"',
+    '"--enable-plugin=pyside6"',
+    '"--windows-console-mode=disable"',
+    '"msi", "validate"',
+    'never installs WiX or accepts WiX license/EULA terms automatically',
+):
+    if marker not in pr12_build_text:
+        fail(f"v1.0.6.29 PR-12 build marker missing: {marker}")
+if "Nuitka==4.1.3" not in pr12_build_requirements or "pyinstaller" in pr12_build_requirements.lower():
+    fail("v1.0.6.29 PR-12 build dependency migration mismatch")
+for marker in (
+    'RequiredVersion="6.0.2"', 'Scope="perUser"',
+    'Version="$(var.MsiVersion)"',
+    'UpgradeCode="5DB4BF6A-58D7-5A32-8FD4-2EA5AFABEBA2"',
+    '<MajorUpgrade ', '<StandardDirectory Id="PerUserProgramFilesFolder">',
+    '<ComponentGroupRef Id="ApplicationFiles" />',
+):
+    if marker not in pr12_wix_text:
+        fail(f"v1.0.6.29 PR-12 WiX marker missing: {marker}")
+for forbidden in ("RemoveFile", "RemoveFolder", "AppData", "BrowserProfiles", "FailedData", "CL Automation"):
+    if forbidden in pr12_wix_text:
+        fail(f"v1.0.6.29 PR-12 forbidden installer cleanup/automation marker detected: {forbidden}")
+
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
 app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
@@ -1795,8 +1981,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.28":
-    fail("AppConfig VERSION must be 1.0.6.28 for the PR-11 Windows / Multi-Task Regression candidate")
+if app_version != "1.0.6.29":
+    fail("AppConfig VERSION must be 1.0.6.29 for the PR-12 Packaging candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -1910,8 +2096,8 @@ for marker in (
     if marker not in app_config_facade_text:
         fail(f"Phase-01 AppConfig validation marker missing: {marker}")
 launcher_text = (ROOT / "scripts" / "Start-VibraPilot.ps1").read_text(encoding="utf-8")
-if "VibraPilot-1.0.6.28-Windows-x64" not in launcher_text:
-    fail("VibraPilot launcher must target the current v1.0.6.28 candidate path")
+if "VibraPilot-1.0.6.29-Windows-x64" not in launcher_text:
+    fail("VibraPilot launcher must target the current v1.0.6.29 candidate path")
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 project_meta = pyproject.get("project", {})
@@ -2483,6 +2669,8 @@ required = [
     "config/verification/v1.0.6.26_pr09_data_persistence_reporting_compatibility_scope.json",
     "config/verification/v1.0.6.27_pr10_workflow_error_recovery_scope.json",
     "config/verification/v1.0.6.28_pr11_windows_multitask_regression_scope.json",
+    "config/verification/v1.0.6.29_pr12_packaging_scope.json",
+    "installer/VibraPilot.wxs",
     "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
     "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "src/vibrapilot/workflow/input_state.py", "src/vibrapilot/workflow/recovery.py", "src/vibrapilot/workspace_state.py", "src/vibrapilot/browser_capabilities.py", "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
@@ -2513,6 +2701,8 @@ required = [
     "docs/updates/v1.0.6.27-pr10-workflow-error-recovery.md",
     "docs/verification/V1.0.6.28_PR11_WINDOWS_MULTITASK_REGRESSION.md",
     "docs/updates/v1.0.6.28-pr11-windows-multitask-regression.md",
+    "docs/verification/V1.0.6.29_PR12_PACKAGING.md",
+    "docs/updates/v1.0.6.29-pr12-packaging.md",
     "docs/updates/v1.0.6.3-phase-02-step-002-secure-licensing.md", "docs/updates/v1.0.6.4-phase-02-step-002-verification-fix.md",
     "docs/updates/v1.0.6.5-production-multi-task-long-run-stability.md",
     "docs/updates/v1.0.6.7-vp-prod-mt-lr-verification-fix.md",
@@ -2549,6 +2739,8 @@ required = [
     "tests/test_v10627_pr10_workflow_error_recovery.py",
     "tests/test_v10627_pr10_workflow_recovery_transaction.py",
     "tests/test_v10628_pr11_windows_multitask_regression.py",
+    "tests/test_v10629_pr12_packaging.py",
+    "scripts/diagnostics/pr12_packaging_acceptance_runner.py",
     "scripts/diagnostics/pr11_windows_acceptance_runner.py",
     "scripts/diagnostics/verify_pr11_windows_evidence.py",
     "scripts/maintenance/Apply-v1.0.6.2-Phase01-Fix.cmd",

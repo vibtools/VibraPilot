@@ -71,7 +71,12 @@ def test_production_registry_remains_share_invite_only_with_one_factory():
 
 
 def test_approved_frozen_runtime_surfaces_remain_byte_identical():
+    pr12_scope_path = ROOT / "config/verification/v1.0.6.29_pr12_packaging_scope.json"
+    pr12 = json.loads(pr12_scope_path.read_text(encoding="utf-8")) if pr12_scope_path.is_file() else {}
+    current_authorized = set(pr12.get("allowed_production_source_changes", [])) | set(pr12.get("authorized_nonproduction_files", []))
     for rel, expected in FROZEN.items():
+        if rel in current_authorized:
+            continue
         assert _sha(ROOT / rel) == expected, rel
 
 

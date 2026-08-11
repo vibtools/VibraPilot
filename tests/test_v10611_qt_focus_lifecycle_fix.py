@@ -63,6 +63,11 @@ class V10611FocusLifecycleStaticTest(unittest.TestCase):
             current_allowed |= set(json.loads(current_phase_scope.read_text(encoding="utf-8")).get("allowed_runtime_source_changes", []))
         if pr08_scope.is_file():
             current_allowed |= set(json.loads(pr08_scope.read_text(encoding="utf-8")).get("allowed_production_source_changes", []))
+        pr12_scope = ROOT / "config/verification/v1.0.6.29_pr12_packaging_scope.json"
+        if pr12_scope.is_file():
+            pr12 = json.loads(pr12_scope.read_text(encoding="utf-8"))
+            current_allowed |= set(pr12.get("allowed_production_source_changes", []))
+            current_allowed |= set(pr12.get("authorized_nonproduction_files", []))
         for relative, expected in data["frozen_file_sha256"].items():
             if relative in current_allowed:
                 continue

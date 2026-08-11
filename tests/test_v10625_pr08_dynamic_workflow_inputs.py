@@ -146,8 +146,11 @@ def test_automationworker_snapshot_is_detached_and_immutable():
 
 def test_share_invite_runtime_and_pr06_workflow_engine_are_frozen():
     pr10_authorized = set(PR10_SCOPE["allowed_production_source_changes"])
+    pr12_scope_path = ROOT / "config/verification/v1.0.6.29_pr12_packaging_scope.json"
+    pr12 = json.loads(pr12_scope_path.read_text(encoding="utf-8")) if pr12_scope_path.is_file() else {}
+    current_authorized = pr10_authorized | set(pr12.get("allowed_production_source_changes", [])) | set(pr12.get("authorized_nonproduction_files", []))
     for relative, expected in SCOPE["frozen_file_sha256"].items():
-        if relative in pr10_authorized:
+        if relative in current_authorized:
             continue
         assert hashlib.sha256((ROOT / relative).read_bytes()).hexdigest() == expected, relative
 

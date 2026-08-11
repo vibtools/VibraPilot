@@ -1,3 +1,10 @@
+# Versioning — PR-12 Candidate
+
+- Current release baseline: **v1.0.6.28 / PR-11**.
+- Current development candidate: **v1.0.6.29 / PR-12 Packaging**.
+- MSI mapping: VibraPilot `1.0.6.29` → Windows Installer `1.0.629`, using `major.minor.(patch × 100 + revision)`.
+- v1.0.6.29 is not RELEASE COMPLETE until Windows package acceptance, GitHub publication and CI PASS.
+
 # Versioning — PR-11 Candidate
 
 - Current release baseline: **v1.0.6.27 / PR-10**.

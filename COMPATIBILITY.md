@@ -1,3 +1,7 @@
+## v1.0.6.29 PR-12 packaging compatibility
+
+PR-12 targets a GitHub Actions Windows x64 build using CPython 3.12.10, Nuitka 4.1.3 standalone OneDir and WiX Toolset 6.0.2 per-user MSI. The PC does not build packages; it downloads the workflow artifact for install/runtime acceptance. The runtime root resolver recognizes Nuitka `__compiled__.containing_dir` first and retains the historical PyInstaller/source fallbacks. Browser, workflow, persistence, report and licensing contracts remain unchanged.
+
 ## v1.0.6.28 PR-11 compatibility
 
 PR-11 is verification-first and preserves every production `src/vibrapilot/**` file byte-for-byte from v1.0.6.27. Target acceptance covers Windows x64 / CPython 3.12 / Playwright 1.61.0 / Chrome Stable, 1/2/4-Task isolation, browser lifecycle, downloads/uploads/storage/extensions, Sandbox OFF/ON compatibility and observable fallback behavior.

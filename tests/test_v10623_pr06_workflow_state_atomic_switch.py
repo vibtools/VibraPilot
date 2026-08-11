@@ -380,8 +380,11 @@ def test_later_pr07_ui_does_not_add_fake_production_workflow():
 
 def test_frozen_out_of_scope_files_are_byte_identical_to_v10622_baseline():
     pr08_authorized_supersession = {"src/vibrapilot/workflow_inputs.py"}
+    pr12_scope_path = ROOT / "config/verification/v1.0.6.29_pr12_packaging_scope.json"
+    pr12 = json.loads(pr12_scope_path.read_text(encoding="utf-8")) if pr12_scope_path.is_file() else {}
+    current_authorized = pr08_authorized_supersession | set(pr12.get("allowed_production_source_changes", [])) | set(pr12.get("authorized_nonproduction_files", []))
     for relative, expected in _scope()["frozen_file_sha256"].items():
-        if relative in pr08_authorized_supersession:
+        if relative in current_authorized:
             continue
         actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
         assert actual == expected, relative

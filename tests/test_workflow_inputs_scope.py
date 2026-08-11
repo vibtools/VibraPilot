@@ -42,6 +42,11 @@ class WorkflowInputsScopeTest(unittest.TestCase):
             browser_allowed |= set(json.loads(current_browser_scope.read_text(encoding="utf-8")).get("allowed_runtime_source_changes", []))
         if current_phase_scope.is_file():
             browser_allowed |= set(json.loads(current_phase_scope.read_text(encoding="utf-8")).get("allowed_runtime_source_changes", []))
+        pr12_scope = ROOT / "config/verification/v1.0.6.29_pr12_packaging_scope.json"
+        if pr12_scope.is_file():
+            pr12 = json.loads(pr12_scope.read_text(encoding="utf-8"))
+            browser_allowed |= set(pr12.get("allowed_production_source_changes", []))
+            browser_allowed |= set(pr12.get("authorized_nonproduction_files", []))
         for relative, expected in data["frozen_file_sha256"].items():
             if current_license_scope.is_file() and relative == "src/vibrapilot/backend.py":
                 continue

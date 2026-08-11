@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNNER_PATH = ROOT / "scripts" / "diagnostics" / "pr11_windows_acceptance_runner.py"
 VERIFY_PATH = ROOT / "scripts" / "diagnostics" / "verify_pr11_windows_evidence.py"
 SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.28_pr11_windows_multitask_regression_scope.json"
+PR12_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.29_pr12_packaging_scope.json"
 
 
 def load_module(path: Path, name: str):
@@ -165,13 +166,21 @@ class PR11FrozenRuntimeContractTest(unittest.TestCase):
             and path.suffix != ".pyc"
         )
         self.assertEqual(sorted(hashes), current)
+        current_scope = json.loads(PR12_SCOPE_PATH.read_text(encoding="utf-8")) if PR12_SCOPE_PATH.is_file() else {}
+        current_allowed = set(current_scope.get("allowed_production_source_changes", []))
         for rel, expected in hashes.items():
+            if rel in current_allowed:
+                continue
             actual = hashlib.sha256((ROOT / rel).read_bytes()).hexdigest()
             self.assertEqual(actual, expected, rel)
 
     def test_settings_dependencies_and_ci_are_frozen(self):
         scope = json.loads(SCOPE_PATH.read_text(encoding="utf-8"))
+        current_scope = json.loads(PR12_SCOPE_PATH.read_text(encoding="utf-8")) if PR12_SCOPE_PATH.is_file() else {}
+        current_allowed = set(current_scope.get("authorized_nonproduction_files", []))
         for rel, expected in scope["frozen_nonproduction_runtime_sha256"].items():
+            if rel in current_allowed:
+                continue
             actual = hashlib.sha256((ROOT / rel).read_bytes()).hexdigest()
             self.assertEqual(actual, expected, rel)
 

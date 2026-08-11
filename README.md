@@ -1,10 +1,10 @@
-# VibraPilot v1.0.6.28 — PR-11 E2E Windows / Multi-Task Regression
+# VibraPilot v1.0.6.29 — PR-12 Packaging
 
 ## Current development candidate
 
-Current release baseline: **v1.0.6.27 / PR-10 — RELEASE COMPLETE**. PR-11 is a verification-first target-Windows acceptance phase. It adds only acceptance tooling/tests/version/docs; all production `src/vibrapilot/**` files remain frozen.
+Current release baseline: **v1.0.6.28 / PR-11 — RELEASE COMPLETE**. PR-12 migrates packaging to Nuitka 4.1.3 standalone OneDir and WiX Toolset 6.0.2 per-user MSI. Package compilation runs only in the dedicated GitHub Actions workflow **PR-12 Package Build**; the Windows PC downloads the generated ZIP/MSI artifact and performs installation/runtime acceptance only.
 
-The mandatory matrix covers Windows x64 / CPython 3.12, Google Chrome Stable, browser lifecycle, real download/upload/storage/extension capability checks, Sandbox OFF/ON compatibility, observable fallback behavior, and 1/2/4 simultaneous Task isolation. PR-12 Packaging remains NOT STARTED.
+The existing `CI` workflow is unchanged. PR-13 `CL Automation`, tag-triggered GitHub Releases and release-asset publication are not implemented in PR-12. The only authorized production runtime change remains explicit Nuitka packaged-root recognition in `backend.py`; Browser, workflow, Task, licensing and persistence behavior remain frozen.
 
 # VibraPilot v1.0.6.23 — PR-06 Workflow State Persistence + Atomic Switch/Restart
 

@@ -3,12 +3,12 @@
   "documentation": {
     "id": "vibrapilot",
     "title": "VibraPilot Documentation",
-    "description": "Documentation for VibraPilot v1.0.6.28 PR-11 E2E Windows / Multi-Task Regression development candidate by Vib Tools.",
-    "version": "1.0.6.28",
+    "description": "Documentation for VibraPilot v1.0.6.29 PR-12 Packaging development candidate by Vib Tools.",
+    "version": "1.0.6.29",
     "root": "docs",
     "home": "index.md"
   },
   "product": {
-    "description": "PR-11 is a verification-first target-Windows acceptance candidate; v1.0.6.27 PR-10 is the current release baseline until PR-11 release closure."
+    "description": "PR-12 implements Nuitka OneDir and WiX MSI packaging from the v1.0.6.28 PR-11 release baseline; PR-13 CL Automation remains not started."
   }
 }
