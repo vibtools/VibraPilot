@@ -1,0 +1,14 @@
+{
+  "baseline_type": "unreleased_pre_fix_forensic_git_tree",
+  "version": "1.0.6.29",
+  "branch": "pr12-packaging-v1.0.6.29-owner-clean",
+  "commit_sha": "ac387257792863c58216cf1fca31dff0af9d889d",
+  "tree_sha": "51a7186b29344827cc4626d3f72a9e5d844caff5",
+  "parent_release_commit": "fff8160157d4d9b68b2d28b11105b0f7f38ed17d",
+  "official_release_baseline_remains": "v1.0.6.28 / PR-11",
+  "failed_workflow_run": 31544287676,
+  "failed_workflow_job": 93953338032,
+  "evidence_log_sha256": "1176eb67ef5359daec5cde0a692484651944cf08dc717ef20d3f7bd92e5e34f5",
+  "release_status": "UNRELEASED",
+  "freeze_semantics": "Exact Git commit/tree pair is the immutable pre-fix forensic baseline; this file does not promote v1.0.6.29 to release status."
+}

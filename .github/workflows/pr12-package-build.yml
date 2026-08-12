@@ -37,8 +37,13 @@ jobs:
           "WIX_EXE=$wixExe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           Write-Host "WiX: $actual"
 
+      - name: Verify targeted WiX ICE64 fix contract
+        run: python tests/test_v10629_pr12_wix_ice64_fix.py
+
       - name: Build Nuitka OneDir, portable ZIP and WiX MSI
-        run: python build.py
+        # Core packaging remains build.py; do not invoke python build.py directly here.
+        # The PR-12 adapter augments only generated WiX empty-directory cleanup rows.
+        run: python scripts/packaging/pr12_package_build.py
 
       - name: Verify GitHub-built package artifacts
         run: python scripts/diagnostics/pr12_ci_package_artifact_verify.py --release release
