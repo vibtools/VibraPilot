@@ -1,3 +1,20 @@
+## v1.0.6.30 — Workflow Plugin System — 2026-08-12
+
+### Added
+- Trusted local `.vpworkflow` loading with manifest/schema/API validation, staging and atomic install into VibraPilot-managed workflow storage.
+- Unified built-in + installed workflow catalog while preserving the existing one-active-workflow switch/restart model.
+- Workflow-selector based Workflow Inputs, a new Workflow Settings page, declarative Task inputs/settings, Workflow Step and workflow-defined metric rendering.
+- Atomic per-workflow settings and per-Task workflow configuration/runtime UI state stores.
+
+### Changed
+- Task cards keep Core lifecycle controls but move Target URL/data/extra configuration into Core-rendered Task Settings.
+- App Settings now exposes user-facing global processing/UI/output controls only; failed/unprocessed-data preservation and running-task close confirmation are always enforced.
+- New Tasks no longer inherit a global default Target URL; URL requirements are workflow/task-schema controlled.
+
+### Preserved
+- Share Invite business selectors/sequence, browser lifecycle and profile isolation, TaskRuntimeStore schema, atomic workflow switch/recovery, reports/logs, licensing/device identity and existing CI remain preserved.
+- Lightweight `TaskSlotWidget` construction used by the frozen browser-lifecycle regression harness remains compatible when MainWindow-only workflow host attributes are absent.
+
 ## v1.0.6.28 — PR-11 E2E Windows / Multi-Task Regression — 2026-08-10
 
 ### Added

@@ -75,7 +75,9 @@ class _FakeWindow:
 
 class V1069WorkflowInputsVerificationFixTest(unittest.TestCase):
     def test_pr08_canonical_save_failure_path_restores_prior_state_and_legacy_memory(self):
-        source = ast.get_source_segment(QT_TEXT, _method_node("_persist_active_workflow_input_values")) or ""
+        current_scope = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
+        method_name = "_persist_workflow_input_values" if current_scope.is_file() else "_persist_active_workflow_input_values"
+        source = ast.get_source_segment(QT_TEXT, _method_node(method_name)) or ""
         self.assertIn("previous_state = self.workflow_input_state_store.load_existing()", source)
         self.assertIn("save_state(previous_state)", source)
         self.assertIn("for key, value in previous_legacy.items()", source)
@@ -83,7 +85,8 @@ class V1069WorkflowInputsVerificationFixTest(unittest.TestCase):
 
     def test_pr08_reset_still_confirms_before_persistence(self):
         source = ast.get_source_segment(QT_TEXT, _method_node("reset_workflow_inputs")) or ""
-        self.assertLess(source.index("if not _confirm("), source.index("_persist_active_workflow_input_values"))
+        persist_call = "_persist_workflow_input_values" if (ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json").is_file() else "_persist_active_workflow_input_values"
+        self.assertLess(source.index("if not _confirm("), source.index(persist_call))
         self.assertIn("schema.defaults()", source)
 
     def test_pr08_save_surfaces_errors_through_existing_ui_boundary(self):

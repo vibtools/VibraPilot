@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNNER_PATH = ROOT / "scripts" / "diagnostics" / "pr11_windows_acceptance_runner.py"
 VERIFY_PATH = ROOT / "scripts" / "diagnostics" / "verify_pr11_windows_evidence.py"
 SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.28_pr11_windows_multitask_regression_scope.json"
+V10630_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.30_workflow_plugin_system_scope.json"
 
 
 def load_module(path: Path, name: str):
@@ -164,14 +165,29 @@ class PR11FrozenRuntimeContractTest(unittest.TestCase):
             and "__pycache__" not in path.parts
             and path.suffix != ".pyc"
         )
-        self.assertEqual(sorted(hashes), current)
+        v10630_scope = json.loads(V10630_SCOPE_PATH.read_text(encoding="utf-8")) if V10630_SCOPE_PATH.is_file() else {}
+        current_allowed = (
+            set(v10630_scope.get("allowed_production_source_changes", []))
+        )
+        historical = set(hashes)
+        current_set = set(current)
+        self.assertTrue(historical.issubset(current_set), sorted(historical - current_set))
+        self.assertTrue((current_set - historical).issubset(current_allowed), sorted(current_set - historical - current_allowed))
         for rel, expected in hashes.items():
+            if rel in current_allowed:
+                continue
             actual = hashlib.sha256((ROOT / rel).read_bytes()).hexdigest()
             self.assertEqual(actual, expected, rel)
 
     def test_settings_dependencies_and_ci_are_frozen(self):
         scope = json.loads(SCOPE_PATH.read_text(encoding="utf-8"))
+        v10630_scope = json.loads(V10630_SCOPE_PATH.read_text(encoding="utf-8")) if V10630_SCOPE_PATH.is_file() else {}
+        current_allowed = (
+            set(v10630_scope.get("authorized_nonproduction_files", []))
+        )
         for rel, expected in scope["frozen_nonproduction_runtime_sha256"].items():
+            if rel in current_allowed:
+                continue
             actual = hashlib.sha256((ROOT / rel).read_bytes()).hexdigest()
             self.assertEqual(actual, expected, rel)
 

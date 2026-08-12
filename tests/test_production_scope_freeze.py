@@ -54,6 +54,12 @@ class ProductionScopeFreezeTest(unittest.TestCase):
             current = json.loads(current_scope.read_text(encoding="utf-8"))
             for key, change in current.get("approved_settings_default_changes", {}).items():
                 settings[key] = change["from"]
+        v10630_scope = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
+        if v10630_scope.is_file():
+            # Reverse only v1.0.6.30 settings deltas before comparing with the historical v1.0.6.5 contract.
+            settings.pop("export_path", None)
+            settings.pop("saved_logs_path", None)
+            settings["default_target_url"] = "https://dashboard.razorpay.com/app/paymentpages/"
         payload = json.dumps(settings, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
         self.assertEqual(
             hashlib.sha256(payload).hexdigest(),
@@ -81,6 +87,11 @@ class ProductionScopeFreezeTest(unittest.TestCase):
             | set(capability_data.get("allowed_runtime_source_changes", []))
             | set(pr04_data.get("allowed_runtime_source_changes", []))
         )
+        v10630_scope = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
+        v10630 = json.loads(v10630_scope.read_text(encoding="utf-8")) if v10630_scope.is_file() else {}
+        current_allowed |= set(v10630.get("allowed_production_source_changes", []))
+        current_allowed |= set(v10630.get("authorized_nonproduction_files", []))
+        approved_worker |= set(v10630.get("authorized_automationworker_method_changes", []))
         for relative, expected in CONTRACT["frozen_file_sha256"].items():
             if current_focus_scope.is_file() and relative == "vib_validation_app/focus_manager.py":
                 continue
@@ -116,6 +127,9 @@ class ProductionScopeFreezeTest(unittest.TestCase):
             # every other historical production AST contract.
             actual.pop("backend.LicenseManager", None)
             expected.pop("backend.LicenseManager", None)
+        if v10630_scope.is_file():
+            actual.pop("qt_app.BROWSER_SETTING_GROUPS", None)
+            expected.pop("qt_app.BROWSER_SETTING_GROUPS", None)
         self.assertEqual(actual, expected)
 
         worker = bclasses["AutomationWorker"]

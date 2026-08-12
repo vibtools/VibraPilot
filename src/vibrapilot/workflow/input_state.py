@@ -1,4 +1,4 @@
-"""Atomic per-workflow Workflow Input persistence for VibraPilot PR-08."""
+"""Atomic per-workflow Workflow Input persistence for VibraPilot."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,14 +6,19 @@ import json
 import os
 import uuid
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from ..workflow_inputs import (
+    WorkflowInputSchema,
     WorkflowInputSchemaError,
     normalize_workflow_input_values,
     workflow_input_schema_for,
 )
-
+from .schemas import (
+    WorkflowFormSchema,
+    WorkflowSchemaError,
+    normalize_form_values,
+)
 
 WORKFLOW_INPUT_STATE_SCHEMA_VERSION = 1
 
@@ -37,8 +42,48 @@ class WorkflowInputState:
 class WorkflowInputStateStore:
     """Own ``AppData/workflow_inputs.json`` using fail-closed atomic writes."""
 
-    def __init__(self, path: Path):
+    def __init__(
+        self,
+        path: Path,
+        *,
+        schema_resolver: Callable[[str], WorkflowInputSchema | WorkflowFormSchema] | None = None,
+    ):
         self.path = Path(path)
+        self.schema_resolver = schema_resolver or workflow_input_schema_for
+
+    def _resolve_schema(self, workflow_id: str) -> WorkflowInputSchema | WorkflowFormSchema:
+        try:
+            return self.schema_resolver(workflow_id)
+        except (WorkflowInputSchemaError, WorkflowSchemaError) as exc:
+            raise WorkflowInputStateError(str(exc)) from exc
+        except Exception as exc:
+            raise WorkflowInputStateError(
+                f"Workflow Input schema is unavailable for {workflow_id!r}: {exc}"
+            ) from exc
+
+    @staticmethod
+    def _normalize(
+        schema: WorkflowInputSchema | WorkflowFormSchema,
+        values: Mapping[str, Any],
+        *,
+        coerce: bool,
+        fill_defaults: bool,
+        enforce_required: bool = True,
+    ) -> dict[str, Any]:
+        try:
+            if isinstance(schema, WorkflowFormSchema):
+                return normalize_form_values(
+                    schema,
+                    values,
+                    coerce=coerce,
+                    fill_defaults=fill_defaults,
+                    enforce_required=enforce_required,
+                )
+            return normalize_workflow_input_values(
+                schema, values, coerce=coerce, fill_defaults=fill_defaults
+            )
+        except (WorkflowInputSchemaError, WorkflowSchemaError) as exc:
+            raise WorkflowInputStateError(str(exc)) from exc
 
     def _decode(self, payload: Any) -> WorkflowInputState:
         if not isinstance(payload, dict):
@@ -64,16 +109,13 @@ class WorkflowInputStateStore:
                 raise WorkflowInputStateError(
                     f"Workflow Input values must be an object: {workflow_id}."
                 )
-            # Keep unknown/stale keys as inert JSON data until the workflow is
-            # actively resolved against its source-controlled schema.  Reject
-            # nested/executable-shaped structures at the persistence boundary.
             clean_values: dict[str, Any] = {}
             for key, value in values.items():
                 if not isinstance(key, str) or not key:
                     raise WorkflowInputStateError(
                         f"Workflow Input state contains an invalid field key: {workflow_id}."
                     )
-                if value is not None and not isinstance(value, (str, int, bool)):
+                if value is not None and not isinstance(value, (str, int, bool, float)):
                     raise WorkflowInputStateError(
                         f"Workflow Input state contains an invalid field value: {workflow_id}.{key}."
                     )
@@ -104,16 +146,15 @@ class WorkflowInputStateStore:
         state: WorkflowInputState | None = None,
     ) -> dict[str, Any]:
         current = state if state is not None else self.load_existing()
-        try:
-            schema = workflow_input_schema_for(workflow_id)
-            raw = current.workflows.get(workflow_id, {})
-            # Stored values are strict by type. Missing current fields are filled
-            # from source-controlled defaults; stale keys are ignored.
-            return normalize_workflow_input_values(
-                schema, raw, coerce=False, fill_defaults=True
-            )
-        except WorkflowInputSchemaError as exc:
-            raise WorkflowInputStateError(str(exc)) from exc
+        schema = self._resolve_schema(workflow_id)
+        raw = current.workflows.get(workflow_id, {})
+        return self._normalize(
+            schema,
+            raw,
+            coerce=False,
+            fill_defaults=True,
+            enforce_required=False,
+        )
 
     def load_or_migrate(
         self,
@@ -122,18 +163,13 @@ class WorkflowInputStateStore:
     ) -> WorkflowInputState:
         if self.path.exists():
             return self.load_existing()
-        try:
-            schema = workflow_input_schema_for("share_invite")
-            migrated = normalize_workflow_input_values(
-                schema,
-                legacy_share_invite_values,
-                coerce=True,
-                fill_defaults=True,
-            )
-        except WorkflowInputSchemaError as exc:
-            raise WorkflowInputStateError(
-                f"Legacy Share Invite Workflow Inputs could not be migrated: {exc}"
-            ) from exc
+        schema = self._resolve_schema("share_invite")
+        migrated = self._normalize(
+            schema,
+            legacy_share_invite_values,
+            coerce=True,
+            fill_defaults=True,
+        )
         state = WorkflowInputState(
             schema_version=WORKFLOW_INPUT_STATE_SCHEMA_VERSION,
             workflows={"share_invite": migrated},
@@ -144,19 +180,14 @@ class WorkflowInputStateStore:
     def recover_workflow_defaults(
         self, workflow_id: str
     ) -> tuple[WorkflowInputState, Path | None]:
-        """Explicitly quarantine unusable canonical state and rebuild defaults.
-
-        This never invokes legacy migration and never fabricates values for other
-        workflows. The returned quarantine path is retained as forensic evidence
-        after successful recovery and may be used only for rollback.
-        """
-        try:
-            schema = workflow_input_schema_for(workflow_id)
-            defaults = normalize_workflow_input_values(
-                schema, schema.defaults(), coerce=False, fill_defaults=True
-            )
-        except WorkflowInputSchemaError as exc:
-            raise WorkflowInputStateError(str(exc)) from exc
+        schema = self._resolve_schema(workflow_id)
+        defaults = self._normalize(
+            schema,
+            schema.defaults(),
+            coerce=False,
+            fill_defaults=True,
+            enforce_required=False,
+        )
 
         quarantine: Path | None = None
         if self.path.exists():
@@ -189,7 +220,6 @@ class WorkflowInputStateStore:
         return recovered, quarantine
 
     def rollback_recovery(self, quarantine: Path | None) -> None:
-        """Restore the pre-recovery canonical existence state exactly."""
         try:
             if self.path.exists():
                 self.path.unlink()
@@ -215,16 +245,11 @@ class WorkflowInputStateStore:
         coerce: bool,
     ) -> WorkflowInputState:
         current = self.load_existing()
-        try:
-            schema = workflow_input_schema_for(workflow_id)
-            normalized = normalize_workflow_input_values(
-                schema, values, coerce=coerce, fill_defaults=True
-            )
-        except WorkflowInputSchemaError as exc:
-            raise WorkflowInputStateError(str(exc)) from exc
+        schema = self._resolve_schema(workflow_id)
+        normalized = self._normalize(
+            schema, values, coerce=coerce, fill_defaults=True
+        )
         workflows = current.copy_workflows()
-        # Successful Save/Reset rewrites exactly the current schema keys, which
-        # deterministically drops stale fields for this workflow only.
         workflows[workflow_id] = normalized
         updated = WorkflowInputState(
             schema_version=WORKFLOW_INPUT_STATE_SCHEMA_VERSION,
@@ -234,8 +259,6 @@ class WorkflowInputStateStore:
         return updated
 
     def save_state(self, state: WorkflowInputState) -> None:
-        # Re-decode our own serialized shape before committing it so callers
-        # cannot use this rollback/helper surface to persist malformed state.
         payload = {
             "schema_version": WORKFLOW_INPUT_STATE_SCHEMA_VERSION,
             "workflows": {

@@ -29,6 +29,8 @@ SCOPE = json.loads(
 PR10_SCOPE = json.loads(
     (ROOT / "config/verification/v1.0.6.27_pr10_workflow_error_recovery_scope.json").read_text(encoding="utf-8")
 )
+V10630_SCOPE_PATH = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
+
 
 
 def _main_method(name: str) -> ast.FunctionDef:
@@ -71,32 +73,47 @@ def test_dynamic_page_renders_active_schema_not_fixed_global_tuple():
     make = _source(_main_method("make_workflow_inputs_page"))
     refresh = _source(_main_method("refresh_workflow_input_widgets"))
     reload_source = _source(_main_method("_reload_active_workflow_inputs"))
-    assert "workflow_input_schema_for(self.active_workflow_id)" in reload_source
+    if V10630_SCOPE_PATH.is_file():
+        assert "self.workflow_catalog.input_schema(self.active_workflow_id)" in reload_source
+        assert "workflow_input_selector" in make
+        assert "Select Workflow" in make
+    else:
+        assert "workflow_input_schema_for(self.active_workflow_id)" in reload_source
+        assert "Workflow:" not in make + refresh
     assert "for row, field in enumerate(schema.fields):" in refresh
     assert "WORKFLOW_INPUT_FIELDS" not in make + refresh
-    assert "Workflow:" not in make + refresh
     assert "default_target_url" not in make + refresh
-
 
 def test_dynamic_renderer_supports_only_approved_declarative_widget_kinds():
     source = _source(_main_method("_workflow_input_widget"))
-    for kind in ('field.kind == "text"', 'field.kind == "integer"', 'field.kind == "boolean"', 'field.kind == "choice"'):
-        assert kind in source
-    for forbidden in ("QFileDialog", "importlib", "__import__", "eval(", "exec(", "callback"):
+    if V10630_SCOPE_PATH.is_file():
+        assert "workflow_field_widget(field, value)" in source
+        schema_text = (ROOT / "src/vibrapilot/workflow/schemas.py").read_text(encoding="utf-8")
+        for kind in ("text", "integer", "boolean", "choice", "multiline", "decimal", "date", "url", "file", "directory"):
+            assert f'"{kind}"' in schema_text
+    else:
+        for kind in ('field.kind == "text"', 'field.kind == "integer"', 'field.kind == "boolean"', 'field.kind == "choice"'):
+            assert kind in source
+    for forbidden in ("importlib", "__import__", "eval(", "exec(", "callback"):
         assert forbidden not in source
-
 
 def test_ui_save_reset_are_active_workflow_only_and_canonical_store_owned():
     save = _source(_main_method("save_workflow_inputs"))
     reset = _source(_main_method("reset_workflow_inputs"))
-    persist = _source(_main_method("_persist_active_workflow_input_values"))
+    persist_active = _source(_main_method("_persist_active_workflow_input_values"))
+    persist_generic = _source(_main_method("_persist_workflow_input_values"))
     assert "_collect_workflow_input_values" in save
     assert "schema.defaults()" in reset
-    assert "save_workflow_values" in persist
-    assert "save_state(previous_state)" in persist
+    if V10630_SCOPE_PATH.is_file():
+        assert "workflow_input_selected_id" in save + reset
+        assert "_persist_workflow_input_values" in persist_active
+        assert "save_workflow_values" in persist_generic
+        assert "save_state(previous_state)" in persist_generic
+    else:
+        assert "save_workflow_values" in persist_active
+        assert "save_state(previous_state)" in persist_active
     assert "settings.save()" not in save + reset
-    assert "default_target_url" not in save + reset + persist
-
+    assert "default_target_url" not in save + reset + persist_active + persist_generic
 
 def test_input_state_error_blocks_browser_opening_and_real_workflow_switches():
     browser = _source(_main_method("can_open_task_browser"))
@@ -112,8 +129,12 @@ def test_pr06_switch_boundary_keeps_legacy_clear_but_not_canonical_input_store()
     confirm = _source(_main_method("_confirm_workflow_switch"))
     assert "for key in WORKFLOW_INPUT_KEYS" in clear
     assert "workflow_inputs.json" not in paths + clear
-    assert "Canonical per-workflow Workflow Input values will be preserved" in confirm
-
+    if V10630_SCOPE_PATH.is_file():
+        assert "Canonical per-workflow Workflow Input and Workflow Settings values will be preserved" in confirm
+        assert "workflow_task_state_store.path" in paths
+        assert "workflow_task_state_store.clear_all()" in clear
+    else:
+        assert "Canonical per-workflow Workflow Input values will be preserved" in confirm
 
 def test_new_workers_receive_snapshot_without_live_worker_mutation_path():
     open_browser = _source(_task_method("open_browser"))
@@ -146,11 +167,13 @@ def test_automationworker_snapshot_is_detached_and_immutable():
 
 def test_share_invite_runtime_and_pr06_workflow_engine_are_frozen():
     pr10_authorized = set(PR10_SCOPE["allowed_production_source_changes"])
+    v10630 = json.loads(V10630_SCOPE_PATH.read_text(encoding="utf-8")) if V10630_SCOPE_PATH.is_file() else {}
+    current_authorized = (pr10_authorized
+        | set(v10630.get("allowed_production_source_changes", [])) | set(v10630.get("authorized_nonproduction_files", [])))
     for relative, expected in SCOPE["frozen_file_sha256"].items():
-        if relative in pr10_authorized:
+        if relative in current_authorized:
             continue
         assert hashlib.sha256((ROOT / relative).read_bytes()).hexdigest() == expected, relative
-
 
 def test_no_dynamic_actions_plugins_or_pr09_schema_work_enter_pr08():
     workflow_inputs_text = (ROOT / "src/vibrapilot/workflow_inputs.py").read_text(encoding="utf-8")

@@ -65,7 +65,7 @@
   "authorized_testing_only": true,
   "max_test_send_limit": 50,
   "license_recheck_minutes": 30,
-  "default_target_url": "https://dashboard.razorpay.com/app/paymentpages/",
+  "default_target_url": "",
   "re_open_after_success_per_order": false,
   "browser_executable_path": "",
   "use_persistent_context": true,
@@ -164,5 +164,7 @@
   "record_video_width": 0,
   "record_video_height": 0,
   "http_cache_enabled": false,
-  "client_certificates_json": "[]"
+  "client_certificates_json": "[]",
+  "export_path": "",
+  "saved_logs_path": ""
 }

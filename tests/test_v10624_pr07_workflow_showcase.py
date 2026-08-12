@@ -16,6 +16,7 @@ QT_TEXT = QT_PATH.read_text(encoding="utf-8")
 QT_TREE = ast.parse(QT_TEXT, filename=str(QT_PATH))
 SCOPE_PATH = ROOT / "config/verification/v1.0.6.24_pr07_workflow_showcase_scope.json"
 PR10_SCOPE_PATH = ROOT / "config/verification/v1.0.6.27_pr10_workflow_error_recovery_scope.json"
+V10630_SCOPE_PATH = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
 
 
 def _scope() -> dict:
@@ -60,7 +61,10 @@ def test_production_source_scope_is_qt_app_only():
 
 def test_workflows_navigation_exists_once_in_exact_order():
     nav = _assignment("NAV_SECTIONS")
-    assert nav == ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]
+    if V10630_SCOPE_PATH.is_file():
+        assert nav == ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Workflow Settings", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]
+    else:
+        assert nav == ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]
     assert nav.count("Workflows") == 1
 
 
@@ -156,7 +160,10 @@ def test_activation_handler_preserves_pr06_status_ownership():
 
 def test_logo_resolution_is_deterministic_and_has_no_discovery():
     source = _source("_workflow_logo_path")
-    assert '"src" / "vibrapilot" / "workflow" / manifest.workflow_id' in source
+    if V10630_SCOPE_PATH.is_file():
+        assert "self.workflow_catalog.workflow_asset_path" in source
+    else:
+        assert '"src" / "vibrapilot" / "workflow" / manifest.workflow_id' in source
     assert "manifest.logo" in source
     for forbidden in ("glob(", "rglob(", "iterdir(", "importlib", "__import__", "entry_points"):
         assert forbidden not in source
@@ -196,8 +203,11 @@ def test_frozen_runtime_config_dependency_and_ci_files_are_byte_identical():
     pr10_authorized_supersession = set(
         json.loads(PR10_SCOPE_PATH.read_text(encoding="utf-8"))["allowed_production_source_changes"]
     )
+    v10630 = json.loads(V10630_SCOPE_PATH.read_text(encoding="utf-8")) if V10630_SCOPE_PATH.is_file() else {}
+    current_authorized = (pr08_authorized_supersession | pr10_authorized_supersession
+        | set(v10630.get("allowed_production_source_changes", [])) | set(v10630.get("authorized_nonproduction_files", [])))
     for relative, expected in _scope()["frozen_file_sha256"].items():
-        if relative in pr08_authorized_supersession | pr10_authorized_supersession:
+        if relative in current_authorized:
             continue
         assert hashlib.sha256((ROOT / relative).read_bytes()).hexdigest() == expected, relative
 

@@ -31,6 +31,7 @@ TASKS_UI_SCOPE = ROOT / "config/verification/v1.0.6.17_tasks_ui_polish_scope.jso
 BROWSER_FOUNDATION_SCOPE = ROOT / "config/verification/v1.0.6.18_browser_foundation_scope.json"
 PR06_SCOPE = ROOT / "config/verification/v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json"
 PR08_SCOPE = ROOT / "config/verification/v1.0.6.25_pr08_dynamic_workflow_inputs_scope.json"
+V10630_SCOPE = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
 
 
 class BrowserCapabilityHelpersTest(unittest.TestCase):
@@ -57,16 +58,18 @@ class BrowserCapabilityHelpersTest(unittest.TestCase):
         pr06_allowed = set(pr06_scope["allowed_runtime_source_changes"])
         pr08_scope = json.loads(PR08_SCOPE.read_text(encoding="utf-8"))
         pr08_allowed = set(pr08_scope["allowed_production_source_changes"])
+        v10630 = json.loads(V10630_SCOPE.read_text(encoding="utf-8")) if V10630_SCOPE.is_file() else {}
+        current_allowed = set(v10630.get("allowed_production_source_changes", [])) | set(v10630.get("authorized_nonproduction_files", []))
         for relative, expected in scope["approved_target_file_sha256"].items():
-            if relative in ui_allowed or relative in foundation_allowed or relative in pr06_allowed or relative in pr08_allowed:
+            if relative in ui_allowed or relative in foundation_allowed or relative in pr06_allowed or relative in pr08_allowed or relative in current_allowed:
                 continue
             self.assertEqual(hashlib.sha256((ROOT / relative).read_bytes()).hexdigest(), expected, relative)
         for relative, expected in ui_scope["approved_target_file_sha256"].items():
-            if relative in pr06_allowed or relative in pr08_allowed:
+            if relative in pr06_allowed or relative in pr08_allowed or relative in current_allowed:
                 continue
             self.assertEqual(hashlib.sha256((ROOT / relative).read_bytes()).hexdigest(), expected, relative)
         for relative, expected in scope["frozen_file_sha256"].items():
-            if relative in pr06_allowed or relative in pr08_allowed:
+            if relative in pr06_allowed or relative in pr08_allowed or relative in current_allowed:
                 continue
             self.assertEqual(hashlib.sha256((ROOT / relative).read_bytes()).hexdigest(), expected, relative)
 

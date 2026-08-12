@@ -32,13 +32,18 @@ class FeatureParityTest(unittest.TestCase):
 
     def test_primary_pages_exist(self):
         text=(ROOT/'src/vibrapilot/qt_app.py').read_text(encoding='utf-8')
-        for page in ['Dashboard','Tasks','Workflows','Workflow Inputs','Reports','Live Logs','App Settings','Browser Settings','About']:
+        pages=['Dashboard','Tasks','Workflows','Workflow Inputs','Reports','Live Logs','App Settings','Browser Settings','About']
+        if (ROOT/'config/verification/v1.0.6.30_workflow_plugin_system_scope.json').is_file():
+            pages.append('Workflow Settings')
+        for page in pages:
             self.assertIn(page,text)
 
 
     def test_settings_navigation_order(self):
         text=(ROOT/'src/vibrapilot/qt_app.py').read_text(encoding='utf-8')
-        self.assertIn('NAV_SECTIONS = ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]', text)
+        current_scope = ROOT/'config/verification/v1.0.6.30_workflow_plugin_system_scope.json'
+        marker = ('NAV_SECTIONS = ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Workflow Settings", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]' if current_scope.is_file() else 'NAV_SECTIONS = ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]')
+        self.assertIn(marker, text)
 
     def test_browser_settings_page_and_runtime_markers(self):
         ui=(ROOT/'src/vibrapilot/qt_app.py').read_text(encoding='utf-8')

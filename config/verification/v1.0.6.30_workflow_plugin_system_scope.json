@@ -1,0 +1,151 @@
+{
+  "plan_id": "VP-V10630-WORKFLOW-PLUGIN-SYSTEM-001",
+  "baseline_version": "1.0.6.28",
+  "target_version": "1.0.6.30",
+  "baseline_github_commit": "fff8160157d4d9b68b2d28b11105b0f7f38ed17d",
+  "baseline_github_tree": "1712f05f9815c2fef4ef557d1bde3b17f7c62890",
+  "approval": "APPROVED: VIBRAPILOT-v1.0.6.30-WORKFLOW-PLUGIN-SYSTEM",
+  "one_active_workflow": true,
+  "trusted_python_plugins": true,
+  "workflow_plugin_api_version": 1,
+  "plugin_sandbox": false,
+  "json_playwright_interpreter": false,
+  "per_task_mixed_workflows": false,
+  "marketplace": false,
+  "automatic_dependency_install": false,
+  "production_second_workflow_invented": false,
+  "allowed_production_source_changes": [
+    "src/vibrapilot/backend.py",
+    "src/vibrapilot/qt_app.py",
+    "src/vibrapilot/workflow/__init__.py",
+    "src/vibrapilot/workflow/input_state.py",
+    "src/vibrapilot/workflow/manager.py",
+    "src/vibrapilot/workflow/plugin_loader.py",
+    "src/vibrapilot/workflow/schemas.py",
+    "src/vibrapilot/workflow/settings_state.py",
+    "src/vibrapilot/workflow/task_state.py"
+  ],
+  "authorized_nonproduction_files": [
+    "config/settings.defaults.json",
+    "config/AppConfig/app.py",
+    "pyproject.toml",
+    "scripts/verify_repository.py",
+    "CHANGELOG.md",
+    "CITATION.cff",
+    "COMPATIBILITY.md",
+    "PROJECT_STRUCTURE.md",
+    "README.md",
+    "ROADMAP.md",
+    "UPDATE_LOG.md",
+    "VERSIONING.md",
+    "vibproject.ygit",
+    "docs/docs.manifest.ygit",
+    "docs/index.md",
+    "docs/updates/v1.0.6.30-workflow-plugin-system.md",
+    "docs/verification/V1.0.6.30_WORKFLOW_PLUGIN_SYSTEM.md",
+    "tests/_v10630_plugin_fixture.py",
+    "tests/test_v10630_workflow_plugin_loader.py",
+    "tests/test_v10630_workflow_plugin_registry.py",
+    "tests/test_v10630_workflow_dynamic_config.py",
+    "tests/test_v10630_workflow_task_ui.py",
+    "tests/test_v10630_app_settings_contract.py",
+    "tests/test_v10630_workflow_plugin_regression.py",
+    "tests/test_app_config.py",
+    "tests/test_browser_settings_wiring.py",
+    "tests/test_feature_parity.py",
+    "tests/test_phase02_scope_freeze.py",
+    "tests/test_pr03_workflow_contracts_registry.py",
+    "tests/test_production_scope_freeze.py",
+    "tests/test_v10616_workspace_persistence_verification_fix.py",
+    "tests/test_v10617_browser_capabilities.py",
+    "tests/test_v10620_pr04_share_invite_workflow_parity.py",
+    "tests/test_v10623_pr06_workflow_state_atomic_switch.py",
+    "tests/test_v10624_pr07_workflow_showcase.py",
+    "tests/test_v10625_pr08_dynamic_workflow_inputs.py",
+    "tests/test_v10627_pr10_workflow_error_recovery.py",
+    "tests/test_v10628_pr11_windows_multitask_regression.py",
+    "tests/test_v1067_verification_fix.py",
+    "tests/test_v1069_workflow_inputs_verification_fix.py",
+    "tests/test_workflow_inputs_ui.py",
+    "PATCH_MANIFEST.md",
+    "DELTA_FILE_LIST.txt",
+    "SHA256SUMS.txt",
+    "config/verification/v1.0.6.30_workflow_plugin_system_scope.json",
+    "scripts/diagnostics/verify_v10630_workflow_plugin_system.py"
+  ],
+  "frozen_runtime_surfaces": [
+    "src/vibrapilot/workflow/registry.py",
+    "src/vibrapilot/workflow/contracts.py",
+    "src/vibrapilot/workflow/state.py",
+    "src/vibrapilot/workflow/recovery.py",
+    "src/vibrapilot/workflow/share_invite/workflow.py",
+    "src/vibrapilot/browser_capabilities.py",
+    "src/vibrapilot/task_runtime_store.py",
+    "src/vibrapilot/workspace_state.py",
+    ".github/workflows/ci.yml"
+  ],
+  "preserved_core_behaviors": [
+    "atomic workflow switch/restart/recovery",
+    "TaskRuntimeStore SQLite schema",
+    "Chrome preferred with Chromium fallback",
+    "managed persistent browser profiles",
+    "browser lifecycle ownership",
+    "Share Invite selectors and business sequence",
+    "reports columns",
+    "license API/device identity"
+  ],
+  "authorized_automationworker_method_changes": [
+    "__init__",
+    "_workflow_runtime",
+    "process_batch",
+    "process_item",
+    "save_failed"
+  ],
+  "authorized_automationworker_added_methods": [
+    "_is_share_invite_workflow",
+    "_process_generic_workflow_item",
+    "current_workflow_item_payload",
+    "set_workflow_metric",
+    "set_workflow_step",
+    "workflow_error_decision"
+  ],
+  "frozen_runtime_sha256": {
+    "src/vibrapilot/workflow/registry.py": "347665e84d61f9d3012d8930ed70fc3679e13789bfac05868246b7f2706dc6bd",
+    "src/vibrapilot/workflow/contracts.py": "4d8ec303666ade71348d9f3d29d30995219eccc7397bf8316d0e475f054c0897",
+    "src/vibrapilot/workflow/state.py": "ff85c6afd9ad53bbeda4e33b4e2d92abbc239d2606f64a8670c211ab144ed5d0",
+    "src/vibrapilot/workflow/recovery.py": "fb00d68dce8492270594b7688d84763036dfa9551c23a3548ab935ab8db78012",
+    "src/vibrapilot/workflow/share_invite/workflow.py": "72010397d5b091cb1a01c47e3e63a5c4b88b49a90c2b370ea3e42f2bc8f122f5",
+    "src/vibrapilot/browser_capabilities.py": "8f256cbde7c1674c297547d0b2bf91a8a5641d4d28598833428ada828b76d4df",
+    "src/vibrapilot/task_runtime_store.py": "b4b581c936479a6a3f334170c033bae53f1d216e562cc1aff8b3e54e728dcf26",
+    "src/vibrapilot/workspace_state.py": "7b4af52a304b449504ed1a8b7333ed4738fac08a49cf431acb60e57936219ccd",
+    ".github/workflows/ci.yml": "a722955f9860315f77abdeb8b75cd1bfc269db24e8d46d437dd678917ba258a3"
+  },
+  "required_commit_message": "feat(workflows): add trusted plugin loading and dynamic workflow controls",
+  "delivery_mode": "replace_ready_delta_zip_only",
+  "github_write_by_assistant": false,
+  "planning_approval_status": "APPROVED",
+  "approved_new_setting_keys": [
+    "export_path",
+    "saved_logs_path"
+  ],
+  "approved_settings_default_changes": {
+    "default_target_url": {
+      "from": "https://dashboard.razorpay.com/app/paymentpages/",
+      "to": ""
+    }
+  },
+  "post_apply_regression_repairs": [
+    {
+      "primary_error_id": "V10630-QT-TASKSLOT-FAKEAPP-COMPAT-001",
+      "cycle": 1,
+      "status": "PASS",
+      "root_cause": "TaskSlotWidget v1.0.6.30 initialization required MainWindow-only active_workflow_id/workflow catalog attributes, breaking the frozen lightweight Qt lifecycle-test host contract.",
+      "fix": "Use attribute-safe workflow defaults only when the host does not expose the workflow catalog/state store; production MainWindow continues to use the full workflow schema/state path.",
+      "changed_files": [
+        "src/vibrapilot/qt_app.py",
+        "tests/test_v10630_workflow_task_ui.py"
+      ],
+      "scope_amendment_required": false
+    }
+  ]
+}

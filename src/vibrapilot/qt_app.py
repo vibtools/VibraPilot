@@ -27,7 +27,10 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
+    QFormLayout,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -112,7 +115,7 @@ from .data_io import (
     parse_data,
     parse_data_with_audit,
 )
-from .task_runtime_store import TaskRuntimeStore
+from .task_runtime_store import TaskRuntimeStore, file_sha256
 from .workflow_inputs import (
     WORKFLOW_INPUT_FIELDS,
     WORKFLOW_INPUT_KEYS,
@@ -126,15 +129,29 @@ from .workflow.input_state import WorkflowInputStateError, WorkflowInputStateSto
 from .workspace_state import WorkspaceStateStore
 from .workflow import (
     WorkflowError,
+    WorkflowFieldSchema,
+    WorkflowFormSchema,
     WorkflowManager,
+    WorkflowPluginError,
     WorkflowRecoveryBlockedError,
     WorkflowRecoveryError,
     WorkflowRecoveryTransaction,
+    WorkflowSchemaError,
+    WorkflowSettingsStateError,
+    WorkflowSettingsStateStore,
     WorkflowStateError,
     WorkflowSwitchBlockedError,
     WorkflowSwitchError,
     WorkflowStateStore,
     WorkflowSwitchTransaction,
+    WorkflowTaskSchema,
+    WorkflowTaskStateError,
+    WorkflowTaskStateStore,
+    default_workflow_plugin_root,
+    inspect_workflow_package,
+    install_workflow_package,
+    normalize_form_values,
+    normalize_task_values,
 )
 from .browser_capabilities import (
     ensure_task_download_directory,
@@ -143,7 +160,7 @@ from .browser_capabilities import (
 )
 
 
-NAV_SECTIONS = ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]
+NAV_SECTIONS = ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Workflow Settings", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]
 VIEW_NAV_SHORTCUTS = {
     "Dashboard": "Ctrl+1",
     "Tasks": "Ctrl+2",
@@ -187,6 +204,73 @@ def brand_icon_label(size: int, accessible_name: str | None = None) -> QLabel:
     else:
         widget.setText(APP.short_name)
     return widget
+
+
+class WorkflowPathField(QWidget):
+    """Compact file/directory editor used only by declarative workflow schemas."""
+
+    def __init__(self, kind: str, value: str = "", parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.kind = str(kind)
+        lay = hbox(self, margins=(0, 0, 0, 0), spacing=6)
+        self.edit = line_input("", str(value or ""))
+        lay.addWidget(self.edit, 1)
+        browse = button("Browse", "secondary", "folder" if self.kind == "directory" else "open")
+        browse.clicked.connect(self._browse)
+        lay.addWidget(browse)
+
+    def _browse(self) -> None:
+        if self.kind == "directory":
+            path = QFileDialog.getExistingDirectory(self, "Select Directory", self.edit.text())
+        else:
+            path, _ = QFileDialog.getOpenFileName(self, "Select File", self.edit.text())
+        if path:
+            self.edit.setText(path)
+
+    def value(self) -> str:
+        return self.edit.text()
+
+
+def workflow_field_widget(field: WorkflowFieldSchema, value: Any) -> QWidget:
+    """Create one safe Core-owned widget from declarative workflow metadata."""
+    if field.kind in {"text", "url", "date", "decimal"}:
+        widget = line_input(field.placeholder, str(value or ""))
+    elif field.kind == "multiline":
+        widget = text_area(field.placeholder, str(value or ""))
+        widget.setMinimumHeight(90)
+    elif field.kind == "integer":
+        low = field.minimum if field.minimum is not None else -2147483648
+        high = field.maximum if field.maximum is not None else 2147483647
+        widget = number_input(int(value), low=low, high=high)
+    elif field.kind == "boolean":
+        widget = ToggleSwitch()
+        widget.setChecked(bool(value))
+    elif field.kind == "choice":
+        current = field.choices.index(str(value)) if str(value) in field.choices else 0
+        widget = combo_box(field.choices, current=current)
+    elif field.kind in {"file", "directory"}:
+        widget = WorkflowPathField(field.kind, str(value or ""))
+    else:
+        raise WorkflowSchemaError(f"Unsupported workflow field kind: {field.kind!r}")
+    if field.help_text:
+        widget.setToolTip(field.help_text)
+    return widget
+
+
+def workflow_field_widget_value(field: WorkflowFieldSchema, widget: QWidget) -> Any:
+    if field.kind in {"text", "url", "date", "decimal"} and isinstance(widget, QLineEdit):
+        return widget.text()
+    if field.kind == "multiline" and isinstance(widget, QTextEdit):
+        return widget.toPlainText()
+    if field.kind == "integer" and isinstance(widget, QSpinBox):
+        return widget.value()
+    if field.kind == "boolean" and isinstance(widget, QCheckBox):
+        return widget.isChecked()
+    if field.kind == "choice" and isinstance(widget, QComboBox):
+        return widget.currentText()
+    if field.kind in {"file", "directory"} and isinstance(widget, WorkflowPathField):
+        return widget.value()
+    raise WorkflowSchemaError(f"Workflow widget does not match schema field: {field.key}.")
 
 
 BROWSER_SETTING_GROUPS: dict[str, list[str]] = {'Browser Engine & Binary': ['browser_slot_default',
@@ -248,7 +332,7 @@ BROWSER_SETTING_GROUPS: dict[str, list[str]] = {'Browser Engine & Binary': ['bro
                  'permission_camera',
                  'permission_microphone',
                  'permission_geolocation'],
- 'Downloads': ['accept_downloads', 'downloads_path'],
+ 'Downloads': ['accept_downloads'],
  'Navigation & DOM': ['page_navigation_timeout',
                       'navigation_wait_until',
                       'wait_for_network_idle',
@@ -831,12 +915,52 @@ class TaskSlotWidget(QFrame):
         self.worker: AutomationWorker | None = None
         self.browser_lifecycle_state = "Closed"
         self.browser_action_button: QPushButton | None = None
-        self.state = TaskState(
-            slot_id=slot_id,
-            target_url=str(app.settings.get("default_target_url", DEFAULT_SETTINGS["default_target_url"])),
+        # Preserve the baseline TaskSlotWidget constructor contract for lightweight
+        # Qt hosts/tests that provide only Settings + workspace-save callbacks.
+        # Production MainWindow always supplies the workflow catalog/state store,
+        # while compatibility hosts fall back to an inert Share Invite task schema.
+        self.workflow_id = str(getattr(app, "active_workflow_id", "") or "share_invite")
+        workflow_catalog = getattr(app, "workflow_catalog", None)
+        workflow_task_state_store = getattr(app, "workflow_task_state_store", None)
+        if workflow_catalog is None or workflow_task_state_store is None:
+            self.task_schema = WorkflowTaskSchema(
+                workflow_id=self.workflow_id,
+                title="Task Settings",
+            )
+            task_entry = {"values": {}, "metrics": {}, "payloads": [], "step": ""}
+        else:
+            try:
+                self.task_schema = workflow_catalog.task_schema(self.workflow_id)
+                task_entry = workflow_task_state_store.entry_for(
+                    self.workflow_id, slot_id, self.task_schema
+                )
+            except Exception as exc:
+                setattr(app, "workflow_task_state_error", str(exc))
+                self.task_schema = WorkflowTaskSchema(
+                    workflow_id=self.workflow_id,
+                    title="Task Settings Unavailable",
+                )
+                task_entry = {"values": {}, "metrics": {}, "payloads": [], "step": ""}
+        self.workflow_task_values: dict[str, Any] = dict(task_entry.get("values", {}))
+        self.workflow_metrics: dict[str, Any] = dict(task_entry.get("metrics", {}))
+        self.workflow_item_payloads: list[dict[str, Any]] = [
+            dict(item) for item in task_entry.get("payloads", []) if isinstance(item, dict)
+        ]
+        self.workflow_step = str(task_entry.get("step", "") or "")
+        target_field = self.task_schema.role_field("target_url")
+        target_url = (
+            str(self.workflow_task_values.get(target_field.key, ""))
+            if target_field is not None
+            else ""
         )
+        self.state = TaskState(slot_id=slot_id, target_url=target_url)
         self.loaded_path: Path | None = None
         self.import_audit = None
+        self.task_settings_button: QPushButton | None = None
+        self.core_status_value: QLabel | None = None
+        self.workflow_step_value: QLabel | None = None
+        self.metric_source_labels: dict[str, QLabel] = {}
+        self.workflow_metric_labels: dict[str, QLabel] = {}
         # Task-page-only responsive spacing state.  The values are derived from
         # the containing Tasks viewport so the approved percentage contract
         # scales with the application window without touching task behavior.
@@ -887,6 +1011,7 @@ class TaskSlotWidget(QFrame):
             }
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskOpenBrowserButton,
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskDownloadsButton,
+            QFrame[vibTaskCard="compact-v1"] QPushButton#TaskSettingsButton,
             QFrame[vibTaskCard="compact-v1"] QPushButton#TaskCloseButton {
                 min-height: 26px; max-height: 26px; border-radius: 6px;
                 padding: 0 8px; font-size: 11px;
@@ -962,15 +1087,12 @@ class TaskSlotWidget(QFrame):
             """
 
     def _build(self) -> None:
-        # Scope-locked Tasks-page density/clarity repair. Every existing action,
-        # metric and backend binding is preserved; only presentation is changed.
+        """Build the compact Core-owned Task card from the active workflow schema."""
         self.setProperty("vibTaskCard", "compact-v1")
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-        # Fixed-pixel compact layout: no viewport-percentage padding or gaps.
         root = vbox(self, margins=(12, 12, 12, 12), spacing=8)
         self._task_root_layout = root
 
-        # Row 1: task identity + three clearly separated toolbar groups.
         top_section = QWidget()
         top_lay = vbox(top_section, margins=(0, 0, 0, 0), spacing=6)
         self._task_top_layout = top_lay
@@ -980,12 +1102,16 @@ class TaskSlotWidget(QFrame):
         text_col = QWidget()
         text_lay = vbox(text_col, spacing=2)
         text_lay.addWidget(title(f"Task {self.slot_id}", "CardTitle"))
-        self.subtitle = elide_label("Independent authenticated Test Mode browser slot", "Caption")
+        workflow_catalog = getattr(self.app, "workflow_catalog", None)
+        if workflow_catalog is None:
+            workflow_name = self.workflow_id.replace("_", " ").title()
+        else:
+            workflow_name = workflow_catalog.require_workflow(self.workflow_id).name
+        self.subtitle = elide_label(f"Workflow: {workflow_name}", "Caption")
         self.subtitle.setObjectName("TaskSubtitle")
         text_lay.addWidget(self.subtitle)
         header_lay.addWidget(text_col, 1)
 
-        # Group 1: automation controls.
         control_group = QWidget()
         control_lay = hbox(control_group, margins=(0, 0, 0, 0), spacing=4)
         self.start_btn = button("Start", "primary")
@@ -996,7 +1122,6 @@ class TaskSlotWidget(QFrame):
         self.pause_btn.setObjectName("TaskPauseButton")
         self.pause_btn.setFixedHeight(26)
         self.pause_btn.clicked.connect(self.pause)
-        # Resume remains present because it is an existing v1.0.6 feature.
         self.resume_btn = button("Resume", "secondary")
         self.resume_btn.setObjectName("TaskResumeButton")
         self.resume_btn.setFixedHeight(26)
@@ -1014,7 +1139,6 @@ class TaskSlotWidget(QFrame):
         separator_one.setFixedSize(1, 22)
         header_lay.addWidget(separator_one)
 
-        # Group 2: non-clickable browser status pill with an 8px state dot.
         browser_status_pill = QFrame()
         browser_status_pill.setObjectName("TaskBrowserStatusPill")
         browser_status_lay = hbox(browser_status_pill, margins=(0, 0, 0, 0), spacing=6)
@@ -1034,7 +1158,6 @@ class TaskSlotWidget(QFrame):
         separator_two.setFixedSize(1, 22)
         header_lay.addWidget(separator_two)
 
-        # Group 3: browser/window actions.
         action_group = QWidget()
         action_lay = hbox(action_group, margins=(0, 0, 0, 0), spacing=6)
         self.browser_action_button = button("Open Browser", "primary")
@@ -1042,6 +1165,11 @@ class TaskSlotWidget(QFrame):
         self.browser_action_button.setFixedHeight(26)
         self.browser_action_button.clicked.connect(self.browser_action)
         action_lay.addWidget(self.browser_action_button)
+        self.task_settings_button = button("Settings", "secondary", "settings")
+        self.task_settings_button.setObjectName("TaskSettingsButton")
+        self.task_settings_button.setFixedHeight(26)
+        self.task_settings_button.clicked.connect(self.open_task_settings)
+        action_lay.addWidget(self.task_settings_button)
         downloads_btn = button("Downloads", "secondary", "folder")
         downloads_btn.setObjectName("TaskDownloadsButton")
         downloads_btn.setFixedHeight(26)
@@ -1055,8 +1183,6 @@ class TaskSlotWidget(QFrame):
         header_lay.addWidget(action_group)
         top_lay.addWidget(header)
 
-        # Existing progress feature is preserved inside the top section so it
-        # does not create a fourth visual row or break the 14px row spacing.
         self.progress = QProgressBar()
         self.progress.setObjectName("TaskProgress")
         self.progress.setRange(0, 1000)
@@ -1071,74 +1197,88 @@ class TaskSlotWidget(QFrame):
         top_lay.addWidget(progress_holder)
         root.addWidget(top_section)
 
-        # Row 2: fixed-pixel compact Target URL + upload/data status.
+        # Preserve the historical URL/data widgets and state bindings, but move
+        # their user-facing controls behind the workflow-driven Settings dialog.
         target_row = QWidget()
         target_lay = hbox(target_row, margins=(0, 0, 0, 0), spacing=8)
         self._task_target_layout = target_lay
-        target_label = label("Target URL", "FormLabel", False)
-        target_label.setFixedWidth(72)
-        target_lay.addWidget(target_label)
-
         self.url = line_input("https://…", self.state.target_url)
         self.url.setObjectName("TaskUrlInput")
-        self.url.setMinimumHeight(28)
-        self.url.setMaximumHeight(28)
         self.url.editingFinished.connect(self.app.schedule_workspace_save)
         target_lay.addWidget(self.url, 3)
-
-        data_cluster = QWidget()
-        data_lay = hbox(data_cluster, margins=(0, 0, 0, 0), spacing=8)
         load_btn = button("Upload Email/Data", "secondary", "open")
         load_btn.setObjectName("TaskUploadButton")
-        load_btn.setMinimumHeight(28)
-        load_btn.setMaximumHeight(28)
         self._task_upload_button = load_btn
         load_btn.clicked.connect(self.load_data)
-        data_lay.addWidget(load_btn, 2)
+        target_lay.addWidget(load_btn)
         self.path_label = elide_label("No data", "TaskDataBadge")
-        self.path_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
-        self.path_label.setMinimumHeight(22)
-        self.path_label.setMaximumHeight(22)
-        data_lay.addWidget(self.path_label, 1)
-        target_lay.addWidget(data_cluster, 1)
+        target_lay.addWidget(self.path_label)
+        target_row.hide()
         root.addWidget(target_row)
 
-        # Row 3: one-line, seven-column compact metrics strip.
+        status_row = QWidget()
+        status_lay = hbox(status_row, margins=(0, 0, 0, 0), spacing=14)
+        status_lay.addWidget(label("Status", "FormLabel", False))
+        self.core_status_value = elide_label("Ready", "TaskMetricValue")
+        status_lay.addWidget(self.core_status_value, 1)
+        status_lay.addWidget(label("Step", "FormLabel", False))
+        self.workflow_step_value = elide_label(self.workflow_step or "—", "TaskMetricValue")
+        status_lay.addWidget(self.workflow_step_value, 2)
+        root.addWidget(status_row)
+
         metrics = QWidget()
         grid = QGridLayout(metrics)
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setHorizontalSpacing(4)
         grid.setVerticalSpacing(0)
         self._task_metrics_grid = grid
-        self.metric_labels: dict[str, QLabel] = {}
-        names = ["Status", "Login", "Send Limit", "Total", "Success", "Failed", "Remaining"]
-        defaults = [
-            "Ready",
-            "Not Verified",
-            f"0/{safe_test_send_limit(self.app.settings.get('max_test_send_limit', DEFAULT_TEST_SEND_LIMIT))}",
-            "0", "0", "0", "0",
-        ]
-        for i, (name, value) in enumerate(zip(names, defaults)):
+        self.metric_labels: dict[str, QLabel] = {"Status": self.core_status_value}
+        self.metric_source_labels.clear()
+        self.workflow_metric_labels.clear()
+        legacy_name_by_source = {
+            "core_login": "Login", "core_send_limit": "Send Limit",
+            "core_total": "Total", "core_success": "Success",
+            "core_failed": "Failed", "core_remaining": "Remaining",
+        }
+        defaults_by_source = {
+            "core_login": "Not Verified",
+            "core_send_limit": f"0/{safe_test_send_limit(self.app.settings.get('max_test_send_limit', DEFAULT_TEST_SEND_LIMIT))}",
+            "core_total": "0", "core_success": "0", "core_failed": "0", "core_remaining": "0",
+        }
+        visible_metrics = [metric for metric in self.task_schema.metrics if metric.visible]
+        for i, metric_schema in enumerate(visible_metrics):
             metric = QFrame()
             metric.setObjectName("TaskMetric")
             metric.setFixedHeight(32)
             metric.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             metric_lay = vbox(metric, margins=(8, 2, 8, 2), spacing=0)
             self._task_metric_layouts.append(metric_lay)
-            visible_metric_name = "Send Attempts / Limit" if name == "Send Limit" else name
+            visible_metric_name = (
+                "Send Attempts / Limit" if metric_schema.source == "core_send_limit"
+                else metric_schema.label
+            )
             metric_lay.addWidget(elide_label(visible_metric_name, "TaskMetricLabel"))
             value_object = (
-                "TaskMetricValueSuccess" if name == "Success"
-                else "TaskMetricValueFailed" if name == "Failed"
+                "TaskMetricValueSuccess" if metric_schema.source == "core_success"
+                else "TaskMetricValueFailed" if metric_schema.source == "core_failed"
                 else "TaskMetricValue"
             )
-            value_label = elide_label(value, value_object)
-            self.metric_labels[name] = value_label
+            if metric_schema.source == "workflow":
+                value = self.workflow_metrics.get(metric_schema.key, "—")
+            else:
+                value = defaults_by_source.get(metric_schema.source, "—")
+            value_label = elide_label(str(value), value_object)
             metric_lay.addWidget(value_label)
+            if metric_schema.source == "workflow":
+                self.workflow_metric_labels[metric_schema.key] = value_label
+            else:
+                self.metric_source_labels[metric_schema.source] = value_label
+                legacy_name = legacy_name_by_source.get(metric_schema.source)
+                if legacy_name:
+                    self.metric_labels[legacy_name] = value_label
             grid.addWidget(metric, 0, i)
             grid.setColumnStretch(i, 1)
         root.addWidget(metrics)
-
     def _task_viewport_dimensions(self) -> tuple[int, int]:
         """Return the current Tasks viewport size for resize invalidation only."""
         parent = self.parentWidget()
@@ -1190,11 +1330,49 @@ class TaskSlotWidget(QFrame):
         self._apply_task_spacing_contract()
 
     def _set_metric(self, name: str, value: Any) -> None:
-        w = self.metric_labels.get(name)
+        if name == "Status" and self.core_status_value is not None:
+            self.core_status_value.setText(str(value))
+            self.core_status_value.setToolTip(str(value))
+            return
+        source_by_name = {
+            "Login": "core_login", "Send Limit": "core_send_limit",
+            "Total": "core_total", "Success": "core_success",
+            "Failed": "core_failed", "Remaining": "core_remaining",
+        }
+        w = self.metric_source_labels.get(source_by_name.get(name, "")) or self.metric_labels.get(name)
         if w:
             w.setText(str(value))
             w.setToolTip(str(value))
 
+    def set_workflow_step(self, step: str) -> None:
+        self.workflow_step = str(step or "")
+        if self.workflow_step_value is not None:
+            self.workflow_step_value.setText(self.workflow_step or "—")
+            self.workflow_step_value.setToolTip(self.workflow_step)
+        try:
+            self.app.workflow_task_state_store.update_runtime(
+                self.workflow_id, self.slot_id, step=self.workflow_step
+            )
+        except Exception as exc:
+            self.app.log_ui(f"Task {self.slot_id}: workflow step could not be persisted: {exc}", "WARNING")
+        self.app.update_dashboard()
+
+    def set_workflow_metric(self, key: str, value: Any) -> None:
+        metric_key = str(key).strip()
+        if not metric_key:
+            return
+        self.workflow_metrics[metric_key] = value
+        widget = self.workflow_metric_labels.get(metric_key)
+        if widget is not None:
+            widget.setText(str(value))
+            widget.setToolTip(str(value))
+        try:
+            self.app.workflow_task_state_store.update_runtime(
+                self.workflow_id, self.slot_id, metric_key=metric_key, metric_value=value
+            )
+        except Exception as exc:
+            self.app.log_ui(f"Task {self.slot_id}: workflow metric could not be persisted: {exc}", "WARNING")
+        self.app.update_dashboard()
     def _render_browser_status(self, status: str) -> None:
         """Render one deterministic browser lifecycle state and matching action."""
         normalized = str(status).strip().title()
@@ -1241,6 +1419,69 @@ class TaskSlotWidget(QFrame):
         self.close_browser(wait=False)
         self.app.update_dashboard()
 
+    def open_task_settings(self) -> None:
+        """Edit Core-rendered per-Task workflow values without plugin-owned Qt code."""
+        if self.worker and self.worker.is_alive():
+            _message(self, "Browser open", "Close this Task browser before changing Task Settings so the worker keeps one immutable configuration snapshot.", "warning")
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Task {self.slot_id} — {self.task_schema.title}")
+        dialog.setMinimumWidth(560)
+        root = vbox(dialog, margins=(16, 16, 16, 16), spacing=12)
+        widgets: dict[str, QWidget] = {}
+        form = QFormLayout()
+        form.setHorizontalSpacing(14)
+        form.setVerticalSpacing(10)
+        for field in self.task_schema.fields:
+            current = self.workflow_task_values.get(field.key, field.default)
+            widget = workflow_field_widget(field, current)
+            widgets[field.key] = widget
+            form.addRow(field.label, widget)
+        if self.task_schema.fields:
+            root.addLayout(form)
+        else:
+            root.addWidget(label("This workflow has no per-Task settings.", "Description", False))
+        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        root.addWidget(buttons)
+        buttons.rejected.connect(dialog.reject)
+
+        def save_and_accept() -> None:
+            try:
+                raw = {
+                    field.key: workflow_field_widget_value(field, widgets[field.key])
+                    for field in self.task_schema.fields
+                }
+                values = normalize_task_values(self.task_schema, raw, coerce=True, fill_defaults=True)
+                for field in self.task_schema.fields:
+                    text = str(values.get(field.key, "") or "").strip()
+                    if field.kind == "file" and text and not Path(text).expanduser().is_file():
+                        raise WorkflowTaskStateError(f"{field.label} file does not exist: {text}")
+                    if field.kind == "directory" and text and not Path(text).expanduser().is_dir():
+                        raise WorkflowTaskStateError(f"{field.label} directory does not exist: {text}")
+                data_field = self.task_schema.role_field("data_file")
+                previous_data = str(self.workflow_task_values.get(data_field.key, "")) if data_field else ""
+                saved = self.app.workflow_task_state_store.save_task_values(
+                    self.workflow_id, self.slot_id, self.task_schema, values,
+                    coerce=False, payloads=self.workflow_item_payloads,
+                )
+                self.workflow_task_values = dict(saved["values"])
+                target_field = self.task_schema.role_field("target_url")
+                if target_field is not None:
+                    target = str(self.workflow_task_values.get(target_field.key, "")).strip()
+                    self.url.setText(target)
+                    self.state.target_url = target
+                if data_field is not None:
+                    data_path = str(self.workflow_task_values.get(data_field.key, "")).strip()
+                    if data_path and data_path != previous_data:
+                        self._load_data_path(Path(data_path))
+                self.app.schedule_workspace_save()
+                dialog.accept()
+            except Exception as exc:
+                _message(dialog, "Task Settings", str(exc), "warning")
+
+        buttons.accepted.connect(save_and_accept)
+        dialog.exec()
+
     def open_downloads_folder(self) -> None:
         """Open this Task's effective durable download directory."""
         try:
@@ -1264,9 +1505,10 @@ class TaskSlotWidget(QFrame):
             )
 
     def open_browser(self) -> None:
-        url = self.url.text().strip()
-        if not url.startswith(("http://", "https://")):
-            _message(self, "Invalid URL", "Please enter a valid http/https Target URL before opening the browser.", "warning")
+        target_field = self.task_schema.role_field("target_url")
+        url = self.url.text().strip() if target_field is not None else "about:blank"
+        if target_field is not None and not url.startswith(("http://", "https://")):
+            _message(self, "Invalid URL", "Configure a valid http/https Target URL in Task Settings before opening the browser.", "warning")
             return
         if self.worker and self.worker.is_alive():
             self.worker.request_focus()
@@ -1282,6 +1524,7 @@ class TaskSlotWidget(QFrame):
         self._render_browser_status("Opening")
         self._set_metric("Login", "Not Verified")
         self._set_metric("Status", "Opening Browser")
+        self.state.target_url = "" if url == "about:blank" else url
         self.worker = AutomationWorker(
             self.state,
             dict(self.app.settings.data),
@@ -1292,72 +1535,112 @@ class TaskSlotWidget(QFrame):
             runtime_store=self.app.runtime_store,
             active_workflow_id=self.app.active_workflow_id,
             workflow_input_values=self.app.current_workflow_input_snapshot(),
+            workflow_settings_values=self.app.current_workflow_settings_snapshot(),
+            workflow_task_values=dict(self.workflow_task_values),
+            workflow_item_payloads=(
+                list(self.workflow_item_payloads)
+                if self.workflow_item_payloads
+                else ([dict(self.workflow_task_values)] if self.task_schema.single_item else [])
+            ),
+            workflow_manager=self.app.workflow_catalog.for_active_workflow(self.app.active_workflow_id),
         )
         self.worker.start()
-        self.app.log_ui(f"Task {self.slot_id}: opening browser session")
-
+        self.app.log_ui(f"Task {self.slot_id}: opening browser session for workflow {self.workflow_id}")
     def load_data(self) -> None:
         if self.worker and self.worker.is_processing():
             _message(self, "Task running", "Stop the running task before loading new data.", "warning")
             return
-        filename, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select TXT/CSV data",
-            "",
-            "Data files (*.txt *.csv *.xlsx *.xls);;All files (*.*)",
-        )
+        data_field = self.task_schema.role_field("data_file")
+        if data_field is None:
+            _message(self, "Task data", "This workflow does not define a Task data file.", "warning")
+            return
+        filename, _ = QFileDialog.getOpenFileName(self, "Select Task data", "", "All files (*.*)")
         if not filename:
             return
+        values = dict(self.workflow_task_values)
+        values[data_field.key] = filename
         try:
-            path = Path(filename)
-            audit = parse_data_with_audit(
-                path,
-                remove_duplicates=bool(
-                    self.app.settings.get(
-                        "remove_duplicate_rows", DEFAULT_SETTINGS["remove_duplicate_rows"]
-                    )
-                ),
+            normalized = normalize_task_values(self.task_schema, values, coerce=True, fill_defaults=True)
+            saved = self.app.workflow_task_state_store.save_task_values(
+                self.workflow_id, self.slot_id, self.task_schema, normalized,
+                coerce=False, payloads=self.workflow_item_payloads,
             )
-            items = audit.items
-            self.state.items = items
-            self.state.current_index = 0
-            self.state.success_count = 0
-            self.state.failed_count = 0
-            self.state.manual_review_required = False
-            self.state.send_limit_used = 0
-            self.state.source_file = str(path)
-            self.state.source_fingerprint = audit.source_fingerprint
-            self.state.status = (
-                "Login Verified"
-                if self.is_login_verified()
-                else ("Login Required" if self.is_browser_open() else "Ready")
-            )
-            self.state.created_at = now_str()
-            self.state.run_id = self.app.runtime_store.start_run(
-                slot_id=self.slot_id,
-                target_url=self.url.text().strip(),
-                source_file=str(path),
-                source_fingerprint=audit.source_fingerprint,
-                items=items,
-                created_at=self.state.created_at,
-            )
-            self.loaded_path = path
-            self.import_audit = audit
-            self.path_label.setText(f"Loaded ({audit.accepted_rows})")
-            reconciliation = (
-                f"{path.name} • Source {audit.source_rows} • Valid {audit.valid_rows} • "
-                f"Invalid {audit.invalid_rows} • Duplicate rows {audit.duplicate_rows} • "
-                f"Accepted {audit.accepted_rows}"
-            )
-            self.path_label.setToolTip(reconciliation)
-            self._set_metric("Status", self.state.status)
-            self.update_counts()
-            self.app.log_ui(f"Task {self.slot_id}: {reconciliation}")
-            self.app.schedule_workspace_save()
+            self.workflow_task_values = dict(saved["values"])
+            self._load_data_path(Path(filename))
         except Exception as exc:
             logging.exception("Data load failed")
             _message(self, "Data load failed", str(exc), "error")
 
+    def _load_data_path(self, path: Path) -> None:
+        path = Path(path).expanduser().resolve()
+        if not path.is_file():
+            raise ValueError(f"Task data file does not exist: {path}")
+        if self.workflow_id == "share_invite":
+            audit = parse_data_with_audit(
+                path,
+                remove_duplicates=bool(self.app.settings.get("remove_duplicate_rows", DEFAULT_SETTINGS["remove_duplicate_rows"])),
+            )
+            items = audit.items
+            payloads = [{"email": item.email, "name": item.name} for item in items]
+            fingerprint = audit.source_fingerprint
+            reconciliation = (
+                f"{path.name} • Source {audit.source_rows} • Valid {audit.valid_rows} • "
+                f"Invalid {audit.invalid_rows} • Duplicate rows {audit.duplicate_rows} • Accepted {audit.accepted_rows}"
+            )
+            self.import_audit = audit
+        else:
+            rows = self.app.workflow_catalog.load_task_items(
+                self.workflow_id, path, self.workflow_task_values
+            )
+            if rows is None:
+                raise ValueError(
+                    f"Workflow {self.workflow_id} defines a data file but does not provide load_task_items()."
+                )
+            if not rows:
+                raise ValueError("Workflow data loader returned no Task items.")
+            payloads = [dict(row) for row in rows]
+            items = [
+                TaskItem(email=str(row.get("email", "")), name=str(row.get("name", "")))
+                for row in rows
+            ]
+            fingerprint = file_sha256(path)
+            reconciliation = f"{path.name} • Loaded {len(items)} workflow item(s)"
+            self.import_audit = None
+
+        self.state.items = items
+        self.workflow_item_payloads = payloads
+        self.state.current_index = 0
+        self.state.success_count = 0
+        self.state.failed_count = 0
+        self.state.manual_review_required = False
+        self.state.send_limit_used = 0
+        self.state.source_file = str(path)
+        self.state.source_fingerprint = fingerprint
+        self.state.status = (
+            "Login Verified" if self.is_login_verified()
+            else ("Login Required" if self.is_browser_open() and self.task_schema.requires_session else "Ready")
+        )
+        self.state.created_at = now_str()
+        self.state.run_id = self.app.runtime_store.start_run(
+            slot_id=self.slot_id,
+            target_url=self.url.text().strip(),
+            source_file=str(path),
+            source_fingerprint=fingerprint,
+            items=items,
+            created_at=self.state.created_at,
+        )
+        self.loaded_path = path
+        self.path_label.setText(f"Loaded ({len(items)})")
+        self.path_label.setToolTip(reconciliation)
+        saved = self.app.workflow_task_state_store.save_task_values(
+            self.workflow_id, self.slot_id, self.task_schema, self.workflow_task_values,
+            coerce=False, payloads=payloads,
+        )
+        self.workflow_task_values = dict(saved["values"])
+        self._set_metric("Status", self.state.status)
+        self.update_counts()
+        self.app.log_ui(f"Task {self.slot_id}: {reconciliation}")
+        self.app.schedule_workspace_save()
     def restore_runtime(
         self, run: dict[str, Any], *, preserve_task_status: bool = False
     ) -> None:
@@ -1395,8 +1678,13 @@ class TaskSlotWidget(QFrame):
             self.state.status = prior_status
         else:
             self.state.status = "Recovered"
-        if self.state.target_url:
+        target_field = self.task_schema.role_field("target_url")
+        if target_field is not None and self.state.target_url:
             self.url.setText(self.state.target_url)
+            self.workflow_task_values[target_field.key] = self.state.target_url
+        data_field = self.task_schema.role_field("data_file")
+        if data_field is not None and self.state.source_file:
+            self.workflow_task_values[data_field.key] = self.state.source_file
         source = Path(self.state.source_file) if self.state.source_file else None
         self.loaded_path = source if source and source.exists() else None
         self.path_label.setText(f"Recovered ({self.state.total})")
@@ -1404,6 +1692,14 @@ class TaskSlotWidget(QFrame):
             f"Recovered run {self.state.run_id} • Next index {self.state.current_index} • "
             f"Source {self.state.source_file or 'stored runtime data'}"
         )
+        try:
+            saved = self.app.workflow_task_state_store.save_task_values(
+                self.workflow_id, self.slot_id, self.task_schema, self.workflow_task_values,
+                coerce=False, payloads=self.workflow_item_payloads,
+            )
+            self.workflow_task_values = dict(saved["values"])
+        except Exception as exc:
+            self.app.log_ui(f"Task {self.slot_id}: restored workflow Task state could not be mirrored: {exc}", "WARNING")
         self._set_metric("Status", self.state.status)
         limit = safe_test_send_limit(
             self.app.settings.get("max_test_send_limit", DEFAULT_SETTINGS["max_test_send_limit"])
@@ -1418,58 +1714,65 @@ class TaskSlotWidget(QFrame):
         if self.worker and self.worker.is_processing():
             _message(self, "Already running", "This task is already processing.")
             return
+        data_field = self.task_schema.role_field("data_file")
+        if not self.state.items and self.task_schema.single_item:
+            self.state.items = [TaskItem(email="", name="")]
+            self.workflow_item_payloads = [dict(self.workflow_task_values)]
+            self.state.created_at = now_str()
+            if not self.state.run_id:
+                self.state.run_id = self.app.runtime_store.start_run(
+                    slot_id=self.slot_id,
+                    target_url=self.url.text().strip(),
+                    source_file="",
+                    source_fingerprint="",
+                    items=self.state.items,
+                    created_at=self.state.created_at,
+                )
         if not self.state.items:
-            _message(self, "No data", "Please upload a TXT/CSV/XLSX file first.", "warning")
+            message = "Configure and load the required data file in Task Settings first." if data_field else "This workflow has no Task items to process."
+            _message(self, "No data", message, "warning")
             return
-        url = self.url.text().strip()
-        if not url.startswith(("http://", "https://")):
-            _message(self, "Invalid URL", "Please enter a valid http/https Target URL.", "warning")
+        target_field = self.task_schema.role_field("target_url")
+        url = self.url.text().strip() if target_field is not None else ""
+        if target_field is not None and not url.startswith(("http://", "https://")):
+            _message(self, "Invalid URL", "Configure a valid http/https Target URL in Task Settings.", "warning")
             return
         if not bool(self.app.settings.get("authorized_testing_only", DEFAULT_SETTINGS["authorized_testing_only"])):
             _message(self, "Authorization required", "Enable authorized testing mode in App Settings before running automation.", "warning")
             return
         if not self.worker or not self.worker.is_alive() or not self.worker.is_browser_ready():
-            _message(
-                self,
-                "Browser not ready",
-                "Click Open Browser first, complete account login, and keep the Target URL open.",
-                "warning",
-            )
+            _message(self, "Browser not ready", "Click Open Browser first and prepare the browser session.", "warning")
             return
-        if not self.worker.is_login_verified():
+        if self.task_schema.requires_session and not self.worker.is_login_verified():
             self.worker.request_focus()
-            _message(
-                self,
-                "Login not verified",
-                "Complete login in the opened browser and open the Target URL in Test Mode. "
-                "Wait until this task shows Login Verified, then click Start.",
-                "warning",
-            )
+            if self.workflow_id == "share_invite":
+                message = (
+                    "Complete login in the opened browser and open the Target URL in Test Mode. "
+                    "Wait until this task shows Login Verified, then click Start."
+                )
+            else:
+                message = "Complete the workflow-required browser session, then wait for Login Verified and click Start."
+            _message(self, "Login not verified", message, "warning")
             return
-        try:
-            max_limit = validate_test_send_limit(
-                self.app.settings.get("max_test_send_limit", DEFAULT_SETTINGS["max_test_send_limit"])
-            )
-        except (TypeError, ValueError) as exc:
-            _message(self, "Invalid send limit", str(exc), "warning")
-            return
-        if max_limit == 0:
-            _message(
-                self,
-                "Sending disabled",
-                "Max Test Send Limit is set to 0. Increase it in App Settings before starting automation.",
-                "warning",
-            )
-            self._set_metric("Send Limit", "0/0")
-            return
-        self._set_metric("Send Limit", f"{self.state.send_limit_used}/{max_limit}")
+        if self.task_schema.uses_test_send_limit:
+            try:
+                max_limit = validate_test_send_limit(
+                    self.app.settings.get("max_test_send_limit", DEFAULT_SETTINGS["max_test_send_limit"])
+                )
+            except (TypeError, ValueError) as exc:
+                _message(self, "Invalid send limit", str(exc), "warning")
+                return
+            if max_limit == 0:
+                _message(self, "Sending disabled", "Max Test Send Limit is set to 0. Increase it in App Settings before starting automation.", "warning")
+                self._set_metric("Send Limit", "0/0")
+                return
+            self._set_metric("Send Limit", f"{self.state.send_limit_used}/{max_limit}")
         self.state.target_url = url
         self.stop_event.clear()
         self.pause_event.clear()
-        self.worker.request_start(dict(self.app.settings.data), url)
+        self.worker.request_start(dict(self.app.settings.data), url or "about:blank")
         self._set_metric("Status", "Starting")
-        self.app.log_ui(f"Task {self.slot_id}: Share invite workflow started")
-
+        self.app.log_ui(f"Task {self.slot_id}: workflow {self.workflow_id} started")
     def stop(self) -> None:
         if not self.worker or not self.worker.is_processing():
             self._set_metric(
@@ -1691,7 +1994,10 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         self.settings = SettingsManager(SETTINGS_FILE)
         super().__init__()
-        self.workflow_catalog = WorkflowManager.with_builtin_workflows()
+        self.workflow_plugin_root = default_workflow_plugin_root(APP_DATA_DIR)
+        self.workflow_catalog = WorkflowManager.with_available_workflows(
+            workflow_root=self.workflow_plugin_root
+        )
         self.workflow_state_store = WorkflowStateStore(
             APP_DATA_DIR / "workflow_state.json", manager=self.workflow_catalog
         )
@@ -1702,10 +2008,21 @@ class MainWindow(QMainWindow):
         self.workflow_runtime_error = ""
         self.active_workflow_id: str | None = None
         self.workflow_input_state_store = WorkflowInputStateStore(
-            APP_DATA_DIR / "workflow_inputs.json"
+            APP_DATA_DIR / "workflow_inputs.json",
+            schema_resolver=lambda workflow_id: self.workflow_catalog.input_schema(workflow_id),
+        )
+        self.workflow_settings_state_store = WorkflowSettingsStateStore(
+            APP_DATA_DIR / "workflow_settings.json",
+            schema_resolver=lambda workflow_id: self.workflow_catalog.settings_schema(workflow_id),
+        )
+        self.workflow_task_state_store = WorkflowTaskStateStore(
+            APP_DATA_DIR / "workflow_task_state.json"
         )
         self.workflow_input_state_error = ""
+        self.workflow_settings_state_error = ""
+        self.workflow_task_state_error = ""
         self.active_workflow_input_values: dict[str, Any] = {}
+        self.active_workflow_settings_values: dict[str, Any] = {}
         self._workflow_recovery_actions: list[str] = []
         self._workflow_switch_in_progress = False
         self._workflow_recovery_in_progress = False
@@ -1753,6 +2070,15 @@ class MainWindow(QMainWindow):
             except WorkflowInputStateError as exc:
                 self.workflow_input_state_error = str(exc)
                 self.active_workflow_input_values = {}
+            try:
+                self._initialize_workflow_settings_state()
+            except WorkflowSettingsStateError as exc:
+                self.workflow_settings_state_error = str(exc)
+                self.active_workflow_settings_values = {}
+            try:
+                self.workflow_task_state_store.load_or_create()
+            except WorkflowTaskStateError as exc:
+                self.workflow_task_state_error = str(exc)
             self._refresh_workflow_runtime_error()
 
         self.license_manager = LicenseManager(self.settings)
@@ -1772,11 +2098,18 @@ class MainWindow(QMainWindow):
         self.pages: dict[str, int] = {}
         self.setting_widgets: dict[str, QWidget] = {}
         self.workflow_input_widgets: dict[str, QWidget] = {}
-        self.workflow_input_fields: dict[str, WorkflowInputField] = {}
+        self.workflow_input_fields: dict[str, WorkflowFieldSchema] = {}
         self.workflow_input_form_layout: QVBoxLayout | None = None
+        self.workflow_input_selector: QComboBox | None = None
+        self.workflow_input_selected_id: str | None = self.active_workflow_id
         self.workflow_input_save_button: QPushButton | None = None
         self.workflow_input_reset_button: QPushButton | None = None
         self.workflow_input_recover_button: QPushButton | None = None
+        self.workflow_setting_widgets: dict[str, QWidget] = {}
+        self.workflow_setting_fields: dict[str, WorkflowFieldSchema] = {}
+        self.workflow_settings_form_layout: QVBoxLayout | None = None
+        self.workflow_settings_selector: QComboBox | None = None
+        self.workflow_settings_selected_id: str | None = self.active_workflow_id
         self.browser_setting_widgets: dict[str, QWidget] = {}
         self._workspace_active = False
         self._workspace_transitioning = False
@@ -1790,6 +2123,8 @@ class MainWindow(QMainWindow):
         self.dashboard_details: dict[str, QLabel] = {}
         self.dashboard_next_message: QLabel | None = None
         self.dashboard_next_button: QPushButton | None = None
+        self.dashboard_workflow_name: QLabel | None = None
+        self.dashboard_workflow_activity: QLabel | None = None
         self.dashboard_next_action: tuple[str, int | None] = ("tasks", None)
         self.task_layout = None
 
@@ -1869,6 +2204,8 @@ class MainWindow(QMainWindow):
         self.dashboard_details = {}
         self.dashboard_next_message = None
         self.dashboard_next_button = None
+        self.dashboard_workflow_name = None
+        self.dashboard_workflow_activity = None
         self.dashboard_next_action = ("tasks", None)
         self.task_layout = None
 
@@ -2334,6 +2671,7 @@ class MainWindow(QMainWindow):
             ("Tasks", self.make_tasks_page),
             ("Workflows", self.make_workflows_page),
             ("Workflow Inputs", self.make_workflow_inputs_page),
+            ("Workflow Settings", self.make_workflow_settings_page),
             ("Reports", self.make_reports_page),
             ("Live Logs", self.make_logs_page),
             ("App Settings", self.make_settings_page),
@@ -2369,7 +2707,19 @@ class MainWindow(QMainWindow):
         elif name == "Workflows":
             self.refresh_workflow_showcase()
         elif name == "Workflow Inputs":
+            if self.workflow_input_selector is not None:
+                self._populate_workflow_selector(
+                    self.workflow_input_selector,
+                    self.workflow_input_selected_id or self.active_workflow_id,
+                )
             self.refresh_workflow_input_widgets()
+        elif name == "Workflow Settings":
+            if self.workflow_settings_selector is not None:
+                self._populate_workflow_selector(
+                    self.workflow_settings_selector,
+                    self.workflow_settings_selected_id or self.active_workflow_id,
+                )
+            self.refresh_workflow_settings_widgets()
         elif name == "Browser Settings":
             # Always render the current persisted SettingsManager values when the
             # advanced page is opened; this prevents stale UI if a value changed
@@ -2511,6 +2861,15 @@ class MainWindow(QMainWindow):
         summary_grid.setColumnStretch(1, 1)
         content_lay.addWidget(summary_host)
 
+        workflow_card = card("Active Workflow")
+        workflow_lay = workflow_card.layout()
+        self.dashboard_workflow_name = label("", "CardTitle", False)
+        self.dashboard_workflow_activity = label("", "Description", False)
+        self.dashboard_workflow_activity.setWordWrap(True)
+        workflow_lay.addWidget(self.dashboard_workflow_name)
+        workflow_lay.addWidget(self.dashboard_workflow_activity)
+        content_lay.addWidget(workflow_card)
+
         next_card = card("Next Step")
         next_layout = next_card.layout()
         next_layout.setContentsMargins(12, 10, 12, 10)
@@ -2572,13 +2931,17 @@ class MainWindow(QMainWindow):
         return page
 
     def make_workflows_page(self) -> QWidget:
-        """Render the source-controlled built-in workflow catalog for PR-07."""
+        """Render built-in and trusted installed workflows with one active identity."""
         page = page_frame()
         root = vbox(page, margins=(0, 0, 0, 0), spacing=0)
+        load_btn = button("Load Workflow", "primary", "open")
+        load_btn.setObjectName("WorkflowLoadButton")
+        load_btn.clicked.connect(self.load_workflow_plugin)
         root.addWidget(
             page_header(
                 "Workflows",
-                "Source-controlled built-in workflows and the authoritative active workflow state.",
+                "Built-in and trusted local workflow plugins share the existing one-active-workflow control plane.",
+                [load_btn],
             )
         )
 
@@ -2613,14 +2976,81 @@ class MainWindow(QMainWindow):
         return page
 
     def _workflow_logo_path(self, manifest: Any) -> Path | None:
-        """Resolve one validated built-in logo without discovery or dynamic loading."""
-        workflow_root = (ROOT_DIR / "src" / "vibrapilot" / "workflow" / manifest.workflow_id).resolve()
-        candidate = (workflow_root / manifest.logo).resolve()
+        """Resolve one validated workflow logo through the unified catalog."""
         try:
-            candidate.relative_to(workflow_root)
-        except ValueError:
+            return self.workflow_catalog.workflow_asset_path(
+                manifest.workflow_id, manifest.logo
+            )
+        except WorkflowError:
             return None
-        return candidate if candidate.is_file() else None
+
+    def _reload_workflow_catalog(self) -> None:
+        """Reload validated installed plugins without mutating active Task workers."""
+        catalog = WorkflowManager.with_available_workflows(
+            workflow_root=self.workflow_plugin_root
+        )
+        self.workflow_catalog = catalog
+        self.workflow_state_store.manager = catalog
+        if self.workflow_input_selector is not None:
+            self._populate_workflow_selector(
+                self.workflow_input_selector,
+                self.workflow_input_selected_id or self.active_workflow_id,
+            )
+        if self.workflow_settings_selector is not None:
+            self._populate_workflow_selector(
+                self.workflow_settings_selector,
+                self.workflow_settings_selected_id or self.active_workflow_id,
+            )
+        self._refresh_workflow_runtime_error()
+
+    def load_workflow_plugin(self) -> None:
+        package, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load Workflow",
+            "",
+            "VibraPilot Workflow (*.vpworkflow *.zip);;All files (*.*)",
+        )
+        if not package:
+            return
+        try:
+            inspection = inspect_workflow_package(Path(package))
+        except Exception as exc:
+            _message(self, "Workflow package invalid", str(exc), "error")
+            return
+        manifest = inspection.manifest
+        if not _confirm(
+            self,
+            "Trust and install workflow",
+            f"Workflow: {manifest.name} ({manifest.workflow_id})\n"
+            f"Version: {manifest.version}\n\n"
+            "This package contains executable Python workflow.py code. It will run "
+            "in-process with VibraPilot's application permissions and is NOT sandboxed. "
+            "Install only code you created or explicitly trust. Continue?",
+        ):
+            return
+        try:
+            reserved = {
+                item.workflow_id
+                for item in WorkflowManager.with_builtin_workflows().list_workflows()
+            }
+            installed = install_workflow_package(
+                inspection,
+                self.workflow_plugin_root,
+                reserved_workflow_ids=reserved,
+            )
+            self._reload_workflow_catalog()
+            self.refresh_workflow_showcase()
+            self.log_ui(
+                f"Workflow plugin installed: {installed.manifest.workflow_id} "
+                f"({inspection.package_sha256[:12]}…)."
+            )
+            _message(
+                self,
+                "Workflow installed",
+                f"{installed.manifest.name} was validated and installed. It is available for configuration and activation.",
+            )
+        except Exception as exc:
+            _message(self, "Workflow install failed", str(exc), "error")
 
     def _workflow_card(self, manifest: Any, *, active_workflow_id: str | None, state_available: bool) -> QFrame:
         panel = card()
@@ -2671,6 +3101,13 @@ class MainWindow(QMainWindow):
         details_lay.addWidget(label(manifest.workflow_id, "Description"), 0, 1)
         details_lay.addWidget(label("Version", "Caption"), 1, 0)
         details_lay.addWidget(label(manifest.version, "Description"), 1, 1)
+        details_lay.addWidget(label("Source", "Caption"), 2, 0)
+        origin = self.workflow_catalog.workflow_origin(manifest.workflow_id)
+        details_lay.addWidget(
+            label("Built-in" if origin == "builtin" else "Installed Plugin", "Description"),
+            2,
+            1,
+        )
         details_lay.setColumnStretch(1, 1)
         lay.addWidget(details)
 
@@ -2682,9 +3119,14 @@ class MainWindow(QMainWindow):
         except WorkflowError:
             runtime_available = False
         try:
-            workflow_input_schema_for(manifest.workflow_id)
+            # Preserve the historical built-in schema preflight and extend it for plugins.
+            if self.workflow_catalog.workflow_origin(manifest.workflow_id) == "builtin":
+                workflow_input_schema_for(manifest.workflow_id)
+            self.workflow_catalog.input_schema(manifest.workflow_id)
+            self.workflow_catalog.settings_schema(manifest.workflow_id)
+            self.workflow_catalog.task_schema(manifest.workflow_id)
             schema_available = True
-        except WorkflowInputSchemaError:
+        except (WorkflowInputSchemaError, WorkflowError):
             schema_available = False
 
         recovery_blocker = self._workflow_recovery_block_reason()
@@ -2785,11 +3227,19 @@ class MainWindow(QMainWindow):
             else:
                 self.workflow_showcase_notice_title.setText("Workflow State Recovery Required")
                 self.workflow_showcase_notice_text.setText(
-                    "The persisted active workflow state is unavailable. Select Recover on a valid source-controlled "
+                    "The persisted active workflow state is unavailable. Select Recover on a valid installed "
                     "workflow card to perform an explicit destructive recovery.\n\n"
                     + (self.workflow_state_error or "No active workflow state is available.")
                 )
             self.workflow_showcase_notice.show()
+
+        for issue in self.workflow_catalog.plugin_issues:
+            issue_card = card(
+                "Workflow plugin unavailable",
+                f"{Path(issue.path).name}: {issue.message}",
+            )
+            issue_card.setObjectName("WorkflowPluginIssue")
+            self.workflow_showcase_layout.addWidget(issue_card)
 
         manifests = self.workflow_catalog.list_workflows()
         for manifest in manifests:
@@ -2801,7 +3251,7 @@ class MainWindow(QMainWindow):
                 )
             )
         if not manifests:
-            empty = card("No workflows available", "No source-controlled built-in workflows are registered.")
+            empty = card("No workflows available", "No validated workflows are registered.")
             empty.setObjectName("WorkflowEmptyState")
             self.workflow_showcase_layout.addWidget(empty)
         self.workflow_showcase_layout.addStretch(1)
@@ -3195,17 +3645,17 @@ class MainWindow(QMainWindow):
         self.active_workflow_input_values = dict(values)
         self.workflow_input_state_error = ""
 
-    def _reload_active_workflow_inputs(self) -> tuple[WorkflowInputSchema, dict[str, Any]]:
+    def _reload_active_workflow_inputs(self) -> tuple[WorkflowFormSchema, dict[str, Any]]:
         """Reload existing canonical state only; never re-run legacy migration."""
         if self.workflow_state_error or not self.active_workflow_id:
             raise WorkflowInputStateError("Active workflow state is unavailable.")
         try:
-            schema = workflow_input_schema_for(self.active_workflow_id)
+            schema = self.workflow_catalog.input_schema(self.active_workflow_id)
             state = self.workflow_input_state_store.load_existing()
             values = self.workflow_input_state_store.values_for(
                 self.active_workflow_id, state=state
             )
-        except (WorkflowInputSchemaError, WorkflowInputStateError) as exc:
+        except (WorkflowInputStateError, WorkflowError, WorkflowSchemaError) as exc:
             self.workflow_input_state_error = str(exc)
             self.active_workflow_input_values = {}
             raise WorkflowInputStateError(str(exc)) from exc
@@ -3216,14 +3666,33 @@ class MainWindow(QMainWindow):
         self.workflow_input_state_error = ""
         return schema, dict(values)
 
+    def _initialize_workflow_settings_state(self) -> None:
+        if not self.active_workflow_id:
+            raise WorkflowSettingsStateError("Active workflow ID is unavailable.")
+        state = self.workflow_settings_state_store.load_or_create()
+        self.active_workflow_settings_values = self.workflow_settings_state_store.values_for(
+            self.active_workflow_id, state=state
+        )
+        self.workflow_settings_state_error = ""
+
+    def current_workflow_settings_snapshot(self) -> dict[str, Any]:
+        if self.workflow_settings_state_error or not self.active_workflow_id:
+            raise WorkflowSettingsStateError(
+                "Active Workflow Settings are unavailable; worker creation is blocked."
+            )
+        return dict(self.active_workflow_settings_values)
+
     def _refresh_workflow_runtime_error(self) -> str:
-        """Preflight the active source-controlled runtime factory without instantiation."""
+        """Preflight active runtime and declarative schemas without instantiation."""
         if self.workflow_state_error or not self.active_workflow_id:
             self.workflow_runtime_error = ""
             return ""
         try:
             self.workflow_catalog.require_workflow(self.active_workflow_id)
             self.workflow_catalog.require_runtime_factory(self.active_workflow_id)
+            self.workflow_catalog.input_schema(self.active_workflow_id)
+            self.workflow_catalog.settings_schema(self.active_workflow_id)
+            self.workflow_catalog.task_schema(self.active_workflow_id)
         except WorkflowError as exc:
             self.workflow_runtime_error = str(exc)
             return self.workflow_runtime_error
@@ -3239,42 +3708,35 @@ class MainWindow(QMainWindow):
         return dict(self.active_workflow_input_values)
 
     def _workflow_input_widget(
-        self, field: WorkflowInputField, value: Any
+        self, field: WorkflowFieldSchema, value: Any
     ) -> QWidget:
-        if field.kind == "text":
-            widget = line_input(field.placeholder, str(value))
-        elif field.kind == "integer":
-            low = field.minimum if field.minimum is not None else -2147483648
-            high = field.maximum if field.maximum is not None else 2147483647
-            widget = number_input(int(value), low=low, high=high)
-        elif field.kind == "boolean":
-            widget = ToggleSwitch()
-            widget.setChecked(bool(value))
-        elif field.kind == "choice":
-            current = field.choices.index(str(value))
-            widget = combo_box(field.choices, current=current)
-        else:
-            raise WorkflowInputSchemaError(
-                f"Unsupported Workflow Input kind: {field.kind!r}"
-            )
-        if field.help_text:
-            widget.setToolTip(field.help_text)
-        return widget
+        return workflow_field_widget(field, value)
 
     def _workflow_input_widget_value(
-        self, field: WorkflowInputField, widget: QWidget
+        self, field: WorkflowFieldSchema, widget: QWidget
     ) -> Any:
-        if field.kind == "text" and isinstance(widget, QLineEdit):
-            return widget.text()
-        if field.kind == "integer" and isinstance(widget, QSpinBox):
-            return widget.value()
-        if field.kind == "boolean" and isinstance(widget, QCheckBox):
-            return widget.isChecked()
-        if field.kind == "choice" and isinstance(widget, QComboBox):
-            return widget.currentText()
-        raise WorkflowInputSchemaError(
-            f"Workflow Input widget does not match schema field: {field.key}."
-        )
+        return workflow_field_widget_value(field, widget)
+
+    def _populate_workflow_selector(self, selector: QComboBox, selected_id: str | None) -> None:
+        selector.blockSignals(True)
+        selector.clear()
+        selected_index = 0
+        for index, manifest in enumerate(self.workflow_catalog.list_workflows()):
+            origin = self.workflow_catalog.workflow_origin(manifest.workflow_id)
+            suffix = "Built-in" if origin == "builtin" else "Plugin"
+            selector.addItem(f"{manifest.name}  •  {suffix}", manifest.workflow_id)
+            if manifest.workflow_id == selected_id:
+                selected_index = index
+        if selector.count():
+            selector.setCurrentIndex(selected_index)
+        selector.blockSignals(False)
+
+    def _workflow_input_selection_changed(self) -> None:
+        if self.workflow_input_selector is None:
+            return
+        workflow_id = self.workflow_input_selector.currentData()
+        self.workflow_input_selected_id = str(workflow_id) if workflow_id else self.active_workflow_id
+        self.refresh_workflow_input_widgets()
 
     def make_workflow_inputs_page(self) -> QWidget:
         page = page_frame()
@@ -3292,20 +3754,86 @@ class MainWindow(QMainWindow):
         root.addWidget(
             page_header(
                 "Workflow Inputs",
-                "Workflow-specific values are rendered from the active source-controlled schema and persisted per workflow.",
+                "Configure isolated global inputs for any installed workflow without activating it.",
                 [recover_btn, save_btn, reset_btn],
             )
         )
 
         inner = QWidget()
         inner.setObjectName("PageInner")
-        self.workflow_input_form_layout = vbox(
+        inner_lay = vbox(
             inner,
             margins=(CONST.page_padding, CONST.page_padding, CONST.page_padding, CONST.page_padding),
             spacing=CONST.content_gap,
         )
+        selector_card = card("Select Workflow")
+        self.workflow_input_selector = QComboBox()
+        self._populate_workflow_selector(
+            self.workflow_input_selector, self.workflow_input_selected_id or self.active_workflow_id
+        )
+        self.workflow_input_selector.currentIndexChanged.connect(
+            self._workflow_input_selection_changed
+        )
+        selector_card.layout().addWidget(self.workflow_input_selector)
+        inner_lay.addWidget(selector_card)
+
+        form_host = QWidget()
+        self.workflow_input_form_layout = vbox(
+            form_host, margins=(0, 0, 0, 0), spacing=CONST.content_gap
+        )
+        inner_lay.addWidget(form_host)
+        inner_lay.addStretch(1)
         root.addWidget(self._scroll_page(inner), 1)
         self.refresh_workflow_input_widgets()
+        return page
+
+    def _workflow_settings_selection_changed(self) -> None:
+        if self.workflow_settings_selector is None:
+            return
+        workflow_id = self.workflow_settings_selector.currentData()
+        self.workflow_settings_selected_id = str(workflow_id) if workflow_id else self.active_workflow_id
+        self.refresh_workflow_settings_widgets()
+
+    def make_workflow_settings_page(self) -> QWidget:
+        page = page_frame()
+        root = vbox(page, margins=(0, 0, 0, 0), spacing=0)
+        save_btn = button("Save Workflow Settings", "primary", "save")
+        save_btn.clicked.connect(self.save_workflow_settings)
+        reset_btn = button("Reset Workflow Settings", "danger")
+        reset_btn.clicked.connect(self.reset_workflow_settings)
+        root.addWidget(
+            page_header(
+                "Workflow Settings",
+                "Workflow-owned global configuration is isolated per installed workflow.",
+                [save_btn, reset_btn],
+            )
+        )
+        inner = QWidget()
+        inner.setObjectName("PageInner")
+        inner_lay = vbox(
+            inner,
+            margins=(CONST.page_padding, CONST.page_padding, CONST.page_padding, CONST.page_padding),
+            spacing=CONST.content_gap,
+        )
+        selector_card = card("Select Workflow")
+        self.workflow_settings_selector = QComboBox()
+        self._populate_workflow_selector(
+            self.workflow_settings_selector,
+            self.workflow_settings_selected_id or self.active_workflow_id,
+        )
+        self.workflow_settings_selector.currentIndexChanged.connect(
+            self._workflow_settings_selection_changed
+        )
+        selector_card.layout().addWidget(self.workflow_settings_selector)
+        inner_lay.addWidget(selector_card)
+        form_host = QWidget()
+        self.workflow_settings_form_layout = vbox(
+            form_host, margins=(0, 0, 0, 0), spacing=CONST.content_gap
+        )
+        inner_lay.addWidget(form_host)
+        inner_lay.addStretch(1)
+        root.addWidget(self._scroll_page(inner), 1)
+        self.refresh_workflow_settings_widgets()
         return page
 
     def make_settings_page(self) -> QWidget:
@@ -3315,95 +3843,61 @@ class MainWindow(QMainWindow):
         save_btn.clicked.connect(self.save_settings)
         reset_btn = button("Reset App Defaults", "danger")
         reset_btn.clicked.connect(self.reset_settings)
-        root.addWidget(
-            page_header(
-                "App Settings",
-                "Application, safety, task-processing and license/API runtime configuration.",
-                [save_btn, reset_btn],
-            )
-        )
-        inner = QWidget()
-        inner.setObjectName("PageInner")
-        lay = vbox(
-            inner,
-            margins=(CONST.page_padding, CONST.page_padding, CONST.page_padding, CONST.page_padding),
-            spacing=CONST.content_gap,
-        )
-
+        root.addWidget(page_header(
+            "App Settings",
+            "Global safety, Task processing, interface and user-selected output locations.",
+            [save_btn, reset_btn],
+        ))
+        inner = QWidget(); inner.setObjectName("PageInner")
+        lay = vbox(inner, margins=(CONST.page_padding, CONST.page_padding, CONST.page_padding, CONST.page_padding), spacing=CONST.content_gap)
         groups = {
             "Test Safety Settings": ["authorized_testing_only", "max_test_send_limit"],
-            "Task Processing Settings": [
-                "batch_size", "auto_save_interval", "max_concurrent_tasks", "save_failed_data",
-                "save_unprocessed_data_on_close", "remove_duplicate_rows",
-            ],
-            "App Settings": [
-                "theme_mode", "log_level", "auto_open_report_after_export",
-                "confirm_before_close_while_running", "license_recheck_minutes",
-                "request_timeout",
-            ],
-            "App-specific Settings": ["default_target_url"],
+            "Task Processing Settings": ["batch_size", "auto_save_interval", "max_concurrent_tasks", "remove_duplicate_rows"],
+            "App Settings": ["theme_mode", "log_level", "auto_open_report_after_export"],
+            "Storage & Output": ["export_path", "saved_logs_path", "downloads_path"],
         }
-
         self.setting_widgets.clear()
         for group_name, keys in groups.items():
             c = card(group_name)
-            grid = QGridLayout()
-            grid.setHorizontalSpacing(CONST.content_gap)
-            grid.setVerticalSpacing(CONST.form_group_gap)
-            grid.setColumnStretch(1, 1)
+            grid = QGridLayout(); grid.setHorizontalSpacing(CONST.content_gap); grid.setVerticalSpacing(CONST.form_group_gap); grid.setColumnStretch(1, 1)
             c.layout().addLayout(grid)
             for row, key in enumerate(keys):
                 grid.addWidget(label(key.replace("_", " ").title(), "FormLabel", False), row, 0)
-                value = self.settings.get(key)
-                if isinstance(value, bool):
+                value = self.settings.get(key, DEFAULT_SETTINGS[key])
+                if isinstance(DEFAULT_SETTINGS[key], bool):
                     w = SettingsToggleSwitch(bool(value))
                 elif key == "theme_mode":
-                    w = combo_box(["Dark"], 0)
-                    w.setCurrentText("Dark")
-                    w.setToolTip(f"v{APP_VERSION} supports the official Vib Tools Dark theme.")
+                    w = combo_box(["Dark"], 0); w.setCurrentText("Dark")
                 elif key == "log_level":
-                    w = combo_box(["DEBUG", "INFO", "WARNING", "ERROR"])
-                    w.setCurrentText(str(value))
+                    w = combo_box(["DEBUG", "INFO", "WARNING", "ERROR"]); w.setCurrentText(str(value))
+                elif key in {"export_path", "saved_logs_path", "downloads_path"}:
+                    w = WorkflowPathField("directory", str(value or ""))
                 else:
                     w = line_input("", str(value))
-                if key == "default_target_url":
-                    w.setToolTip(
-                        "Initial URL for newly created tasks only. Editing a task URL remains independent and is not overwritten by this setting."
-                    )
-                elif key == "batch_size":
-                    w.setToolTip(
-                        "Sequential batch boundary size. Processing remains one recipient at a time; a durable checkpoint boundary is committed after each batch."
-                    )
+                if key == "batch_size":
+                    w.setToolTip("Sequential checkpoint boundary size; item processing remains Core-owned.")
                 elif key == "auto_save_interval":
-                    w.setToolTip(
-                        "Periodic task-state autosave interval in seconds. 0 disables time-based autosave; finalized recipients are still persisted safely."
-                    )
+                    w.setToolTip("Periodic Task-state autosave interval in seconds. Finalized items are still persisted atomically.")
                 elif key == "max_concurrent_tasks":
-                    w.setToolTip(
-                        "Maximum number of task browser workers that may be open at the same time. Additional task cards may still be created."
-                    )
-                elif key == "request_timeout":
-                    w.setToolTip(
-                        "HTTP timeout for license/API validation requests. This is an application/network setting, not a Playwright page-navigation timeout."
-                    )
+                    w.setToolTip("Maximum number of live Task browser workers.")
+                elif key == "export_path":
+                    w.setToolTip("Blank uses VibraPilot's managed Reports directory.")
+                elif key == "saved_logs_path":
+                    w.setToolTip("Blank uses VibraPilot's managed Logs directory for manually saved log exports.")
+                elif key == "downloads_path":
+                    w.setToolTip("Blank uses durable per-Task managed Downloads folders; a custom path is shared by configured Tasks.")
                 self.setting_widgets[key] = w
                 grid.addWidget(w, row, 1)
             lay.addWidget(c)
-
-        notice = card("Secure Licora API v2")
-        notice.layout().addWidget(
-            label(
-                f"Secure licensing endpoint: {LICENSING.api_base_url}/api/v2/. "
-                f"Application ID: {LICENSING.app_id}. Device-bound P-256 proofs and "
-                "locally verified RS256 access tokens are used; no client master API key is embedded.",
-                "Description",
-            )
-        )
+        notice = card("Always-on data safety")
+        notice.layout().addWidget(label(
+            "Failed-data saving, unprocessed-data saving on close, and confirmation before closing while Tasks are running are enforced by the application and cannot be disabled.",
+            "Description", False,
+        ))
         lay.addWidget(notice)
         lay.addStretch(1)
         root.addWidget(self._scroll_page(inner), 1)
         return page
-
     def make_about_page(self) -> QWidget:
         page = page_frame()
         root = vbox(page, margins=(0, 0, 0, 0), spacing=0)
@@ -3579,26 +4073,18 @@ class MainWindow(QMainWindow):
                 + self.workflow_recovery_error
             )
         if self.workflow_state_error or not self.active_workflow_id:
-            return False, (
-                "Active workflow state is unavailable. Automation is fail-closed until "
-                "the workflow state is repaired."
-            )
+            return False, "Active workflow state is unavailable. Automation is fail-closed until the workflow state is repaired."
         if self.workflow_input_state_error:
-            return False, (
-                "Active Workflow Inputs are unavailable. Automation is fail-closed until "
-                "the Workflow Input state is repaired. " + self.workflow_input_state_error
-            )
+            return False, "Active Workflow Inputs are unavailable. Automation is fail-closed until repaired. " + self.workflow_input_state_error
+        if self.workflow_settings_state_error:
+            return False, "Active Workflow Settings are unavailable. Automation is fail-closed until repaired. " + self.workflow_settings_state_error
+        if self.workflow_task_state_error:
+            return False, "Workflow Task state is unavailable. Automation is fail-closed until repaired. " + self.workflow_task_state_error
         runtime_error = self._refresh_workflow_runtime_error()
         if runtime_error:
-            return False, (
-                "Active workflow runtime is unavailable. Browser creation is blocked before worker startup. "
-                + runtime_error
-            )
+            return False, "Active workflow runtime is unavailable. Browser creation is blocked before worker startup. " + runtime_error
         limit = max(1, int(self.settings.get("max_concurrent_tasks", DEFAULT_SETTINGS["max_concurrent_tasks"])))
-        active = [
-            task for task in self.tasks.values()
-            if task.slot_id != slot.slot_id and task.worker and task.worker.is_alive()
-        ]
+        active = [task for task in self.tasks.values() if task.slot_id != slot.slot_id and task.worker and task.worker.is_alive()]
         if len(active) >= limit:
             return False, f"Maximum Concurrent Tasks is {limit}. Close an active task browser before opening another."
         try:
@@ -3606,15 +4092,10 @@ class MainWindow(QMainWindow):
             if claim:
                 for other in active:
                     if self._persistent_profile_claim(other) == claim:
-                        return False, (
-                            "Another running task already owns the same persistent browser profile. "
-                            "Enable Dedicated Profile Per Task or close the other browser first."
-                        )
+                        return False, "Another running task already owns the same persistent browser profile. Enable Dedicated Profile Per Task or close the other browser first."
         except ValueError as exc:
             return False, str(exc)
         return True, ""
-
-    @staticmethod
     def _transaction_root_has_directories(root: Path) -> bool:
         return Path(root).is_dir() and any(path.is_dir() for path in Path(root).iterdir())
 
@@ -3667,9 +4148,9 @@ class MainWindow(QMainWindow):
             "Recover workflow state",
             f"Recover the unavailable workflow state as {target}?\n\n"
             "The previous active workflow identity cannot be trusted. This recovery will clear "
-            "current live Task/runtime/results, Task checkpoints, workspace Task references and "
+            "current live Task/runtime/results, Task workflow configuration, Task checkpoints, workspace Task references and "
             "the four legacy Workflow Input compatibility mirrors.\n\n"
-            "Canonical per-workflow Workflow Inputs, exported Reports, FailedData, Logs, Browser "
+            "Canonical per-workflow Workflow Inputs and Workflow Settings, exported Reports, FailedData, Logs, Browser "
             "Settings/profiles/session storage, downloads/extensions, license/device identity, user "
             "source files, window geometry, selected page and quarantined forensic state files will "
             "be preserved.\n\nVibraPilot will restart after recovery is committed.",
@@ -3694,10 +4175,14 @@ class MainWindow(QMainWindow):
         self.workflow_catalog.require_workflow(target)
         self.workflow_catalog.require_runtime_factory(target)
         try:
-            workflow_input_schema_for(target)
-        except WorkflowInputSchemaError as exc:
+            if self.workflow_catalog.workflow_origin(target) == "builtin":
+                workflow_input_schema_for(target)
+            self.workflow_catalog.input_schema(target)
+            self.workflow_catalog.settings_schema(target)
+            self.workflow_catalog.task_schema(target)
+        except (WorkflowInputSchemaError, WorkflowError) as exc:
             raise WorkflowRecoveryBlockedError(
-                f"Recovery target Workflow Input schema is unavailable: {exc}"
+                f"Recovery target workflow schema is unavailable: {exc}"
             ) from exc
 
         blocker = self._workflow_recovery_block_reason()
@@ -3785,17 +4270,17 @@ class MainWindow(QMainWindow):
             raise
 
     def _workflow_switch_paths(self) -> list[Path]:
-        """Return only the approved workflow-scoped persistence files."""
+        """Return only approved workflow-scoped persistence files for atomic rollback."""
         paths = [
             TASK_RUNTIME_DB,
             Path(str(TASK_RUNTIME_DB) + "-wal"),
             Path(str(TASK_RUNTIME_DB) + "-shm"),
             APP_STATE_FILE,
             SETTINGS_FILE,
+            self.workflow_task_state_store.path,
         ]
         paths.extend(sorted(APP_DATA_DIR.glob("slot_*_checkpoint.json")))
         return paths
-
     def _workflow_switch_block_reason(self) -> str:
         if self.workflow_recovery_error:
             return (
@@ -3810,6 +4295,16 @@ class MainWindow(QMainWindow):
             return (
                 "Workflow switching is blocked because Workflow Input state is invalid or unavailable: "
                 + self.workflow_input_state_error
+            )
+        if self.workflow_settings_state_error:
+            return (
+                "Workflow switching is blocked because Workflow Settings state is invalid or unavailable: "
+                + self.workflow_settings_state_error
+            )
+        if self.workflow_task_state_error:
+            return (
+                "Workflow switching is blocked because Workflow Task state is invalid or unavailable: "
+                + self.workflow_task_state_error
             )
         running = [task.slot_id for task in self.tasks.values() if task.is_running()]
         if running:
@@ -3833,9 +4328,9 @@ class MainWindow(QMainWindow):
             self,
             "Switch workflow",
             f"Switch workflow from {current} to {target}?\n\n"
-            "This will clear current Task cards, the live task runtime database/results, "
+            "This will clear current Task cards, Task workflow configuration, the live task runtime database/results, "
             "Task checkpoints, workspace Task references and the legacy Workflow Input compatibility mirrors.\n\n"
-            "Canonical per-workflow Workflow Input values will be preserved. After restart, "
+            "Canonical per-workflow Workflow Input and Workflow Settings values will be preserved. After restart, "
             "the target workflow's saved inputs will be loaded.\n\n"
             "License/device identity, global App Settings, Browser Settings, browser profiles "
             "and session storage, downloads/extensions, exported Reports/FailedData, Logs, "
@@ -3853,7 +4348,7 @@ class MainWindow(QMainWindow):
         return True
 
     def _clear_workflow_scoped_state(self, workspace_snapshot: dict[str, Any]) -> None:
-        """Apply only the owner-approved clear list before workflow-state commit."""
+        """Clear live Task-scoped state only; per-workflow inputs/settings remain durable."""
         self.runtime_store.close()
         for path in (
             TASK_RUNTIME_DB,
@@ -3865,26 +4360,24 @@ class MainWindow(QMainWindow):
         for path in APP_DATA_DIR.glob("slot_*_checkpoint.json"):
             if path.is_file():
                 path.unlink()
+        self.workflow_task_state_store.clear_all()
 
+        # Preserve PR-06 compatibility mirrors exactly: canonical per-workflow
+        # inputs remain authoritative and these legacy Share Invite keys are cleared.
         for key in WORKFLOW_INPUT_KEYS:
             self.settings.data[key] = DEFAULT_SETTINGS.get(key, "")
         self.settings.save()
 
         self.workspace_store.save(
             {
-                "saved_at": now_str(),
-                "active_tasks": [],
-                "next_slot_id": 1,
-                "selected_page": workspace_snapshot.get(
-                    "selected_page", self._selected_page_name
-                ),
+                "saved_at": now_str(), "active_tasks": [], "next_slot_id": 1,
+                "selected_page": workspace_snapshot.get("selected_page", self._selected_page_name),
                 "window": workspace_snapshot.get("window", {}),
             }
         )
         self.runtime_store = TaskRuntimeStore(TASK_RUNTIME_DB)
         self.report_rows = []
         self._report_dirty = True
-
     def _restore_after_failed_workflow_switch(
         self, settings_snapshot: dict[str, Any]
     ) -> None:
@@ -3947,10 +4440,14 @@ class MainWindow(QMainWindow):
         self.workflow_catalog.require_workflow(target)
         self.workflow_catalog.require_runtime_factory(target)
         try:
-            workflow_input_schema_for(target)
-        except WorkflowInputSchemaError as exc:
+            if self.workflow_catalog.workflow_origin(target) == "builtin":
+                workflow_input_schema_for(target)
+            self.workflow_catalog.input_schema(target)
+            self.workflow_catalog.settings_schema(target)
+            self.workflow_catalog.task_schema(target)
+        except (WorkflowInputSchemaError, WorkflowError) as exc:
             raise WorkflowSwitchBlockedError(
-                f"Target workflow input schema is unavailable: {exc}"
+                f"Target workflow schema is unavailable: {exc}"
             ) from exc
         blocker = self._workflow_switch_block_reason()
         if blocker:
@@ -4135,6 +4632,8 @@ class MainWindow(QMainWindow):
             return widget.currentText()
         if isinstance(widget, QLineEdit):
             return widget.text()
+        if isinstance(widget, WorkflowPathField):
+            return widget.value()
         return ""
 
     def parse_setting_value(self, key: str, value: Any) -> Any:
@@ -4307,6 +4806,8 @@ class MainWindow(QMainWindow):
                 widget.setCurrentText(str(value))
             elif isinstance(widget, QLineEdit):
                 widget.setText(str(value))
+            elif isinstance(widget, WorkflowPathField):
+                widget.edit.setText(str(value))
 
     def save_browser_settings(self) -> None:
         try:
@@ -4491,7 +4992,7 @@ class MainWindow(QMainWindow):
         _message(self, "Browser Settings", "Browser settings reset to defaults.")
 
     def refresh_workflow_input_widgets(self) -> None:
-        """Render the active workflow's canonical values from its source schema."""
+        """Render isolated values for the workflow selected on the Inputs page."""
         layout = self.workflow_input_form_layout
         if layout is None:
             return
@@ -4500,13 +5001,19 @@ class MainWindow(QMainWindow):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
-
         self.workflow_input_widgets.clear()
         self.workflow_input_fields.clear()
+
+        workflow_id = self.workflow_input_selected_id or self.active_workflow_id
+        if not workflow_id:
+            layout.addWidget(card("Workflow Inputs unavailable", "No workflow is available."))
+            return
         try:
-            schema, values = self._reload_active_workflow_inputs()
-            manifest = self.workflow_catalog.require_workflow(schema.workflow_id)
-        except (WorkflowInputStateError, WorkflowInputSchemaError, WorkflowError) as exc:
+            schema = self.workflow_catalog.input_schema(workflow_id)
+            manifest = self.workflow_catalog.require_workflow(workflow_id)
+            state = self.workflow_input_state_store.load_existing()
+            values = self.workflow_input_state_store.values_for(workflow_id, state=state)
+        except Exception as exc:
             self.workflow_input_state_error = str(exc)
             if self.workflow_input_save_button is not None:
                 self.workflow_input_save_button.setEnabled(False)
@@ -4514,18 +5021,29 @@ class MainWindow(QMainWindow):
                 self.workflow_input_reset_button.setEnabled(False)
             if self.workflow_input_recover_button is not None:
                 blocker = self._workflow_input_recovery_block_reason()
-                self.workflow_input_recover_button.setVisible(True)
-                self.workflow_input_recover_button.setEnabled(not blocker)
-                self.workflow_input_recover_button.setToolTip(blocker or "Explicitly recover Workflow Inputs from source-controlled defaults.")
-            blocked = card(
-                "Workflow Inputs unavailable",
-                "Workflow Input persistence or schema state is invalid. Automation and workflow switching remain fail-closed until this state is explicitly recovered.\n\n"
-                + self.workflow_input_state_error,
+                if workflow_id == self.active_workflow_id:
+                    self.workflow_input_recover_button.setVisible(True)
+                    self.workflow_input_recover_button.setEnabled(not blocker)
+                else:
+                    self.workflow_input_recover_button.hide()
+                    self.workflow_input_recover_button.setEnabled(False)
+                self.workflow_input_recover_button.setToolTip(
+                    blocker or "Recover the active workflow inputs from validated defaults."
+                )
+            layout.addWidget(
+                card(
+                    "Workflow Inputs unavailable",
+                    "Workflow Input persistence or schema state is invalid. Active-workflow automation remains fail-closed until recovery.\n\n"
+                    + str(exc),
+                )
             )
-            layout.addWidget(blocked)
             layout.addStretch(1)
             return
 
+        self.workflow_input_state_error = ""
+        if workflow_id == self.active_workflow_id:
+            self.active_workflow_input_values = dict(values)
+            self._rehydrate_legacy_workflow_input_mirror(workflow_id, values, persist=True)
         if self.workflow_input_save_button is not None:
             self.workflow_input_save_button.setEnabled(True)
         if self.workflow_input_reset_button is not None:
@@ -4534,59 +5052,48 @@ class MainWindow(QMainWindow):
             self.workflow_input_recover_button.hide()
             self.workflow_input_recover_button.setEnabled(False)
 
+        state_label = "ACTIVE" if workflow_id == self.active_workflow_id else "INSTALLED / INACTIVE"
         form_card = card(
             schema.title,
-            f"Active workflow: {manifest.name} ({schema.workflow_id}). Saved values are isolated to this workflow.",
+            f"{manifest.name} • {state_label}. Values are stored only under workflow ID {workflow_id}.",
         )
         grid = QGridLayout()
         grid.setHorizontalSpacing(CONST.content_gap)
         grid.setVerticalSpacing(CONST.form_group_gap)
         grid.setColumnStretch(1, 1)
         form_card.layout().addLayout(grid)
-
         for row, field in enumerate(schema.fields):
             grid.addWidget(label(field.label, "FormLabel", False), row, 0)
-            widget = self._workflow_input_widget(field, values[field.key])
+            widget = workflow_field_widget(field, values.get(field.key, field.default))
             self.workflow_input_widgets[field.key] = widget
             self.workflow_input_fields[field.key] = field
             grid.addWidget(widget, row, 1)
-
         if not schema.fields:
-            empty = label(
-                "This workflow intentionally defines no Workflow Inputs.",
-                "BodyText",
-                False,
+            form_card.layout().addWidget(
+                label("This workflow defines no global Workflow Inputs.", "Description", False)
             )
-            form_card.layout().addWidget(empty)
-
         layout.addWidget(form_card)
         layout.addStretch(1)
 
-    def _collect_workflow_input_values(self) -> tuple[WorkflowInputSchema, dict[str, Any]]:
-        if self.workflow_input_state_error or not self.active_workflow_id:
-            raise WorkflowInputStateError(
-                "Workflow Input state is unavailable; Save/Reset is blocked."
-            )
-        schema = workflow_input_schema_for(self.active_workflow_id)
+    def _collect_workflow_input_values(self) -> tuple[WorkflowFormSchema, dict[str, Any]]:
+        workflow_id = self.workflow_input_selected_id or self.active_workflow_id
+        if self.workflow_input_state_error or not workflow_id:
+            raise WorkflowInputStateError("Workflow Input state is unavailable; Save/Reset is blocked.")
+        schema = self.workflow_catalog.input_schema(workflow_id)
         raw: dict[str, Any] = {}
         for field in schema.fields:
             widget = self.workflow_input_widgets.get(field.key)
             if widget is None:
-                raise WorkflowInputStateError(
-                    f"Workflow Input widget is unavailable: {field.key}."
-                )
-            raw[field.key] = self._workflow_input_widget_value(field, widget)
+                raise WorkflowInputStateError(f"Workflow Input widget is unavailable: {field.key}.")
+            raw[field.key] = workflow_field_widget_value(field, widget)
         try:
-            return schema, normalize_workflow_input_values(
-                schema, raw, coerce=True, fill_defaults=True
-            )
-        except WorkflowInputSchemaError as exc:
+            return schema, normalize_form_values(schema, raw, coerce=True, fill_defaults=True)
+        except WorkflowSchemaError as exc:
             raise WorkflowInputStateError(str(exc)) from exc
 
-    def _persist_active_workflow_input_values(
-        self, schema: WorkflowInputSchema, values: dict[str, Any]
+    def _persist_workflow_input_values(
+        self, schema: WorkflowFormSchema, values: dict[str, Any]
     ) -> None:
-        """Commit canonical values first, then the Share Invite legacy mirror."""
         previous_state = self.workflow_input_state_store.load_existing()
         previous_legacy = self._legacy_share_invite_input_values()
         try:
@@ -4609,15 +5116,22 @@ class MainWindow(QMainWindow):
                 self.settings.data[key] = value
             if rollback_error is not None:
                 self.workflow_input_state_error = (
-                    f"Workflow Input save failed and canonical rollback also failed: "
+                    "Workflow Input save failed and canonical rollback also failed: "
                     f"{exc}; rollback: {rollback_error}"
                 )
                 self.active_workflow_input_values = {}
                 raise WorkflowInputStateError(self.workflow_input_state_error) from rollback_error
             raise WorkflowInputStateError(str(exc)) from exc
 
-        self.active_workflow_input_values = dict(canonical)
+        if schema.workflow_id == self.active_workflow_id:
+            self.active_workflow_input_values = dict(canonical)
         self.workflow_input_state_error = ""
+
+    # Historical internal name retained for compatibility with earlier tests/helpers.
+    def _persist_active_workflow_input_values(
+        self, schema: WorkflowFormSchema, values: dict[str, Any]
+    ) -> None:
+        self._persist_workflow_input_values(schema, values)
 
     def recover_workflow_inputs(self) -> None:
         if not self.workflow_input_state_error:
@@ -4627,20 +5141,21 @@ class MainWindow(QMainWindow):
         if blocker:
             _message(self, "Workflow Input recovery blocked", blocker, "warning")
             return
-        assert self.active_workflow_id is not None
+        if not self.active_workflow_id:
+            _message(self, "Workflow Input recovery blocked", "Active workflow is unavailable.", "error")
+            return
         try:
-            schema = workflow_input_schema_for(self.active_workflow_id)
+            schema = self.workflow_catalog.input_schema(self.active_workflow_id)
             self.workflow_catalog.require_workflow(self.active_workflow_id)
-        except (WorkflowInputSchemaError, WorkflowError) as exc:
+        except Exception as exc:
             _message(self, "Workflow Input recovery blocked", str(exc), "error")
             return
         if not _confirm(
             self,
             "Recover Workflow Inputs",
             "The unusable canonical Workflow Input store will be quarantined when present. "
-            f"{schema.title} will be recreated from source-controlled defaults. Existing values inside "
-            "the unusable store cannot be trusted or automatically recovered. Legacy Share Invite "
-            "settings will not be used as migration input. Continue?",
+            f"{schema.title} will be recreated from validated defaults for the ACTIVE workflow. "
+            "Other values inside the unusable store cannot be trusted or automatically recovered. Continue?",
         ):
             return
 
@@ -4700,15 +5215,17 @@ class MainWindow(QMainWindow):
 
             self.active_workflow_input_values = dict(values)
             self.workflow_input_state_error = ""
+            self.workflow_input_selected_id = self.active_workflow_id
+            if self.workflow_input_selector is not None:
+                self._populate_workflow_selector(self.workflow_input_selector, self.active_workflow_id)
             self.log_ui(
-                f"Workflow Inputs explicitly recovered from source-controlled defaults for {self.active_workflow_id}."
+                f"Workflow Inputs explicitly recovered from defaults for {self.active_workflow_id}."
             )
             self.refresh_workflow_input_widgets()
             _message(
                 self,
                 "Workflow Inputs recovered",
-                "Workflow Inputs were recovered from source-controlled defaults. The prior unusable "
-                "canonical file was preserved as quarantined forensic evidence when it existed.",
+                "Active Workflow Inputs were recovered from validated defaults. The prior unusable canonical file was preserved as forensic evidence when present.",
             )
         except Exception as exc:
             if not self.workflow_recovery_error:
@@ -4718,51 +5235,156 @@ class MainWindow(QMainWindow):
     def save_workflow_inputs(self) -> None:
         try:
             schema, values = self._collect_workflow_input_values()
-            self._persist_active_workflow_input_values(schema, values)
+            self._persist_workflow_input_values(schema, values)
             self.refresh_workflow_input_widgets()
-            self.log_ui(
-                f"Workflow Inputs saved for {schema.workflow_id}. New values apply to newly created browser workers."
-            )
+            self.log_ui(f"Workflow Inputs saved for {schema.workflow_id}.")
             _message(
                 self,
                 "Workflow Inputs",
-                "Workflow Inputs saved for the active workflow. Existing running workers keep their original input snapshot; new values apply on the next browser/worker lifecycle.",
+                "Workflow Inputs saved. Existing running workers keep their original snapshot; active-workflow changes apply on the next browser/worker lifecycle.",
             )
         except Exception as exc:
             self.refresh_workflow_input_widgets()
             _message(self, "Workflow Inputs error", str(exc), "error")
 
     def reset_workflow_inputs(self) -> None:
-        if self.workflow_input_state_error or not self.active_workflow_id:
+        workflow_id = self.workflow_input_selected_id or self.active_workflow_id
+        if self.workflow_input_state_error or not workflow_id:
             _message(
                 self,
                 "Workflow Inputs error",
-                self.workflow_input_state_error or "Active workflow is unavailable.",
+                self.workflow_input_state_error or "Workflow is unavailable.",
                 "error",
             )
             return
         if not _confirm(
             self,
             "Reset Workflow Inputs",
-            "Reset only the active workflow's inputs to its source-controlled defaults? Other workflows, App Settings and Browser Settings will be preserved.",
+            f"Reset only {workflow_id} inputs to validated defaults? Other workflows, App Settings and Browser Settings will be preserved.",
         ):
             return
         try:
-            schema = workflow_input_schema_for(self.active_workflow_id)
-            defaults = schema.defaults()
-            self._persist_active_workflow_input_values(schema, defaults)
+            schema = self.workflow_catalog.input_schema(workflow_id)
+            self._persist_workflow_input_values(schema, schema.defaults())
             self.refresh_workflow_input_widgets()
-            self.log_ui(
-                f"Workflow Inputs reset to source defaults for {schema.workflow_id}."
-            )
-            _message(
-                self,
-                "Workflow Inputs",
-                "Active workflow inputs were reset to source-controlled defaults. Other workflow values, App Settings and Browser Settings were preserved.",
-            )
+            self.log_ui(f"Workflow Inputs reset to defaults for {schema.workflow_id}.")
         except Exception as exc:
             self.refresh_workflow_input_widgets()
             _message(self, "Workflow Inputs error", str(exc), "error")
+
+    def refresh_workflow_settings_widgets(self) -> None:
+        layout = self.workflow_settings_form_layout
+        if layout is None:
+            return
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        self.workflow_setting_widgets.clear()
+        self.workflow_setting_fields.clear()
+        workflow_id = self.workflow_settings_selected_id or self.active_workflow_id
+        if not workflow_id:
+            layout.addWidget(card("Workflow Settings unavailable", "No workflow is available."))
+            return
+        try:
+            schema = self.workflow_catalog.settings_schema(workflow_id)
+            manifest = self.workflow_catalog.require_workflow(workflow_id)
+            state = self.workflow_settings_state_store.load_or_create()
+            values = self.workflow_settings_state_store.values_for(workflow_id, state=state)
+        except Exception as exc:
+            self.workflow_settings_state_error = str(exc)
+            layout.addWidget(card("Workflow Settings unavailable", str(exc)))
+            layout.addStretch(1)
+            return
+        self.workflow_settings_state_error = ""
+        if workflow_id == self.active_workflow_id:
+            self.active_workflow_settings_values = dict(values)
+        state_label = "ACTIVE" if workflow_id == self.active_workflow_id else "INSTALLED / INACTIVE"
+        form_card = card(
+            schema.title,
+            f"{manifest.name} • {state_label}. Settings are isolated to workflow ID {workflow_id}.",
+        )
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(CONST.content_gap)
+        grid.setVerticalSpacing(CONST.form_group_gap)
+        grid.setColumnStretch(1, 1)
+        form_card.layout().addLayout(grid)
+        for row, field in enumerate(schema.fields):
+            grid.addWidget(label(field.label, "FormLabel", False), row, 0)
+            widget = workflow_field_widget(field, values.get(field.key, field.default))
+            self.workflow_setting_widgets[field.key] = widget
+            self.workflow_setting_fields[field.key] = field
+            grid.addWidget(widget, row, 1)
+        if not schema.fields:
+            form_card.layout().addWidget(
+                label("This workflow defines no additional global Workflow Settings.", "Description", False)
+            )
+        layout.addWidget(form_card)
+        layout.addStretch(1)
+
+    def _collect_workflow_settings_values(self) -> tuple[WorkflowFormSchema, dict[str, Any]]:
+        workflow_id = self.workflow_settings_selected_id or self.active_workflow_id
+        if self.workflow_settings_state_error or not workflow_id:
+            raise WorkflowSettingsStateError("Workflow Settings are unavailable.")
+        schema = self.workflow_catalog.settings_schema(workflow_id)
+        raw: dict[str, Any] = {}
+        for field in schema.fields:
+            widget = self.workflow_setting_widgets.get(field.key)
+            if widget is None:
+                raise WorkflowSettingsStateError(f"Workflow Settings widget is unavailable: {field.key}.")
+            raw[field.key] = workflow_field_widget_value(field, widget)
+        try:
+            return schema, normalize_form_values(schema, raw, coerce=True, fill_defaults=True)
+        except WorkflowSchemaError as exc:
+            raise WorkflowSettingsStateError(str(exc)) from exc
+
+    def save_workflow_settings(self) -> None:
+        try:
+            schema, values = self._collect_workflow_settings_values()
+            state = self.workflow_settings_state_store.save_workflow_values(
+                schema.workflow_id, values, coerce=False
+            )
+            canonical = self.workflow_settings_state_store.values_for(schema.workflow_id, state=state)
+            if schema.workflow_id == self.active_workflow_id:
+                self.active_workflow_settings_values = dict(canonical)
+            self.workflow_settings_state_error = ""
+            self.refresh_workflow_settings_widgets()
+            self.log_ui(f"Workflow Settings saved for {schema.workflow_id}.")
+            _message(
+                self,
+                "Workflow Settings",
+                "Workflow Settings saved. Existing workers keep their original snapshot; active-workflow changes apply on the next browser/worker lifecycle.",
+            )
+        except Exception as exc:
+            self.workflow_settings_state_error = str(exc)
+            self.refresh_workflow_settings_widgets()
+            _message(self, "Workflow Settings error", str(exc), "error")
+
+    def reset_workflow_settings(self) -> None:
+        workflow_id = self.workflow_settings_selected_id or self.active_workflow_id
+        if not workflow_id:
+            return
+        if not _confirm(
+            self,
+            "Reset Workflow Settings",
+            f"Reset only {workflow_id} settings to validated defaults?",
+        ):
+            return
+        try:
+            schema = self.workflow_catalog.settings_schema(workflow_id)
+            state = self.workflow_settings_state_store.save_workflow_values(
+                workflow_id, schema.defaults(), coerce=False
+            )
+            if workflow_id == self.active_workflow_id:
+                self.active_workflow_settings_values = self.workflow_settings_state_store.values_for(
+                    workflow_id, state=state
+                )
+            self.workflow_settings_state_error = ""
+            self.refresh_workflow_settings_widgets()
+        except Exception as exc:
+            self.workflow_settings_state_error = str(exc)
+            _message(self, "Workflow Settings error", str(exc), "error")
 
     def save_settings(self) -> None:
         try:
@@ -4789,7 +5411,7 @@ class MainWindow(QMainWindow):
             _message(
                 self,
                 "App Settings",
-                "App Settings saved successfully. The Default Target URL applies only to newly created tasks; advanced browser controls are managed from Browser Settings.",
+                "App Settings saved successfully. Workflow/Task-specific URLs and inputs are configured through Workflow and Task Settings.",
             )
         except Exception as exc:
             _message(self, "App Settings error", str(exc), "error")
@@ -4819,6 +5441,18 @@ class MainWindow(QMainWindow):
             "App Settings",
             "App Settings reset to source defaults. Browser Settings were preserved.",
         )
+
+    def _configured_output_directory(self, key: str, fallback: Path) -> Path:
+        raw = str(self.settings.get(key, DEFAULT_SETTINGS.get(key, "")) or "").strip()
+        if not raw:
+            directory = Path(fallback)
+        else:
+            directory = Path(raw).expanduser()
+            if not directory.is_absolute():
+                directory = APP_DATA_DIR / directory
+        directory = directory.resolve()
+        directory.mkdir(parents=True, exist_ok=True)
+        return directory
 
     # ---------- report ----------
 
@@ -4877,7 +5511,7 @@ class MainWindow(QMainWindow):
         if not rows:
             _message(self, "Report", "No report rows to export.")
             return
-        path = REPORTS_DIR / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        path = self._configured_output_directory("export_path", REPORTS_DIR) / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         export_report_csv(rows, path)
         self.log_ui(f"Report exported: {path.name}")
         if self.settings.get("auto_open_report_after_export", DEFAULT_SETTINGS["auto_open_report_after_export"]):
@@ -4888,7 +5522,7 @@ class MainWindow(QMainWindow):
         if not rows:
             _message(self, "Report", "No report rows to export.")
             return
-        path = REPORTS_DIR / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        path = self._configured_output_directory("export_path", REPORTS_DIR) / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
         export_report_excel(rows, path)
         self.log_ui(f"Excel report exported: {path.name}")
         if self.settings.get("auto_open_report_after_export", DEFAULT_SETTINGS["auto_open_report_after_export"]):
@@ -4920,7 +5554,7 @@ class MainWindow(QMainWindow):
         self.log_lines.clear()
 
     def save_logs(self) -> None:
-        path = LOGS_DIR / f"manual_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        path = self._configured_output_directory("saved_logs_path", LOGS_DIR) / f"manual_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         path.write_text(
             "\n".join(
                 f"[{r['timestamp']}] [{r['level']}] {r['message']}"
@@ -5013,6 +5647,10 @@ class MainWindow(QMainWindow):
                 slot.set_login_status(bool(payload.get("verified", False)), str(payload.get("message", "")))
             elif kind == "send_limit" and slot:
                 slot.update_send_limit(int(payload.get("used", 0)), int(payload.get("limit", 1)))
+            elif kind == "workflow_step" and slot:
+                slot.set_workflow_step(str(payload.get("step", "")))
+            elif kind == "workflow_metric" and slot:
+                slot.set_workflow_metric(str(payload.get("key", "")), payload.get("value"))
             elif kind == "download":
                 self._render_download_event(slot_id, payload)
             elif kind == "browser_file_chooser" and slot:
@@ -5077,7 +5715,7 @@ class MainWindow(QMainWindow):
             1
             for task in tasks
             if task.is_browser_open()
-            and task.is_login_verified()
+            and (task.is_login_verified() or not task.task_schema.requires_session)
             and task.state.total > 0
             and task.state.remaining > 0
             and not task.is_running()
@@ -5147,7 +5785,7 @@ class MainWindow(QMainWindow):
                 next_message = f"Task {selected.slot_id} needs a browser session."
                 next_button = f"Go to Task {selected.slot_id}"
             else:
-                selected = next((task for task in tasks if not task.is_login_verified()), None)
+                selected = next((task for task in tasks if task.task_schema.requires_session and not task.is_login_verified()), None)
                 if selected is not None:
                     next_action = ("tasks", selected.slot_id)
                     next_message = f"Task {selected.slot_id} needs browser login verification."
@@ -5156,7 +5794,7 @@ class MainWindow(QMainWindow):
                     selected = next((task for task in tasks if task.state.total <= 0), None)
                     if selected is not None:
                         next_action = ("tasks", selected.slot_id)
-                        next_message = f"Upload data to Task {selected.slot_id} to continue."
+                        next_message = f"Configure Task {selected.slot_id} inputs/settings to continue."
                         next_button = f"Go to Task {selected.slot_id}"
                     else:
                         selected = next(
@@ -5191,6 +5829,28 @@ class MainWindow(QMainWindow):
                     widget.setText(value)
                     widget.setAccessibleName(f"{key}: {value}")
                     widget.updateGeometry()
+            try:
+                active_manifest = self.workflow_catalog.require_workflow(self.active_workflow_id or "")
+                workflow_name = active_manifest.name
+            except Exception:
+                workflow_name = self.active_workflow_id or "Unavailable"
+            if self.dashboard_workflow_name is not None:
+                self.dashboard_workflow_name.setText(workflow_name)
+            if self.dashboard_workflow_activity is not None:
+                aggregated: dict[str, Any] = {}
+                for task in tasks:
+                    for key, value in task.workflow_metrics.items():
+                        if isinstance(value, (int, float)) and not isinstance(value, bool):
+                            aggregated[key] = aggregated.get(key, 0) + value
+                        elif key not in aggregated and value not in (None, ""):
+                            aggregated[key] = value
+                metric_labels = {}
+                try:
+                    metric_labels = {m.key: m.label for m in self.workflow_catalog.task_schema(self.active_workflow_id or "").metrics if m.source == "workflow" and m.visible}
+                except Exception:
+                    pass
+                lines = [f"{metric_labels.get(key, key.replace('_', ' ').title())}: {aggregated[key]}" for key in metric_labels if key in aggregated]
+                self.dashboard_workflow_activity.setText("  •  ".join(lines) if lines else "No workflow-specific activity metrics yet.")
             self.dashboard_next_action = next_action
             if self.dashboard_next_message is not None:
                 self.dashboard_next_message.setText(next_message)
@@ -5317,7 +5977,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
         running = [t for t in self.tasks.values() if t.is_running()]
-        if running and self.settings.get("confirm_before_close_while_running", DEFAULT_SETTINGS["confirm_before_close_while_running"]):
+        if running:
             if not _confirm(
                 self,
                 "Processing is still running",

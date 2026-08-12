@@ -1,3 +1,12 @@
+# VibraPilot Documentation — v1.0.6.30 Workflow Plugin System
+
+Official implementation baseline: **v1.0.6.28 / PR-11 — RELEASE COMPLETE**. Current functional candidate: **v1.0.6.30 / Workflow Plugin System**.
+
+v1.0.6.30 documents trusted local `.vpworkflow` loading, unified built-in/external workflow resolution, Workflow Inputs/Settings schemas, Task Settings, workflow step/metrics and compatibility-preserving Core integration.
+
+- `updates/v1.0.6.30-workflow-plugin-system.md`
+- `verification/V1.0.6.30_WORKFLOW_PLUGIN_SYSTEM.md`
+
 # VibraPilot Documentation — v1.0.6.28 PR-11 Candidate
 
 Current release baseline: **v1.0.6.27 / PR-10 — RELEASE COMPLETE**. Current development candidate: **v1.0.6.28 / PR-11 E2E Windows / Multi-Task Regression**.

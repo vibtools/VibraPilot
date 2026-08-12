@@ -52,8 +52,13 @@ class V1067VerificationFixTest(unittest.TestCase):
         self.assertEqual(decorators, ["classmethod"])
 
     def test_send_attempt_metric_wording_is_unambiguous(self):
-        text = (ROOT / "src/vibrapilot/qt_app.py").read_text(encoding="utf-8")
-        self.assertIn('visible_metric_name = "Send Attempts / Limit" if name == "Send Limit" else name', text)
+        current_scope = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
+        if current_scope.is_file():
+            text = (ROOT / "src/vibrapilot/workflow/schemas.py").read_text(encoding="utf-8")
+            self.assertIn('WorkflowMetricSchema("send_limit", "Send Attempts / Limit", "core_send_limit")', text)
+        else:
+            text = (ROOT / "src/vibrapilot/qt_app.py").read_text(encoding="utf-8")
+            self.assertIn('visible_metric_name = "Send Attempts / Limit" if name == "Send Limit" else name', text)
 
     def test_saturated_critical_event_exits_after_close_request(self):
         events = queue.Queue(maxsize=1)

@@ -37,6 +37,15 @@ def _automation_worker_source() -> str:
     return ast.get_source_segment(text, worker) or ""
 
 
+
+
+def _main_window_method_source(name: str) -> str:
+    text = QT_PATH.read_text(encoding="utf-8")
+    tree = ast.parse(text)
+    cls = next(item for item in tree.body if isinstance(item, ast.ClassDef) and item.name == "MainWindow")
+    method = next(item for item in cls.body if isinstance(item, ast.FunctionDef) and item.name == name)
+    return ast.get_source_segment(text, method) or ""
+
 def test_every_browser_ui_setting_has_a_real_runtime_consumer():
     runtime_source = BACKEND_PATH.read_text(encoding="utf-8")
     if SHARE_INVITE_PATH.is_file():
@@ -74,9 +83,16 @@ def test_browser_settings_are_grouped_as_advanced_master_controls():
 
 def test_api_request_timeout_is_not_misrepresented_as_browser_setting():
     ui = QT_PATH.read_text(encoding="utf-8")
+    backend = BACKEND_PATH.read_text(encoding="utf-8")
+    defaults = DEFAULTS_PATH.read_text(encoding="utf-8")
     assert "request_timeout" not in _browser_ui_keys()
-    assert '"request_timeout",' in ui
-    assert "license/API validation requests" in ui
+    current_scope = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
+    if current_scope.is_file():
+        assert '"request_timeout"' not in _main_window_method_source("make_settings_page")
+        assert '"request_timeout"' in backend or '"request_timeout"' in defaults
+    else:
+        assert '"request_timeout",' in ui
+        assert "license/API validation requests" in ui
 
 
 def test_saved_browser_settings_are_synchronized_to_active_workers():
@@ -182,7 +198,12 @@ def test_browser_logging_controls_are_not_ui_only():
 
 def test_navigation_places_app_settings_above_advanced_browser_settings():
     ui = QT_PATH.read_text(encoding="utf-8")
-    marker = 'NAV_SECTIONS = ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]'
+    current_scope = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
+    marker = (
+        'NAV_SECTIONS = ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Workflow Settings", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]'
+        if current_scope.is_file()
+        else 'NAV_SECTIONS = ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]'
+    )
     assert marker in ui
     assert '("App Settings", self.make_settings_page)' in ui
     assert '("Browser Settings", self.make_browser_settings_page)' in ui

@@ -1,3 +1,22 @@
+# Project Structure — v1.0.6.30 Workflow Plugin System
+
+v1.0.6.30 adds a trusted workflow extension layer while retaining the existing Core Task/Browser/persistence architecture.
+
+```text
+src/vibrapilot/workflow/
+  plugin_loader.py          Trusted `.vpworkflow` inspection/staging/install/catalog loading
+  schemas.py                Non-executable Workflow Inputs/Settings/Task UI schema contracts
+  settings_state.py         Atomic per-workflow settings persistence
+  task_state.py             Atomic per-Task workflow config/step/metric persistence
+  manager.py                Unified built-in + installed workflow catalog/runtime resolution
+  input_state.py            Per-workflow input persistence with unified schema resolver
+
+%LOCALAPPDATA%/Vib Tools/VibraPilot/Workflows/
+  <workflow_id>/            Installed trusted external workflow package
+```
+
+Core `backend.py` still owns worker lifecycle, retry/backoff, browser ownership and persistence orchestration. Core `qt_app.py` renders workflow schemas and owns all PySide UI widgets; plugins do not directly mutate application UI.
+
 # Project Structure — v1.0.6.28 PR-11 Candidate
 
 PR-11 adds only verification contract/tests and `scripts/diagnostics/pr11_windows_acceptance_runner.py` plus `verify_pr11_windows_evidence.py`. Production `src/vibrapilot/**` structure is unchanged from v1.0.6.27.

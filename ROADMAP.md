@@ -1,3 +1,12 @@
+# VibraPilot Roadmap — v1.0.6.30 Workflow Plugin System
+
+- Official implementation baseline: **v1.0.6.28 / PR-11 — RELEASE COMPLETE**, commit `fff8160157d4d9b68b2d28b11105b0f7f38ed17d`.
+- Current functional target: **v1.0.6.30 / Trusted Workflow Plugin System**.
+- Preserve one active workflow at a time; existing atomic switch/restart/recovery remains authoritative.
+- Add trusted local `.vpworkflow` loading, unified catalog, Workflow Inputs/Settings selectors, Task Settings schemas and workflow step/metrics.
+- Keep Core Task/Browser/retry/persistence/report/log/licensing behavior authoritative.
+- Deferred: per-Task mixed workflows, JSON automation interpreter, marketplace, sandbox, automatic dependencies, remote plugin updates and arbitrary plugin UI code.
+
 # VibraPilot Roadmap — PR-11 Candidate
 
 - Current release baseline: **v1.0.6.27 / PR-10 — RELEASE COMPLETE**.

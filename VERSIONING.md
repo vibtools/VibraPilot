@@ -1,3 +1,10 @@
+# Versioning — v1.0.6.30 Candidate
+
+- Official implementation baseline: **v1.0.6.28 / PR-11**, commit `fff8160157d4d9b68b2d28b11105b0f7f38ed17d`.
+- Current development candidate: **v1.0.6.30 / Workflow Plugin System**.
+- v1.0.6.29 remains a separate packaging-line candidate and is not imported into this functional delta.
+- v1.0.6.30 is not RELEASE COMPLETE until owner local acceptance, user-performed GitHub publication and CI verification complete.
+
 # Versioning — PR-11 Candidate
 
 - Current release baseline: **v1.0.6.27 / PR-10**.

@@ -1709,6 +1709,10 @@ class AutomationWorker(threading.Thread):
         runtime_store: TaskRuntimeStore | None = None,
         active_workflow_id: str | None = None,
         workflow_input_values: dict[str, Any] | None = None,
+        workflow_settings_values: dict[str, Any] | None = None,
+        workflow_task_values: dict[str, Any] | None = None,
+        workflow_item_payloads: list[dict[str, Any]] | None = None,
+        workflow_manager: WorkflowManager | None = None,
     ):
         super().__init__(daemon=True, name=f"slot-{state.slot_id}-browser-worker")
         self.state = state
@@ -1722,6 +1726,11 @@ class AutomationWorker(threading.Thread):
         # workflow's validated inputs. Existing workers are intentionally not
         # live-mutated when Workflow Inputs are saved.
         self.workflow_input_values = MappingProxyType(dict(workflow_input_values or {}))
+        self.workflow_settings_values = MappingProxyType(dict(workflow_settings_values or {}))
+        self.workflow_task_values = MappingProxyType(dict(workflow_task_values or {}))
+        self.workflow_item_payloads = tuple(
+            MappingProxyType(dict(payload)) for payload in (workflow_item_payloads or [])
+        )
         self.browser = None
         self.context = None
         self.active_page = None
@@ -1765,9 +1774,16 @@ class AutomationWorker(threading.Thread):
         # injects it into each worker. None/unknown values remain fail-closed at
         # the existing PR-05 Master Workflow Gate; no Share Invite fallback lives
         # inside AutomationWorker.
-        self._workflow_manager = WorkflowManager.with_builtin_workflows(
-            active_workflow_id=active_workflow_id
-        )
+        if workflow_manager is not None:
+            if workflow_manager.active_workflow_id != (str(active_workflow_id).strip() or None):
+                raise WorkflowRuntimeResolutionError(
+                    "worker workflow catalog active identity does not match active_workflow_id"
+                )
+            self._workflow_manager = workflow_manager
+        else:
+            self._workflow_manager = WorkflowManager.with_builtin_workflows(
+                active_workflow_id=active_workflow_id
+            )
         self._active_workflow_runtime_cache: WorkflowRuntime | None = None
 
     def emit(self, kind: str, payload: dict[str, Any]) -> None:
@@ -2532,7 +2548,7 @@ class AutomationWorker(threading.Thread):
             self.emit("done", {"status": self.state.status})
 
     def _workflow_runtime(self) -> WorkflowRuntime:
-        """Resolve the active built-in workflow through the PR-05 master gate."""
+        """Resolve the active validated workflow through the master workflow gate."""
         runtime = self._active_workflow_runtime_cache
         if runtime is None:
             runtime = self._workflow_manager.resolve_active_runtime(
@@ -2569,6 +2585,37 @@ class AutomationWorker(threading.Thread):
 
     def prepare_workflow_retry(self) -> None:
         self._workflow_runtime().prepare_retry()
+
+    def _is_share_invite_workflow(self) -> bool:
+        return self._workflow_manager.active_workflow_id == "share_invite"
+
+    def current_workflow_item_payload(self) -> dict[str, Any]:
+        """Return the detached plugin payload matching the current Task item index."""
+        index = max(0, int(self.state.current_index))
+        if index >= len(self.workflow_item_payloads):
+            return {}
+        return dict(self.workflow_item_payloads[index])
+
+    def set_workflow_step(self, step: str) -> None:
+        """Publish workflow-owned step text without mutating the Core Task status."""
+        self.emit("workflow_step", {"step": str(step or "")})
+
+    def set_workflow_metric(self, key: str, value: Any) -> None:
+        """Publish one workflow-declared metric value to the Core UI renderer."""
+        self.emit("workflow_metric", {"key": str(key), "value": value})
+
+    def workflow_error_decision(self, exc: Exception) -> str:
+        """Resolve an optional trusted runtime error decision; unknown errors fail closed."""
+        runtime = self._workflow_runtime()
+        hook = getattr(runtime, "error_decision", None)
+        if hook is None:
+            return "FAIL_ITEM"
+        decision = str(hook(exc)).strip().upper()
+        if decision not in {"RETRY", "FAIL_ITEM", "MANUAL_REVIEW", "STOP_TASK"}:
+            raise WorkflowRuntimeResolutionError(
+                f"workflow error_decision returned unsupported value: {decision!r}"
+            )
+        return decision
 
     def test_mode_banner_ready(self, page) -> bool:
         return self._share_invite_runtime().test_mode_banner_ready(page)
@@ -2637,7 +2684,12 @@ class AutomationWorker(threading.Thread):
         try:
             if self.state.current_index >= self.state.total:
                 self.state.status = "Completed"
-                self.log("No remaining email records to process.", "WARNING")
+                self.log(
+                    "No remaining email records to process."
+                    if self._is_share_invite_workflow()
+                    else "No remaining workflow items to process.",
+                    "WARNING",
+                )
                 self._save_runtime_progress(force=True)
                 if self.runtime_store is not None and self.state.run_id:
                     self.runtime_store.mark_completed(self.state.run_id, "Completed", now_str())
@@ -2706,15 +2758,19 @@ class AutomationWorker(threading.Thread):
                 self.state.status = "Test Send Limit Reached"
                 self.save_unprocessed()
             elif session_blocked:
-                self.state.status = "Login/Test Mode Required"
+                self.state.status = (
+                    "Login/Test Mode Required"
+                    if self._is_share_invite_workflow()
+                    else "Blocked"
+                )
                 self.save_unprocessed()
             elif processing_interrupted:
                 self.state.status = "Interrupted"
                 self.save_unprocessed()
             elif self.stop_event.is_set() or self.close_event.is_set():
                 self.state.status = "Stopped"
-                if bool(self.settings.get("save_unprocessed_data_on_close", DEFAULT_SETTINGS["save_unprocessed_data_on_close"])):
-                    self.save_unprocessed()
+                # v1.0.6.30 safety contract: unprocessed user data is always preserved.
+                self.save_unprocessed()
             else:
                 self.state.status = "Completed"
             self._save_runtime_progress(force=True)
@@ -4214,7 +4270,122 @@ class AutomationWorker(threading.Thread):
             initial_url=current_url if restore_page else "",
         )
 
+    def _process_generic_workflow_item(self, index: int, item: TaskItem) -> None:
+        """Run one non-Share-Invite item with Core-owned retry/error semantics."""
+        max_retry_raw = self.workflow_settings_values.get(
+            "max_retry",
+            self.settings.get("max_retry_per_item", DEFAULT_SETTINGS["max_retry_per_item"]),
+        )
+        try:
+            max_retry = max(0, int(max_retry_raw))
+        except (TypeError, ValueError):
+            max_retry = max(0, int(DEFAULT_SETTINGS["max_retry_per_item"]))
+        item.status = "processing"
+        self.log(
+            f"Workflow {self._workflow_manager.active_workflow_id} item {index + 1} processing started."
+        )
+        self.set_workflow_step("Processing item")
+        self._save_runtime_item(index, item, "Workflow item processing started")
+        attempt = 1
+        while attempt <= max_retry + 1:
+            if self.stop_event.is_set() or self.close_event.is_set():
+                item.status = "unprocessed"
+                return
+            self.wait_if_paused()
+            if self.stop_event.is_set() or self.close_event.is_set():
+                item.status = "unprocessed"
+                return
+            item.attempts = attempt
+            try:
+                result = self.execute_workflow_item(item)
+                item.status = "success"
+                item.result = str(result)
+                item.message = "Workflow item completed"
+                self.state.manual_review_required = False
+                self.state.success_count += 1
+                return
+            except Exception as exc:
+                item.message = str(exc)
+                try:
+                    decision = self.workflow_error_decision(exc)
+                except Exception as decision_exc:
+                    item.status = "failed"
+                    item.message = (
+                        f"Workflow error handling failed closed: {decision_exc}; original error: {exc}"
+                    )
+                    self.state.failed_count += 1
+                    self.log(item.message, "ERROR")
+                    return
+
+                if decision == "MANUAL_REVIEW":
+                    item.status = "interrupted"
+                    self.state.manual_review_required = True
+                    item.message = f"Manual review required: {exc}"
+                    self.save_checkpoint()
+                    self.log(item.message, "ERROR")
+                    return
+                if decision == "STOP_TASK":
+                    item.status = "blocked"
+                    item.message = f"Workflow blocked the Task: {exc}"
+                    self.log(item.message, "ERROR")
+                    return
+                if decision == "FAIL_ITEM":
+                    item.status = "failed"
+                    self.state.manual_review_required = False
+                    self.state.failed_count += 1
+                    self.log(
+                        f"Workflow item {index + 1} failed closed on attempt {attempt}: {exc}",
+                        "WARNING",
+                    )
+                    return
+
+                # RETRY is the only decision that can reach this point.
+                if attempt > max_retry:
+                    item.status = "failed"
+                    self.state.manual_review_required = False
+                    self.state.failed_count += 1
+                    return
+                self.prepare_workflow_retry()
+                try:
+                    retry_min = max(
+                        0.0,
+                        float(
+                            self.workflow_settings_values.get(
+                                "retry_delay_min",
+                                self.settings.get("retry_delay_min", DEFAULT_SETTINGS["retry_delay_min"]),
+                            )
+                        ),
+                    )
+                    retry_max = max(
+                        retry_min,
+                        float(
+                            self.workflow_settings_values.get(
+                                "retry_delay_max",
+                                self.settings.get("retry_delay_max", DEFAULT_SETTINGS["retry_delay_max"]),
+                            )
+                        ),
+                    )
+                    multiplier = max(
+                        1.0,
+                        float(
+                            self.workflow_settings_values.get(
+                                "backoff_multiplier",
+                                self.settings.get("backoff_multiplier", DEFAULT_SETTINGS["backoff_multiplier"]),
+                            )
+                        ),
+                    )
+                except (TypeError, ValueError):
+                    retry_min = max(0.0, float(DEFAULT_SETTINGS["retry_delay_min"]))
+                    retry_max = max(retry_min, float(DEFAULT_SETTINGS["retry_delay_max"]))
+                    multiplier = max(1.0, float(DEFAULT_SETTINGS["backoff_multiplier"]))
+                delay = min(retry_max, retry_min * (multiplier ** (attempt - 1)))
+                self.interruptible_sleep(delay)
+                attempt += 1
+
     def process_item(self, index: int, item: TaskItem) -> None:
+        if not self._is_share_invite_workflow():
+            self._process_generic_workflow_item(index, item)
+            return
         max_retry = max(0, int(self.settings.get("max_retry_per_item", DEFAULT_SETTINGS["max_retry_per_item"])))
         item.status = "processing"
         self.log(f"Share invite processing started: {item.email}")
@@ -4686,8 +4857,7 @@ class AutomationWorker(threading.Thread):
         os.replace(temp, path)
 
     def save_failed(self, items: list[TaskItem] | None = None) -> None:
-        if not bool(self.settings.get("save_failed_data", DEFAULT_SETTINGS["save_failed_data"])):
-            return
+        # v1.0.6.30 safety contract: failed user data is always preserved.
         items = items or [i for i in self.state.items if i.status == "failed"]
         if not items:
             return

@@ -1,10 +1,10 @@
-# VibraPilot v1.0.6.28 — PR-11 E2E Windows / Multi-Task Regression
+# VibraPilot v1.0.6.30 — Workflow Plugin System
 
 ## Current development candidate
 
-Current release baseline: **v1.0.6.27 / PR-10 — RELEASE COMPLETE**. PR-11 is a verification-first target-Windows acceptance phase. It adds only acceptance tooling/tests/version/docs; all production `src/vibrapilot/**` files remain frozen.
+Official implementation baseline: **v1.0.6.28 / PR-11 — RELEASE COMPLETE**, commit `fff8160157d4d9b68b2d28b11105b0f7f38ed17d`. v1.0.6.30 adds trusted local workflow plugins and dynamic Workflow/Task configuration while preserving the existing one-active-workflow atomic switch/restart model.
 
-The mandatory matrix covers Windows x64 / CPython 3.12, Google Chrome Stable, browser lifecycle, real download/upload/storage/extension capability checks, Sandbox OFF/ON compatibility, observable fallback behavior, and 1/2/4 simultaneous Task isolation. PR-12 Packaging remains NOT STARTED.
+Core continues to own Task lifecycle, browser lifecycle/profiles, retry/backoff, persistence/recovery, reports/logs and licensing. Workflow packages provide validated metadata/schemas plus trusted Python business logic. JSON remains declarative only; there is no JSON Playwright interpreter, per-Task mixed workflow mode, marketplace, sandbox or automatic dependency installation in this release.
 
 # VibraPilot v1.0.6.23 — PR-06 Workflow State Persistence + Atomic Switch/Restart
 

@@ -380,8 +380,15 @@ def test_later_pr07_ui_does_not_add_fake_production_workflow():
 
 def test_frozen_out_of_scope_files_are_byte_identical_to_v10622_baseline():
     pr08_authorized_supersession = {"src/vibrapilot/workflow_inputs.py"}
+    v10630_path = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
+    v10630 = json.loads(v10630_path.read_text(encoding="utf-8")) if v10630_path.is_file() else {}
+    current_authorized = (
+        pr08_authorized_supersession
+        | set(v10630.get("allowed_production_source_changes", []))
+        | set(v10630.get("authorized_nonproduction_files", []))
+    )
     for relative, expected in _scope()["frozen_file_sha256"].items():
-        if relative in pr08_authorized_supersession:
+        if relative in current_authorized:
             continue
         actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
         assert actual == expected, relative
@@ -389,7 +396,12 @@ def test_frozen_out_of_scope_files_are_byte_identical_to_v10622_baseline():
 
 def test_safety_critical_worker_methods_remain_baseline_identical():
     methods = _worker_methods()
+    current_path = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
+    current = json.loads(current_path.read_text(encoding="utf-8")) if current_path.is_file() else {}
+    authorized_methods = set(current.get("authorized_automationworker_method_changes", []))
     for name, expected in _scope()["frozen_automationworker_method_canonical_ast_sha256"].items():
+        if name in authorized_methods:
+            continue
         assert _ast_hash(methods[name]) == expected, name
 
 

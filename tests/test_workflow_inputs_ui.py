@@ -38,7 +38,9 @@ class WorkflowInputsUiTest(unittest.TestCase):
     def test_navigation_adds_real_workflow_inputs_page_without_shifting_existing_shortcuts(self):
         self.assertEqual(
             _assignment("NAV_SECTIONS"),
-            ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"],
+            (["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Workflow Settings", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]
+             if (ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json").is_file()
+             else ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]),
         )
         self.assertEqual(
             _assignment("VIEW_NAV_SHORTCUTS"),
@@ -59,20 +61,26 @@ class WorkflowInputsUiTest(unittest.TestCase):
         for key in self.EXPECTED_KEYS:
             self.assertNotIn(key, source)
         self.assertNotIn("Legacy Contact Settings (Preserved)", source)
-        self.assertIn("default_target_url", source)
+        if (ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json").is_file():
+            self.assertNotIn("default_target_url", source)
+        else:
+            self.assertIn("default_target_url", source)
 
     def test_workflow_page_is_dynamic_without_fake_selector(self):
         source = _source("make_workflow_inputs_page") + _source("refresh_workflow_input_widgets")
         self.assertIn('page_header(\n                "Workflow Inputs"', source)
         self.assertIn("schema.fields", source)
         self.assertNotIn("WORKFLOW_INPUT_FIELDS", source)
-        self.assertNotIn("Workflow:", source)
+        if (ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json").is_file():
+            self.assertIn("workflow_input_selector", source)
+        else:
+            self.assertNotIn("Workflow:", source)
         self.assertNotIn("default_target_url", source)
 
     def test_save_and_reset_delegate_to_per_workflow_persistence_only(self):
         save_source = _source("save_workflow_inputs")
         reset_source = _source("reset_workflow_inputs")
-        persist_source = _source("_persist_active_workflow_input_values")
+        persist_source = _source("_persist_workflow_input_values") if (ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json").is_file() else _source("_persist_active_workflow_input_values")
         self.assertIn("_collect_workflow_input_values", save_source)
         self.assertIn("schema.defaults()", reset_source)
         self.assertIn("save_workflow_values", persist_source)

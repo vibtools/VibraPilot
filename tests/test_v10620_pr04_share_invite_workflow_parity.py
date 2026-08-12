@@ -27,6 +27,7 @@ SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.20_pr04_share_invite_wor
 PR04_CI_FIX_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.21_pr04_ci_portability_fix_scope.json"
 PR06_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json"
 PR08_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.25_pr08_dynamic_workflow_inputs_scope.json"
+V10630_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.30_workflow_plugin_system_scope.json"
 BASELINE_BACKEND = ROOT / "project" / "research" / "source_baseline" / "VibraPilot_v1.0.6_original_app.py"
 
 ALG = "canonical-semantic-ast-v2"
@@ -426,7 +427,11 @@ def test_backend_compatibility_methods_delegate_to_share_invite_runtime():
 def test_safety_critical_worker_methods_remain_ast_identical_to_approved_baseline():
     scope = _scope()
     _, methods, _ = _backend_nodes()
+    current = json.loads(V10630_SCOPE_PATH.read_text(encoding="utf-8")) if V10630_SCOPE_PATH.is_file() else {}
+    authorized = set(current.get("authorized_automationworker_method_changes", []))
     for name, expected in scope["frozen_automationworker_method_ast_sha256"].items():
+        if name in authorized:
+            continue
         assert _ast_hash(methods[name]) == expected, name
 
 
@@ -447,6 +452,10 @@ def test_pr04_frozen_runtime_files_are_byte_identical():
     if PR08_SCOPE_PATH.is_file():
         pr08_scope = json.loads(PR08_SCOPE_PATH.read_text(encoding="utf-8"))
         superseded.update(pr08_scope.get("allowed_production_source_changes", []))
+    if V10630_SCOPE_PATH.is_file():
+        current = json.loads(V10630_SCOPE_PATH.read_text(encoding="utf-8"))
+        superseded.update(current.get("allowed_production_source_changes", []))
+        superseded.update(current.get("authorized_nonproduction_files", []))
     for relative, expected in scope["frozen_file_sha256"].items():
         if relative in superseded:
             continue

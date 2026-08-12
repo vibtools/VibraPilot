@@ -1,3 +1,7 @@
+## v1.0.6.30 workflow plugin compatibility
+
+v1.0.6.30 extends the existing source-controlled workflow framework with trusted local plugin discovery/installation without replacing the one-active-workflow state model. Built-in Share Invite remains registered and behaviorally preserved. External plugins use plugin API version 1 and declarative JSON for Inputs/Settings/Task UI while executable business logic remains Python. Invalid/incompatible plugins fail closed. Existing browser, TaskRuntimeStore, workspace/report, licensing/device, Chrome-preferred/Chromium-fallback and managed-profile contracts remain preserved.
+
 ## v1.0.6.28 PR-11 compatibility
 
 PR-11 is verification-first and preserves every production `src/vibrapilot/**` file byte-for-byte from v1.0.6.27. Target acceptance covers Windows x64 / CPython 3.12 / Playwright 1.61.0 / Chrome Stable, 1/2/4-Task isolation, browser lifecycle, downloads/uploads/storage/extensions, Sandbox OFF/ON compatibility and observable fallback behavior.

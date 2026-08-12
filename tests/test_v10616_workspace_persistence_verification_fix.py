@@ -12,6 +12,9 @@ class V10616WorkspacePersistenceVerificationFixTest(unittest.TestCase):
   current=ROOT/"config/verification/v1.0.6.17_browser_capabilities_scope.json"
   allowed=set()
   if current.is_file(): allowed.update(json.loads(current.read_text(encoding="utf-8")).get("allowed_runtime_source_changes",[]))
+  v10630=ROOT/"config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
+  if v10630.is_file():
+   data=json.loads(v10630.read_text(encoding="utf-8")); allowed.update(data.get("allowed_production_source_changes",[])); allowed.update(data.get("authorized_nonproduction_files",[]))
   for r,e in self.scope["runtime_byte_frozen_sha256"].items():
    if r in allowed: continue
    self.assertEqual(hashlib.sha256((ROOT/r).read_bytes()).hexdigest(),e,r)

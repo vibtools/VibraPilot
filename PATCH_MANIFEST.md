@@ -1,55 +1,63 @@
-# VibraPilot v1.0.6.20 PR-04 Share Invite Workflow Extraction Delta Patch Manifest
+# VibraPilot v1.0.6.30 Workflow Plugin System — Replace-Ready Delta Manifest
 
-Patch status: **IMPLEMENTATION VERIFIED / GITHUB PUBLICATION BLOCKED / PR-04 NOT COMPLETED**  
-Patch type: **replace-ready candidate delta; extract over the exact approved PR-02/PR-03 baseline**
+Patch status: **IMPLEMENTATION VERIFIED / REPLACE-READY / GITHUB NOT WRITTEN**  
+Patch type: **replace-ready delta over the exact Official Baseline Freeze**
 
-## Baseline
+## Official Baseline Freeze
 
 - Product: VibraPilot
-- Runtime baseline: `1.0.6.19`
-- Baseline state: PR-02 + PR-03 implementation completed
-- Baseline GitHub commit: `999212b947583927204535f59832f1379d9306f4`
-- Approved PR-01 archive ancestor SHA-256: `ee2431e3ee4d56697e9127b463ee904806e35853e41abbd2c082b4101f727682`
+- Baseline version: `1.0.6.28`
+- Baseline GitHub commit: `fff8160157d4d9b68b2d28b11105b0f7f38ed17d`
+- Baseline GitHub tree: `1712f05f9815c2fef4ef557d1bde3b17f7c62890`
+- Baseline status: PR-11 release baseline
+- PR-12/v1.0.6.29 packaging implementation: **not imported into this functional delta**
 
 ## Candidate
 
-- Phase: `PR-04 — Existing Share Invite Workflow Extraction and Behavioral Parity`
-- Candidate runtime/package version: `1.0.6.20`
-- Final planned production line: `1.0.7.0`
+- Target version: `1.0.6.30`
+- Plan: `VP-V10630-WORKFLOW-PLUGIN-SYSTEM-001`
+- Required commit message: `feat(workflows): add trusted plugin loading and dynamic workflow controls`
+- Delivery mode: Replace-Ready Delta ZIP only
+- GitHub write by assistant: **NO**
 
 ## Implemented Scope
 
-- Added the source-controlled `share_invite` built-in workflow package and manifest/logo.
-- Extracted the 18 existing Share Invite-specific methods behind `ShareInviteWorkflow` with semantic parity to the baseline.
-- Kept `AutomationWorker` compatibility methods as thin delegation boundaries.
-- Preserved the safety-critical processing/retry/manual-review state machine and existing exception identities.
-- Extended only the PR-03 built-in workflow contracts/registry/manager needed to expose Share Invite.
-- Added PR-04 scope verification and dedicated parity tests.
-- Promoted current release metadata to `1.0.6.20`.
-- No workflow switching, active-workflow persistence, Workflow page, dynamic Workflow Inputs, schema redesign, browser configuration change, CAPTCHA change, licensing change, or dependency change is included.
+- Preserves the existing one-active-workflow atomic switch/restart/recovery model.
+- Extends the built-in workflow catalog with validated trusted external `.vpworkflow` packages.
+- Adds managed external workflow installation under the VibraPilot application-data workflow root.
+- Adds plugin API v1, package/schema/runtime validation, staged atomic install and fail-closed incompatible-plugin handling.
+- Keeps Python as the workflow business/browser logic runtime; JSON remains declarative configuration only.
+- Adds workflow-selectable global Workflow Inputs and a new Workflow Settings page with isolated persistence.
+- Adds workflow-controlled Task schema, compact Task card, `Task Settings`, workflow step and workflow metrics.
+- Keeps Core Task status, threading, browser lifecycle, retry/backoff, persistence, recovery, reports, logs and licensing Core-owned.
+- Moves task-specific Target URL/data configuration behind Task Settings; new Tasks no longer consume a global default Target URL.
+- Simplifies App Settings while retaining authorized testing and send-limit controls; failed/unprocessed data preservation and running-task close confirmation are enforced as safety behavior.
+- Keeps the existing Share Invite workflow selectors/business sequence frozen.
+- Does not add per-Task mixed workflows, a JSON Playwright interpreter, marketplace, sandbox, automatic dependencies, plugin uninstall/update, or an invented second production workflow.
 
-## Verification
+## Verification Evidence
 
 ```text
 compileall: PASS
+targeted v1.0.6.30 plugin/config matrix: PASS
+affected historical + v1.0.6.30 matrix: 195 passed, 41 subtests passed
+historical PR05-PR11 regression: 94/94 PASS
+final full pytest after Cycle-1 post-apply compatibility repair: 402 passed, 5 skipped, 113 subtests passed
+full unittest discover: 200 tests OK, 5 skipped
 scripts/verify_repository.py: PASS
-PR-03 + PR-04 targeted pytest: 43 passed
-full pytest: 273 passed, 5 skipped, 115 subtests passed
-full unittest: 189 tests OK, 5 skipped
-18 extracted Share Invite semantic-AST parity checks: PASS
-safety-critical AutomationWorker AST/hash checks: PASS
-frozen out-of-scope file hashes: PASS
-forensic delta review: PASS
+frozen runtime SHA-256 contract: PASS
+private project/ exclusion: PASS
+PR-12 packaging-surface exclusion: PASS
 ```
 
-The reduction from historical 133 to 115 pytest subtests is intentional: 18 historical frozen-worker subtests are superseded for the 18 explicitly approved PR-04 delegation methods, which are now covered by dedicated parity tests plus semantic AST checks. No failing test is hidden or reclassified.
+The test-only invoice-like plugin fixture exists only under `tests/`; no fake/demo second production workflow is installed or registered.
 
-## GitHub Publication Gate
+Post-apply Windows evidence identified `V10630-QT-TASKSLOT-FAKEAPP-COMPAT-001`; Cycle-1 restores the frozen lightweight Qt TaskSlotWidget host contract without changing production MainWindow workflow behavior. Owner-side Windows/PySide6 full-test confirmation is required after applying the repair delta.
 
-GitHub `main` remains at baseline reconciliation commit `999212b947583927204535f59832f1379d9306f4`. The approved PR-04 feature commit has **not** been created and PR-04 CI has **not** run. The current connected GitHub write interface does not expose a server-side patch apply or local-file upload argument for the two large modified existing files (`src/vibrapilot/backend.py`, `scripts/verify_repository.py`); publishing only the remaining files would create an incomplete repository state, so `main` was deliberately left untouched.
+## Frozen / Unchanged
 
-Under the owner-mandated release-control rule, **PR-04 is therefore not COMPLETED**. This patch is a locally verified replace-ready candidate, not the final GitHub/CI-closed phase artifact.
+The scope contract freezes the existing Share Invite runtime, workflow registry/contracts/state/recovery modules, browser capabilities, TaskRuntimeStore, workspace state and `.github/workflows/ci.yml`. Browser Chrome-preferred/Chromium-fallback behavior, managed browser profiles, licensing protocol/device identity, report columns, CAPTCHA boundary and packaging remain outside this functional change.
 
 ## Payload
 
-`DELTA_FILE_LIST.txt` is the authoritative project-relative payload list. `SHA256SUMS.txt` records SHA-256 for every payload file plus this manifest and the file list.
+`DELTA_FILE_LIST.txt` is the authoritative project-relative replacement/addition list. It contains no `project/` path. `SHA256SUMS.txt` records SHA-256 for every payload file plus `PATCH_MANIFEST.md` and `DELTA_FILE_LIST.txt`.

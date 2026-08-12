@@ -1,9 +1,4 @@
-"""Built-in workflow framework for VibraPilot.
-
-PR-04 adds the verified Share Invite workflow as the first deterministic built-in
-workflow. Workflow activation, switching and active-workflow persistence remain
-out of scope until later explicitly approved phases.
-"""
+"""VibraPilot workflow framework and trusted local extension surface."""
 from .contracts import (
     ActiveWorkflowRequiredError,
     DuplicateWorkflowError,
@@ -23,11 +18,39 @@ from .contracts import (
     WorkflowSwitchError,
 )
 from .manager import WorkflowManager
+from .plugin_loader import (
+    InstalledWorkflowPlugin,
+    WorkflowPackageInspection,
+    WorkflowPluginError,
+    WorkflowPluginInstallError,
+    WorkflowPluginIssue,
+    WorkflowPluginValidationError,
+    default_workflow_plugin_root,
+    inspect_workflow_package,
+    install_workflow_package,
+    load_installed_workflows,
+    load_workflow_directory,
+)
 from .recovery import (
     RECOVERY_COMMITTED,
     RECOVERY_PREPARED,
     WORKFLOW_RECOVERY_TRANSACTION_SCHEMA_VERSION,
     WorkflowRecoveryTransaction,
+)
+from .schemas import (
+    WORKFLOW_PLUGIN_API_VERSION,
+    WorkflowFieldSchema,
+    WorkflowFormSchema,
+    WorkflowMetricSchema,
+    WorkflowSchemaError,
+    WorkflowTaskSchema,
+    normalize_form_values,
+    normalize_task_values,
+)
+from .settings_state import (
+    WORKFLOW_SETTINGS_STATE_SCHEMA_VERSION,
+    WorkflowSettingsStateError,
+    WorkflowSettingsStateStore,
 )
 from .state import (
     DEFAULT_ACTIVE_WORKFLOW_ID,
@@ -37,6 +60,11 @@ from .state import (
     WorkflowState,
     WorkflowStateStore,
     WorkflowSwitchTransaction,
+)
+from .task_state import (
+    WORKFLOW_TASK_STATE_SCHEMA_VERSION,
+    WorkflowTaskStateError,
+    WorkflowTaskStateStore,
 )
 from .registry import (
     WorkflowRegistry,
@@ -75,7 +103,33 @@ __all__ = [
     "DEFAULT_ACTIVE_WORKFLOW_ID",
     "TRANSACTION_PREPARED",
     "TRANSACTION_COMMITTED",
+    "WorkflowRegistry",
     "builtin_workflow_manifests",
     "builtin_workflow_runtime_factories",
     "create_builtin_registry",
+    "WORKFLOW_PLUGIN_API_VERSION",
+    "WorkflowFieldSchema",
+    "WorkflowFormSchema",
+    "WorkflowMetricSchema",
+    "WorkflowTaskSchema",
+    "WorkflowSchemaError",
+    "normalize_form_values",
+    "normalize_task_values",
+    "WorkflowPackageInspection",
+    "InstalledWorkflowPlugin",
+    "WorkflowPluginError",
+    "WorkflowPluginInstallError",
+    "WorkflowPluginIssue",
+    "WorkflowPluginValidationError",
+    "default_workflow_plugin_root",
+    "inspect_workflow_package",
+    "install_workflow_package",
+    "load_installed_workflows",
+    "load_workflow_directory",
+    "WORKFLOW_SETTINGS_STATE_SCHEMA_VERSION",
+    "WorkflowSettingsStateError",
+    "WorkflowSettingsStateStore",
+    "WORKFLOW_TASK_STATE_SCHEMA_VERSION",
+    "WorkflowTaskStateError",
+    "WorkflowTaskStateStore",
 ]

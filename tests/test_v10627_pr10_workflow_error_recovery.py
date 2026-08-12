@@ -71,7 +71,15 @@ def test_production_registry_remains_share_invite_only_with_one_factory():
 
 
 def test_approved_frozen_runtime_surfaces_remain_byte_identical():
+    scope_paths = (ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json",)
+    current_authorized: set[str] = set()
+    for scope_path in scope_paths:
+        scope = json.loads(scope_path.read_text(encoding="utf-8")) if scope_path.is_file() else {}
+        current_authorized.update(scope.get("allowed_production_source_changes", []))
+        current_authorized.update(scope.get("authorized_nonproduction_files", []))
     for rel, expected in FROZEN.items():
+        if rel in current_authorized:
+            continue
         assert _sha(ROOT / rel) == expected, rel
 
 
@@ -129,7 +137,13 @@ def test_state_recovery_requires_target_manifest_runtime_and_input_schema():
     recover = _method_source("request_workflow_state_recovery")
     assert "self.workflow_catalog.require_workflow(target)" in recover
     assert "self.workflow_catalog.require_runtime_factory(target)" in recover
-    assert "workflow_input_schema_for(target)" in recover
+    current_scope = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
+    if current_scope.is_file():
+        assert "self.workflow_catalog.input_schema(target)" in recover
+        assert "self.workflow_catalog.settings_schema(target)" in recover
+        assert "self.workflow_catalog.task_schema(target)" in recover
+    else:
+        assert "workflow_input_schema_for(target)" in recover
     assert "_confirm_workflow_state_recovery(target)" in recover
 
 
@@ -195,7 +209,11 @@ def test_input_recovery_ui_is_explicit_and_live_worker_blocked():
     assert "workflow_input_recover_button.setVisible(True)" in refresh
     assert "task.worker and task.worker.is_alive()" in blocker
     assert "recover_workflow_defaults" in recover
-    assert "Legacy Share Invite" in recover
+    current_scope = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
+    if current_scope.is_file():
+        assert "Workflow Input" in recover
+    else:
+        assert "Legacy Share Invite" in recover
     assert "rollback_recovery" in recover
 
 

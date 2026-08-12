@@ -3,12 +3,12 @@
   "documentation": {
     "id": "vibrapilot",
     "title": "VibraPilot Documentation",
-    "description": "Documentation for VibraPilot v1.0.6.28 PR-11 E2E Windows / Multi-Task Regression development candidate by Vib Tools.",
-    "version": "1.0.6.28",
+    "description": "Documentation for VibraPilot v1.0.6.30 Workflow Plugin System development candidate by Vib Tools.",
+    "version": "1.0.6.30",
     "root": "docs",
     "home": "index.md"
   },
   "product": {
-    "description": "PR-11 is a verification-first target-Windows acceptance candidate; v1.0.6.27 PR-10 is the current release baseline until PR-11 release closure."
+    "description": "v1.0.6.30 adds trusted local workflow plugins and dynamic workflow controls from the v1.0.6.28 PR-11 official implementation baseline."
   }
 }

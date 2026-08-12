@@ -8,8 +8,8 @@
     "slug": "vibrapilot",
     "displayName": "VibraPilot",
     "description": "VibraPilot browser automation desktop application by Vib Tools.",
-    "summary": "VibraPilot v1.0.6.28 PR-11 provides target-Windows E2E and 1/2/4-Task regression tooling while keeping production runtime source frozen.",
-    "version": "1.0.6.28",
+    "summary": "VibraPilot v1.0.6.30 adds trusted workflow plugins and dynamic workflow controls while preserving the Core automation runtime.",
+    "version": "1.0.6.30",
     "status": "development",
     "visibility": "private",
     "category": "desktop-application",
@@ -70,7 +70,8 @@
       "cryptography",
       "openpyxl",
       "xlrd",
-      "defusedxml"
+      "defusedxml",
+      "PyInstaller"
     ],
     "packageManagers": [
       "pip"
