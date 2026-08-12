@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 from vibrapilot.workflow import WorkflowManager
@@ -24,3 +25,39 @@ def test_core_browser_and_share_invite_specialized_path_are_retained():
     assert 'if self._is_share_invite_workflow()' in BACKEND
     assert 'def _process_generic_workflow_item' in BACKEND
     assert 'workflow_error_decision' in BACKEND
+
+def test_mainwindow_bound_method_descriptors_are_consistent():
+    """Prevent startup crashes from instance-bound helper signature/decorator drift."""
+    tree = ast.parse(QT)
+    main_window = next(
+        node for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "MainWindow"
+    )
+    methods = {
+        node.name: node
+        for node in main_window.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    self_calls = {
+        node.func.attr
+        for node in ast.walk(main_window)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "self"
+    }
+    invalid = []
+    for name in sorted(self_calls):
+        method = methods.get(name)
+        if method is None:
+            continue
+        decorators = {ast.unparse(value) for value in method.decorator_list}
+        args = [arg.arg for arg in method.args.args]
+        if "staticmethod" in decorators or "classmethod" in decorators:
+            continue
+        if not args or args[0] != "self":
+            invalid.append((name, args, sorted(decorators)))
+    assert invalid == []
+    helper = methods["_transaction_root_has_directories"]
+    assert [ast.unparse(value) for value in helper.decorator_list] == ["staticmethod"]
+    assert [arg.arg for arg in helper.args.args] == ["root"]

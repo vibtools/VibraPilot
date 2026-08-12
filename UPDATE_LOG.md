@@ -1,6 +1,6 @@
 ## v1.0.6.30 — Workflow Plugin System — 2026-08-12
 
-Adds trusted local workflow package loading and a unified workflow catalog; extends existing Workflow Inputs with workflow selection; adds per-workflow settings, declarative Task Settings, workflow step/metrics and Core-owned dynamic UI rendering. Existing one-active-workflow switching, Share Invite behavior, browser engine, persistence/recovery, reports/logs and licensing remain preserved. Global Default Target URL is no longer used for new Tasks, and required data-safety behavior is always enforced. A post-apply regression repair preserves the historical lightweight `TaskSlotWidget` host contract without changing production workflow behavior.
+Adds trusted local workflow package loading and a unified workflow catalog; extends existing Workflow Inputs with workflow selection; adds per-workflow settings, declarative Task Settings, workflow step/metrics and Core-owned dynamic UI rendering. Existing one-active-workflow switching, Share Invite behavior, browser engine, persistence/recovery, reports/logs and licensing remain preserved. Global Default Target URL is no longer used for new Tasks, and required data-safety behavior is always enforced. Post-apply repair history now includes both the lightweight `TaskSlotWidget` host-compatibility correction and the startup/UI recovery correction that restores `MainWindow._transaction_root_has_directories` as the frozen static helper.
 
 ## v1.0.6.28 — PR-11 E2E Windows / Multi-Task Regression — 2026-08-10
 

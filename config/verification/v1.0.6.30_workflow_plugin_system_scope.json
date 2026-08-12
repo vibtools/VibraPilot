@@ -146,6 +146,22 @@
         "tests/test_v10630_workflow_task_ui.py"
       ],
       "scope_amendment_required": false
+    },
+    {
+      "primary_error_id": "V10630-MAINWINDOW-STATICMETHOD-STARTUP-001",
+      "cycle": 1,
+      "status": "PASS",
+      "candidate_github_commit": "e0a080062a4ddb783dc94568801358ce2e01598c",
+      "root_cause": "The v1.0.6.30 qt_app edit dropped the frozen @staticmethod decorator from MainWindow._transaction_root_has_directories(root). Instance calls therefore injected self plus root and crashed workspace page registration with TypeError before initial Tasks were created.",
+      "fix": "Restore the exact frozen @staticmethod descriptor and add source-level bound-method descriptor verification so the startup contract is enforced even where PySide6 runtime tests are skipped.",
+      "changed_files": [
+        "src/vibrapilot/qt_app.py",
+        "tests/test_v10630_workflow_plugin_regression.py",
+        "scripts/diagnostics/verify_v10630_workflow_plugin_system.py"
+      ],
+      "scope_amendment_required": false
     }
-  ]
+  ],
+  "startup_repair_commit_message": "fix(ui): restore workflow recovery startup contract",
+  "startup_repair_baseline_commit": "e0a080062a4ddb783dc94568801358ce2e01598c"
 }

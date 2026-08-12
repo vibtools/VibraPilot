@@ -4096,6 +4096,8 @@ class MainWindow(QMainWindow):
         except ValueError as exc:
             return False, str(exc)
         return True, ""
+
+    @staticmethod
     def _transaction_root_has_directories(root: Path) -> bool:
         return Path(root).is_dir() and any(path.is_dir() for path in Path(root).iterdir())
 

@@ -11,6 +11,10 @@
 - App Settings now exposes user-facing global processing/UI/output controls only; failed/unprocessed-data preservation and running-task close confirmation are always enforced.
 - New Tasks no longer inherit a global default Target URL; URL requirements are workflow/task-schema controlled.
 
+### Fixed
+- Restored the frozen `@staticmethod` descriptor on `MainWindow._transaction_root_has_directories(root)`, preventing the v1.0.6.30 Workflows-page registration crash that left the workspace shell half-built.
+- Added descriptor-level startup regression verification so instance-bound helper signature/decorator drift is caught even when PySide6 runtime tests are unavailable.
+
 ### Preserved
 - Share Invite business selectors/sequence, browser lifecycle and profile isolation, TaskRuntimeStore schema, atomic workflow switch/recovery, reports/logs, licensing/device identity and existing CI remain preserved.
 - Lightweight `TaskSlotWidget` construction used by the frozen browser-lifecycle regression harness remains compatible when MainWindow-only workflow host attributes are absent.

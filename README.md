@@ -6,6 +6,8 @@ Official implementation baseline: **v1.0.6.28 / PR-11 — RELEASE COMPLETE**, co
 
 Core continues to own Task lifecycle, browser lifecycle/profiles, retry/backoff, persistence/recovery, reports/logs and licensing. Workflow packages provide validated metadata/schemas plus trusted Python business logic. JSON remains declarative only; there is no JSON Playwright interpreter, per-Task mixed workflow mode, marketplace, sandbox or automatic dependency installation in this release.
 
+Startup repair note: the pushed v1.0.6.30 candidate `e0a080062a4ddb783dc94568801358ce2e01598c` exposed a Workflows-page startup regression after the frozen `@staticmethod` descriptor was dropped from `_transaction_root_has_directories`. The repair restores only that descriptor and adds regression verification; no UI design tokens, browser workflow, Task lifecycle, or workflow business behavior is redesigned.
+
 # VibraPilot v1.0.6.23 — PR-06 Workflow State Persistence + Atomic Switch/Restart
 
 ## Current release
@@ -257,4 +259,3 @@ Public documentation belongs under `docs/`. The local `project/` tree and runtim
 GPL-3.0-only. See `LICENSE` and `NOTICE`.
 
 Maintained by **Vib Tools** — https://vib.tools/
-

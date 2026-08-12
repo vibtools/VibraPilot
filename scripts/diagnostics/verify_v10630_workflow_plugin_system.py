@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import os
@@ -138,6 +139,52 @@ def verify_checksums() -> None:
         fail("SHA256SUMS.txt contains too few verified files")
 
 
+
+def verify_qt_startup_descriptor_contract() -> None:
+    """Reject instance-bound helper definitions that cannot accept implicit self."""
+    source = (ROOT / "src" / "vibrapilot" / "qt_app.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    try:
+        main_window = next(
+            node for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "MainWindow"
+        )
+    except StopIteration:
+        fail("MainWindow class missing from qt_app.py")
+    methods = {
+        node.name: node
+        for node in main_window.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    self_calls = {
+        node.func.attr
+        for node in ast.walk(main_window)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "self"
+    }
+    invalid: list[str] = []
+    for name in sorted(self_calls):
+        method = methods.get(name)
+        if method is None:
+            continue
+        decorators = {ast.unparse(value) for value in method.decorator_list}
+        args = [arg.arg for arg in method.args.args]
+        if "staticmethod" in decorators or "classmethod" in decorators:
+            continue
+        if not args or args[0] != "self":
+            invalid.append(name)
+    if invalid:
+        fail("Qt bound-method descriptor mismatch: " + ", ".join(invalid))
+    helper = methods.get("_transaction_root_has_directories")
+    if helper is None:
+        fail("_transaction_root_has_directories helper missing")
+    decorators = [ast.unparse(value) for value in helper.decorator_list]
+    args = [arg.arg for arg in helper.args.args]
+    if decorators != ["staticmethod"] or args != ["root"]:
+        fail("_transaction_root_has_directories must remain @staticmethod(root)")
+
 def run_command(command: list[str]) -> None:
     env = dict(os.environ)
     current = env.get("PYTHONPATH", "")
@@ -158,6 +205,7 @@ def main() -> int:
     scope = load_scope()
     verify_version()
     verify_frozen(scope)
+    verify_qt_startup_descriptor_contract()
     verify_delta_hygiene(scope)
     verify_checksums()
     run_command([sys.executable, "scripts/verify_repository.py"])
