@@ -42,7 +42,7 @@ jobs:
 
       - name: Build Nuitka OneDir, portable ZIP and WiX MSI
         # Core packaging remains build.py; do not invoke python build.py directly here.
-        # The PR-12 adapter augments only generated WiX empty-directory cleanup rows.
+        # Cycle-2 adapter replaces only generated WiX payload-directory authoring.
         run: python scripts/packaging/pr12_package_build.py
 
       - name: Verify GitHub-built package artifacts

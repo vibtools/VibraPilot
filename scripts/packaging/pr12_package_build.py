@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""PR-12 WiX ICE64-safe GitHub Actions packaging entry point.
+"""PR-12 Cycle-2 WiX ICE64-safe GitHub Actions packaging entry point.
 
-The frozen core build.py pipeline remains unchanged. This adapter augments only
-its generated WiX file fragment with uninstall rows for per-user directories.
+The frozen core build.py pipeline remains unchanged. This adapter replaces only
+its generated WiX payload fragment so every packaged file component and its
+uninstall cleanup component reference the exact same explicit Directory Id.
 """
 from __future__ import annotations
 
@@ -28,8 +29,70 @@ def _payload_directories(payload_root: Path) -> list[str]:
     return sorted(directories, key=lambda value: (value.count("/"), value.casefold(), value))
 
 
+def _directory_id(relative: str) -> str:
+    """Return the deterministic WiX Directory Id for one payload directory."""
+    return core._wix_id("Dir", relative)
+
+
+def _directory_tree_lines(payload_root: Path) -> list[str]:
+    """Author one explicit deterministic WiX Directory tree below INSTALLFOLDER."""
+    directories = _payload_directories(payload_root)
+    if not directories:
+        return []
+
+    children: dict[tuple[str, ...], set[str]] = {}
+    for relative in directories:
+        parts = tuple(Path(relative).parts)
+        for index, name in enumerate(parts):
+            parent = parts[:index]
+            children.setdefault(parent, set()).add(name)
+
+    lines = ['    <DirectoryRef Id="INSTALLFOLDER">']
+
+    def emit(parent: tuple[str, ...], indent: str) -> None:
+        for name in sorted(children.get(parent, set()), key=lambda value: (value.casefold(), value)):
+            current = parent + (name,)
+            relative = "/".join(current)
+            lines.append(
+                f'{indent}<Directory Id="{_directory_id(relative)}" Name="{escape(name)}">'
+            )
+            emit(current, indent + "  ")
+            lines.append(f"{indent}</Directory>")
+
+    emit((), "      ")
+    lines.append("    </DirectoryRef>")
+    return lines
+
+
+def _file_component_lines(payload_root: Path) -> list[str]:
+    """Author file components against explicit Directory identities only."""
+    payload_root = payload_root.resolve()
+    files = sorted(p for p in payload_root.rglob("*") if p.is_file())
+    if not files:
+        raise core.BuildError("MSI payload is empty.")
+
+    lines: list[str] = []
+    for file_path in files:
+        rel = file_path.relative_to(payload_root).as_posix()
+        rel_win = escape(rel.replace("/", "\\"))
+        parent = Path(rel).parent.as_posix()
+        directory_id = "INSTALLFOLDER" if parent == "." else _directory_id(parent)
+        cid = core._wix_id("Cmp", rel)
+        fid = core._wix_id("Fil", rel)
+        reg_name = core._wix_id("cmp", rel)
+        lines.extend(
+            [
+                f'      <Component Id="{cid}" Guid="{core._component_guid(rel)}" Directory="{directory_id}">',
+                f'        <File Id="{fid}" Source="!(bindpath.PayloadRoot)\\{rel_win}" />',
+                f'        <RegistryValue Root="HKCU" Key="{core.INSTALLER_REGISTRY_KEY}" Name="{reg_name}" Type="integer" Value="1" KeyPath="yes" />',
+                "      </Component>",
+            ]
+        )
+    return lines
+
+
 def _cleanup_component_lines(payload_root: Path) -> list[str]:
-    """Create deterministic empty-folder-only uninstall authoring for ICE64."""
+    """Author empty-folder-only uninstall rows against those exact Directory Ids."""
     cleanup: list[str] = []
 
     static_key = "static-profile-directories"
@@ -45,10 +108,10 @@ def _cleanup_component_lines(payload_root: Path) -> list[str]:
     )
 
     for relative in _payload_directories(payload_root.resolve()):
-        relative_win = escape(relative.replace("/", "\\"))
+        directory_id = _directory_id(relative)
         cleanup.extend(
             [
-                f'      <Component Id="{core._wix_id("DirCmp", relative)}" Guid="{core._component_guid("directory:" + relative)}" Directory="INSTALLFOLDER" Subdirectory="{relative_win}">',
+                f'      <Component Id="{core._wix_id("DirCmp", relative)}" Guid="{core._component_guid("directory:" + relative)}" Directory="{directory_id}">',
                 f'        <RemoveFolder Id="{core._wix_id("Rmf", relative)}" On="uninstall" />',
                 f'        <RegistryValue Root="HKCU" Key="{core.INSTALLER_REGISTRY_KEY}" Name="{core._wix_id("dircmp", relative)}" Type="integer" Value="1" KeyPath="yes" />',
                 "      </Component>",
@@ -57,31 +120,36 @@ def _cleanup_component_lines(payload_root: Path) -> list[str]:
     return cleanup
 
 
-def _augment_generated_wix(payload_root: Path, generated: Path) -> Path:
-    """Add ICE64 RemoveFile-table rows without deleting user/runtime content.
+def generate_explicit_wix_file_fragment(payload_root: Path, destination: Path) -> Path:
+    """Generate the payload fragment without any inline Subdirectory authoring."""
+    payload_root = payload_root.resolve()
+    if not any(p.is_file() for p in payload_root.rglob("*")):
+        raise core.BuildError("MSI payload is empty.")
 
-    WiX RemoveFolder maps to the MSI RemoveFile table with a null FileName and
-    therefore removes a directory only when it is empty. No wildcard file
-    removal and no recursive RemoveFolderEx authoring is used.
-    """
-    text = generated.read_text(encoding="utf-8")
-    marker = "    </ComponentGroup>"
-    if text.count(marker) != 1:
-        raise core.BuildError("Unexpected generated WiX ComponentGroup structure.")
-    cleanup = _cleanup_component_lines(payload_root)
-    replacement = "\n".join(cleanup) + "\n" + marker
-    generated.write_text(text.replace(marker, replacement, 1), encoding="utf-8", newline="\n")
-    return generated
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">',
+        "  <Fragment>",
+    ]
+    lines.extend(_directory_tree_lines(payload_root))
+    lines.extend(
+        [
+            '    <ComponentGroup Id="ApplicationFiles">',
+            *_file_component_lines(payload_root),
+            *_cleanup_component_lines(payload_root),
+            "    </ComponentGroup>",
+            "  </Fragment>",
+            "</Wix>",
+            "",
+        ]
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("\n".join(lines), encoding="utf-8", newline="\n")
+    return destination
 
 
 def _install_ice64_safe_generator() -> None:
-    original = core.generate_wix_file_fragment
-
-    def generate(payload_root: Path, destination: Path) -> Path:
-        generated = original(payload_root, destination)
-        return _augment_generated_wix(payload_root, generated)
-
-    core.generate_wix_file_fragment = generate
+    core.generate_wix_file_fragment = generate_explicit_wix_file_fragment
 
 
 def main() -> int:
