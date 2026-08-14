@@ -13,6 +13,7 @@ VERIFY_PATH = ROOT / "scripts" / "diagnostics" / "verify_pr11_windows_evidence.p
 SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.28_pr11_windows_multitask_regression_scope.json"
 V10630_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.30_workflow_plugin_system_scope.json"
 V10631_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.31_chrome_only_browser_runtime_scope.json"
+V10632_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.32_chrome_prerequisite_install_scope.json"
 
 
 def load_module(path: Path, name: str):
@@ -168,9 +169,11 @@ class PR11FrozenRuntimeContractTest(unittest.TestCase):
         )
         v10630_scope = json.loads(V10630_SCOPE_PATH.read_text(encoding="utf-8")) if V10630_SCOPE_PATH.is_file() else {}
         v10631_scope = json.loads(V10631_SCOPE_PATH.read_text(encoding="utf-8")) if V10631_SCOPE_PATH.is_file() else {}
+        v10632_scope = json.loads(V10632_SCOPE_PATH.read_text(encoding="utf-8")) if V10632_SCOPE_PATH.is_file() else {}
         current_allowed = (
             set(v10630_scope.get("allowed_production_source_changes", []))
             | set(v10631_scope.get("allowed_production_source_changes", []))
+            | set(v10632_scope.get("allowed_production_source_changes", []))
         )
         historical = set(hashes)
         current_set = set(current)
@@ -186,9 +189,11 @@ class PR11FrozenRuntimeContractTest(unittest.TestCase):
         scope = json.loads(SCOPE_PATH.read_text(encoding="utf-8"))
         v10630_scope = json.loads(V10630_SCOPE_PATH.read_text(encoding="utf-8")) if V10630_SCOPE_PATH.is_file() else {}
         v10631_scope = json.loads(V10631_SCOPE_PATH.read_text(encoding="utf-8")) if V10631_SCOPE_PATH.is_file() else {}
+        v10632_scope = json.loads(V10632_SCOPE_PATH.read_text(encoding="utf-8")) if V10632_SCOPE_PATH.is_file() else {}
         current_allowed = (
             set(v10630_scope.get("authorized_nonproduction_files", []))
             | set(v10631_scope.get("authorized_nonproduction_files", []))
+            | set(v10632_scope.get("authorized_nonproduction_files", []))
         )
         for rel, expected in scope["frozen_nonproduction_runtime_sha256"].items():
             if rel in current_allowed:

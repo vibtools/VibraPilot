@@ -1,51 +1,51 @@
-# VibraPilot v1.0.6.31 Phase 1 — Replace-Ready Delta Manifest
+# VibraPilot v1.0.6.32 Phase 2 — Replace-Ready Delta Manifest
 
 ## Classification
 
-- Official Baseline Freeze: `VibraPilot_v1.0.6.30_Baseline(1).zip`
-- Baseline SHA-256: `3a7fdde038ca4c6483888bbbc0fb9fd3466252cbc83845b141b9d6055d7eaaad`
-- Baseline Git commit: `c86b6faebd58be9bff61cc8fdc12c76dda49a975`
-- Target version: `1.0.6.31`
-- Update: `Phase 1 — Chrome-Only Runtime Foundation`
+- Official functional baseline: `v1.0.6.31`
+- Baseline Git commit: `fc9081b0f760ac6b380b8c574680fc2c15764be0`
+- Target version: `1.0.6.32`
+- Branch: `feature/v1.0.6.32-chrome-prerequisite-install`
+- Update: `Phase 2 — Chrome Prerequisite UX + Secure Install`
 - Implementation: `IMPLEMENTED / AUTOMATED VERIFIED`
-- Owner Windows acceptance: `PENDING`
-- Phase 2: `NOT STARTED / NOT APPROVED`
+- Owner Windows missing-Chrome/install/UAC acceptance: `PENDING`
 - Build/package work: `NOT PERFORMED / DEFERRED`
 
 ## Functional changes
 
-- Google Chrome branded channel is the only production browser engine.
-- Chrome-to-Playwright-Chromium retry paths are removed.
-- Persistent-profile `fallback_ephemeral` keeps Google Chrome as the engine.
-- Custom executable runtime authority is neutralized.
-- VibraPilot unpacked Chromium side-loading runtime is disabled.
-- Chromium sandbox is mandatory.
-- HTTP cache source/default migration is enabled while existing explicit routing/resource controls remain available.
-- Existing settings are migrated to the v1.0.6.31 mandatory browser policy.
-- Policy-conflicting advanced args (`--no-sandbox`, sandbox-disable, unpacked-extension side-load and alternate `--user-data-dir`) fail closed before launch.
-- `src/vibrapilot/chrome_runtime.py` adds Windows Google Chrome discovery and fail-closed product identity validation.
-- Browser Settings removes editable engine/fallback/sandbox/custom-binary/unpacked-extension controls and adds a read-only Chrome-only runtime policy/status card.
-- Diagnostics add Chrome-only compliance/violation evidence.
+- Re-checks for genuine installed Google Chrome at app startup, before every new Open Browser request and again in the backend before Playwright startup.
+- Adds one process-owned **Google Chrome Required** dialog with explicit Download & Install, Re-check and Not Now actions.
+- Performs no download or install without the user's explicit Download & Install action.
+- Downloads the code-owned Stable x64 Enterprise MSI from `https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi` with HTTPS/host/path enforcement.
+- Uses atomic `.part` download promotion and records SHA-256 evidence.
+- Requires Windows WinVerifyTrust Authenticode trust and signer publisher `Google LLC` before installer execution.
+- Elevates only Windows Installer via `runas`; distinguishes UAC cancellation/elevation/installer failures.
+- Requires post-install genuine Google Chrome path/product/version re-detection before browser automation becomes available.
+- Prevents concurrent duplicate prerequisite installers and blocks app/dialog close while an elevated install is active.
+- Preserves v1.0.6.31 Chrome-only launch, `fallback=no`, sandbox mandatory ON, normal HTTP cache defaults and managed `BrowserProfiles/slot_N` profiles.
 
-## Preserved
+## Preserved / frozen
 
-- Playwright automation layer.
-- VibraPilot-managed persistent `slot_N` profiles and storage/session behavior.
-- Task/browser lifecycle behavior outside the approved launch-policy surface.
-- downloads/uploads, workflows, Share Invite behavior, licensing, TaskRuntimeStore/workspace/report schemas.
-- `.github/workflows/ci.yml`, `build.py`, `requirements.txt`, `requirements-build.txt`.
+- Playwright automation and all workflow/Share Invite behavior.
+- Licensing/device identity.
+- TaskRuntimeStore, workspace and report schemas.
+- Browser diagnostics schema.
+- `config/settings.defaults.json` (no new user-editable installer/security switches).
+- `requirements.txt`, `requirements-build.txt` (no dependency change).
+- `.github/workflows/ci.yml`.
+- `build.py`, Nuitka/WiX/installer/package surfaces.
 
 ## Automated evidence
 
 ```text
 compileall: PASS
-Phase-1 targeted tests: 19 passed
+Phase-02 targeted + Phase-01 regression: PASS
 Repository verification: PASS
-Full pytest: 421 passed, 6 skipped, 113 subtests passed
+Full pytest: 431 passed, 6 skipped, 113 subtests passed
 Unittest: 200 OK, 6 skipped
-Phase-1 source diagnostic: PASS
-Windows runtime acceptance: NOT RUN in audit environment / OWNER PENDING
+Phase-02 source diagnostic: PASS
 Frozen-surface SHA verification: PASS
+Windows secure install/UAC runtime acceptance: OWNER PENDING
 ```
 
 ## Delta safety
@@ -56,10 +56,8 @@ Frozen-surface SHA verification: PASS
 - `.git`: excluded
 - caches/`__pycache__`/`.pyc`: excluded
 - build artifacts: excluded
-- the five baseline ZIP line-ending-only working-tree differences are excluded.
-- `project/` files are private/local-only and are ignored by Git; never force-add or push them.
+- `project/` is private/local-only, remains gitignored and must never be force-added or pushed.
 
 ## Apply
 
-Extract the ZIP at the VibraPilot project root and choose **Replace All**.
-After applying, run the owner Windows acceptance commands/instructions provided with the delivery before committing or pushing the feature branch.
+Extract the ZIP at the v1.0.6.31 project root and choose **Replace All**. Run the provided verification/Windows acceptance sequence before commit/push.

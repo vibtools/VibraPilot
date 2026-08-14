@@ -1,3 +1,13 @@
+## v1.0.6.32 — Chrome Prerequisite UX + Secure Install — 2026-08-14
+
+- Adds startup, Open Browser and backend Google Chrome prerequisite checks on top of the v1.0.6.31 Chrome-only runtime foundation.
+- Adds a user-consented **Google Chrome Required** dialog with Download & Install, Re-check and Not Now actions.
+- Downloads only the code-owned Stable x64 Google Enterprise MSI over HTTPS from `dl.google.com`, using atomic partial-file handling and SHA-256 evidence.
+- Requires Windows Authenticode trust and signer publisher **Google LLC** before any installer execution.
+- Runs the verified MSI through elevated Windows Installer, handles UAC cancellation/failure distinctly, and requires post-install genuine Google Chrome re-detection.
+- Preserves Playwright Chrome-only launch, mandatory sandbox, normal cache default, managed profiles, workflows, licensing, persistence and all non-browser functionality.
+- Build/Nuitka/WiX/package changes remain deferred.
+
 ## v1.0.6.31 — Chrome-Only Runtime Foundation — 2026-08-14
 
 - Enforced Playwright `channel="chrome"` as the only production browser engine; removed Chrome-to-Playwright-Chromium retry paths.

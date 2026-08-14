@@ -1,3 +1,7 @@
+## v1.0.6.32 Chrome prerequisite/install compatibility
+
+VibraPilot continues to require Windows x64 and genuine system-installed Google Chrome. If Chrome is missing, non-browser app functions remain available while browser automation is blocked. The optional in-app prerequisite recovery uses Google's Stable x64 Enterprise MSI, validates Windows Authenticode and Google LLC signer identity, elevates only Windows Installer through UAC, and re-detects genuine Chrome before enabling browser automation. Phase-01 sandbox/cache/managed-profile behavior is unchanged.
+
 ## v1.0.6.31 Chrome-only runtime compatibility
 
 VibraPilot now requires the branded Google Chrome runtime for browser launch. The Playwright automation layer and VibraPilot-managed persistent `slot_N` profiles are preserved. Playwright Chromium fallback, arbitrary browser executable selection, and VibraPilot unpacked Chromium side-loading are no longer accepted runtime paths. Existing profile-installed Chrome extensions are not removed. Sandbox is mandatory. HTTP cache is enabled by default; explicit Playwright routing for resource blocking or operator-disabled cache can still affect cache behavior. Chrome auto-download/install is not part of Phase 1. Advanced browser arguments remain available except policy-conflicting sandbox-disable, unpacked-extension side-loading and alternate user-data-dir overrides, which fail closed.

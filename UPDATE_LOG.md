@@ -1,3 +1,7 @@
+## v1.0.6.32 — Phase 2 Chrome Prerequisite Secure Install — 2026-08-14
+
+Adds explicit Chrome prerequisite UX and a fail-closed official Google MSI download/Authenticode/UAC/install/re-detection flow. No Chromium fallback or build/package work is introduced.
+
 ## v1.0.6.31 — Phase 1 Chrome-Only Runtime Foundation — 2026-08-14
 
 Phase 1 changes only the browser runtime policy foundation: Google Chrome only, mandatory sandboxing, HTTP cache enabled by default, persisted-policy migration, Chrome discovery foundation, Browser Settings policy/status cleanup, and diagnostic policy enforcement. No build/package work or Chrome installer UX is included.

@@ -191,3 +191,19 @@ def discover_google_chrome(
     if rejected:
         detail = "Rejected unverified/non-Google Chrome candidate(s): " + "; ".join(rejected)
     return ChromeRuntimeInfo(False, "not_found", detail=detail)
+
+class ChromeRuntimeRequiredError(RuntimeError):
+    """Raised when Google Chrome is required but no trusted installation is available."""
+
+
+def require_google_chrome() -> ChromeRuntimeInfo:
+    """Return the trusted installed Google Chrome runtime or fail closed."""
+    runtime = discover_google_chrome()
+    if not runtime.available:
+        detail = f" Detail: {runtime.detail}" if runtime.detail else ""
+        raise ChromeRuntimeRequiredError(
+            "Google Chrome is required for VibraPilot browser automation and was not detected."
+            + detail
+        )
+    return runtime
+

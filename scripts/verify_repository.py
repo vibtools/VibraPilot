@@ -50,6 +50,7 @@ PR10_WORKFLOW_ERROR_RECOVERY_SCOPE_CONTRACT = ROOT / "config" / "verification" /
 PR11_WINDOWS_MULTITASK_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.28_pr11_windows_multitask_regression_scope.json"
 V10630_WORKFLOW_PLUGIN_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.30_workflow_plugin_system_scope.json"
 V10631_CHROME_ONLY_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.31_chrome_only_browser_runtime_scope.json"
+V10632_CHROME_INSTALL_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.32_chrome_prerequisite_install_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -272,8 +273,21 @@ v10631_allowed_files = (
     | set(v10631_scope.get("authorized_nonproduction_files", []))
 )
 v10631_worker_methods = set(v10631_scope.get("authorized_automationworker_method_changes", []))
-current_worker_methods = v10630_worker_methods | v10631_worker_methods
-current_allowed_files = v10630_allowed_files | v10631_allowed_files
+
+# v1.0.6.32 supersedes only the approved prerequisite/install orchestration surface.
+if not V10632_CHROME_INSTALL_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.32 Chrome prerequisite/install scope contract is missing")
+try:
+    v10632_scope = json.loads(V10632_CHROME_INSTALL_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.32 Chrome prerequisite/install scope contract is invalid: {exc}")
+v10632_allowed_files = (
+    set(v10632_scope.get("allowed_production_source_changes", []))
+    | set(v10632_scope.get("authorized_nonproduction_files", []))
+)
+v10632_worker_methods = set(v10632_scope.get("authorized_automationworker_method_changes", []))
+current_worker_methods = v10630_worker_methods | v10631_worker_methods | v10632_worker_methods
+current_allowed_files = v10630_allowed_files | v10631_allowed_files | v10632_allowed_files
 if pr08_allowed_files != {
     "src/vibrapilot/workflow_inputs.py",
     "src/vibrapilot/workflow/input_state.py",
@@ -2059,6 +2073,89 @@ for forbidden_arg in (
     if forbidden_arg not in backend_text:
         fail(f"v1.0.6.31 policy blocker missing for additional browser arg: {forbidden_arg}")
 
+if v10632_scope.get("plan_id") != "VP-V10632-CHROME-PREREQUISITE-SECURE-INSTALL-001":
+    fail("v1.0.6.32 Chrome prerequisite/install plan identifier mismatch")
+if v10632_scope.get("baseline_version") != "1.0.6.31":
+    fail("v1.0.6.32 baseline version mismatch")
+if v10632_scope.get("baseline_github_commit") != "fc9081b0f760ac6b380b8c574680fc2c15764be0":
+    fail("v1.0.6.32 baseline GitHub commit mismatch")
+if v10632_scope.get("target_version") != "1.0.6.32":
+    fail("v1.0.6.32 target version mismatch")
+for key, expected in {
+    "chrome_only_runtime_retained": True,
+    "playwright_automation_retained": True,
+    "managed_persistent_profiles_retained": True,
+    "sandbox_mandatory_retained": True,
+    "http_cache_default_enabled_retained": True,
+    "chromium_fallback_allowed": False,
+    "custom_browser_executable_allowed": False,
+    "unpacked_chromium_extension_runtime_allowed": False,
+    "startup_chrome_prerequisite_check": True,
+    "open_browser_chrome_prerequisite_check": True,
+    "backend_chrome_prerequisite_guard": True,
+    "explicit_install_consent_required": True,
+    "silent_install_without_consent": False,
+    "authenticode_required": True,
+    "single_install_coordinator": True,
+    "post_install_redetection_required": True,
+    "build_changes": False,
+    "dependency_changes": False,
+    "build_track_deferred": True,
+}.items():
+    if v10632_scope.get(key) != expected:
+        fail(f"v1.0.6.32 scope boundary mismatch: {key}")
+if v10632_scope.get("official_download_url") != "https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi":
+    fail("v1.0.6.32 official Google MSI source mismatch")
+if v10632_scope.get("allowed_download_hosts") != ["dl.google.com"]:
+    fail("v1.0.6.32 download host allowlist mismatch")
+if v10632_scope.get("required_installer_publisher") != "Google LLC":
+    fail("v1.0.6.32 installer publisher policy mismatch")
+for relative, expected_sha in v10632_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.32 frozen surface drift detected: {relative}")
+chrome_installer_path = SRC / "chrome_installer.py"
+if not chrome_installer_path.is_file():
+    fail("v1.0.6.32 secure Chrome installer module missing")
+chrome_installer_text = chrome_installer_path.read_text(encoding="utf-8")
+for required_marker in (
+    'GOOGLE_CHROME_ENTERPRISE_MSI_URL = (',
+    '"https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi"',
+    'GOOGLE_CHROME_EXPECTED_PUBLISHER = "Google LLC"',
+    'def winverifytrust_file(',
+    'WinVerifyTrust',
+    'def read_authenticode_publisher(',
+    'def run_google_chrome_installer(',
+    'info.lpVerb = "runas"',
+    'def install_google_chrome(',
+    '"post_install_not_found"',
+):
+    if required_marker not in chrome_installer_text:
+        fail(f"v1.0.6.32 secure installer marker missing: {required_marker}")
+for forbidden_marker in (
+    "http://dl.google.com",
+    "example.com/googlechromestandaloneenterprise64.msi",
+    "shell=True",
+):
+    if forbidden_marker in chrome_installer_text:
+        fail(f"v1.0.6.32 insecure installer marker present: {forbidden_marker}")
+for required_marker in (
+    'class ChromeRequiredDialog(QDialog):',
+    'QTimer.singleShot(250, self.check_chrome_prerequisite_on_startup)',
+    'def ensure_chrome_ready(self, *, interactive: bool = True) -> bool:',
+    'def start_chrome_install(self) -> None:',
+    'elif kind == "chrome_install_progress":',
+    'elif kind == "chrome_install_result":',
+    'self.app.ensure_chrome_ready(interactive=True)',
+):
+    if required_marker not in qt_text:
+        fail(f"v1.0.6.32 prerequisite UI/coordinator marker missing: {required_marker}")
+launch_source = backend_text[backend_text.index("    def launch_browser(self) -> None:"):backend_text.index("    def context_arguments(", backend_text.index("    def launch_browser(self) -> None:"))]
+if "require_google_chrome()" not in launch_source:
+    fail("v1.0.6.32 backend prerequisite guard missing")
+if launch_source.index("require_google_chrome()") > launch_source.index("sync_playwright().start()"):
+    fail("v1.0.6.32 backend prerequisite guard must run before Playwright startup")
+
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
 app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
@@ -2068,8 +2165,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.31":
-    fail("AppConfig VERSION must be 1.0.6.31 for the Chrome-only Runtime Foundation candidate")
+if app_version != "1.0.6.32":
+    fail("AppConfig VERSION must be 1.0.6.32 for the Chrome prerequisite secure-install candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -2805,13 +2902,17 @@ required = [
     "config/verification/v1.0.6.28_pr11_windows_multitask_regression_scope.json",
     "config/verification/v1.0.6.30_workflow_plugin_system_scope.json",
     "config/verification/v1.0.6.31_chrome_only_browser_runtime_scope.json",
+    "config/verification/v1.0.6.32_chrome_prerequisite_install_scope.json",
     "src/vibrapilot/chrome_runtime.py",
+    "src/vibrapilot/chrome_installer.py",
     "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
     "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "src/vibrapilot/workflow/input_state.py", "src/vibrapilot/workflow/recovery.py", "src/vibrapilot/workspace_state.py", "src/vibrapilot/browser_capabilities.py",
     "src/vibrapilot/workflow/plugin_loader.py", "src/vibrapilot/workflow/schemas.py", "src/vibrapilot/workflow/settings_state.py", "src/vibrapilot/workflow/task_state.py",
     "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/updates/v1.0.6.31-chrome-only-runtime-foundation.md",
     "docs/verification/V1.0.6.31_CHROME_ONLY_RUNTIME_FOUNDATION.md",
+    "docs/updates/v1.0.6.32-chrome-prerequisite-install.md",
+    "docs/verification/V1.0.6.32_CHROME_PREREQUISITE_INSTALL.md",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
     "docs/updates/v1.0.6.1-vibrapilot-branding.md", "docs/updates/v1.0.6.1-github-ci-repository-hygiene-fix.md",
     "docs/updates/v1.0.6.1-github-ci-deterministic-ast-contract-fix.md",
@@ -2885,6 +2986,7 @@ required = [
     "tests/test_v10630_app_settings_contract.py",
     "tests/test_v10630_workflow_plugin_regression.py",
     "scripts/diagnostics/verify_v10630_workflow_plugin_system.py",
+    "scripts/diagnostics/verify_v10632_chrome_prerequisite_install.py",
     "scripts/diagnostics/pr11_windows_acceptance_runner.py",
     "scripts/diagnostics/verify_pr11_windows_evidence.py",
     "scripts/maintenance/Apply-v1.0.6.2-Phase01-Fix.cmd",

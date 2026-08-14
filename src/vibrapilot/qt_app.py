@@ -154,7 +154,13 @@ from .workflow import (
     normalize_task_values,
 )
 from .browser_capabilities import ensure_task_download_directory
-from .chrome_runtime import discover_google_chrome
+from .chrome_runtime import ChromeRuntimeInfo, discover_google_chrome
+from .chrome_installer import (
+    ChromeInstallError,
+    ChromeInstallProgress,
+    ChromeInstallResult,
+    install_google_chrome,
+)
 
 
 NAV_SECTIONS = ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Workflow Settings", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]
@@ -894,6 +900,134 @@ class ActivationPage(QWidget):
             self.activate_button.setEnabled(True)
 
 
+class ChromeRequiredDialog(QDialog):
+    """Single process-owned Google Chrome prerequisite/install dialog."""
+
+    def __init__(self, app: "MainWindow") -> None:
+        super().__init__(app)
+        self.app = app
+        self.setWindowTitle("Google Chrome Required")
+        self.setModal(True)
+        self.setMinimumWidth(560)
+        self.setWindowIcon(application_icon())
+        root = vbox(self, margins=(18, 18, 18, 18), spacing=12)
+        root.addWidget(label("Google Chrome Required", "PageTitle", False))
+        self.message = label(
+            "VibraPilot requires the system-installed Google Chrome browser for automation. "
+            "Google Chrome was not detected on this computer.",
+            "Description",
+            False,
+        )
+        self.message.setWordWrap(True)
+        root.addWidget(self.message)
+        terms = label(
+            "Download & Install retrieves Google's official Stable x64 Enterprise MSI. "
+            "The installer is verified with Windows Authenticode and must be signed by Google LLC before execution.",
+            "Caption",
+            False,
+        )
+        terms.setWordWrap(True)
+        root.addWidget(terms)
+        self.status = label("Browser automation is blocked until Google Chrome is available.", "Description", False)
+        self.status.setWordWrap(True)
+        root.addWidget(self.status)
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 100)
+        self.progress.setValue(0)
+        self.progress.hide()
+        root.addWidget(self.progress)
+
+        actions = QWidget()
+        action_lay = hbox(actions, margins=(0, 0, 0, 0), spacing=8)
+        self.install_button = button("Download & Install Google Chrome", "primary")
+        self.install_button.clicked.connect(self.app.start_chrome_install)
+        action_lay.addWidget(self.install_button)
+        self.recheck_button = button("Re-check", "secondary")
+        self.recheck_button.clicked.connect(self.app.recheck_chrome_prerequisite)
+        action_lay.addWidget(self.recheck_button)
+        self.not_now_button = button("Not Now", "ghost")
+        self.not_now_button.clicked.connect(self._not_now_or_cancel)
+        action_lay.addWidget(self.not_now_button)
+        root.addWidget(actions)
+
+    def _not_now_or_cancel(self) -> None:
+        if self.app.chrome_install_is_active():
+            self.app.cancel_chrome_install()
+            return
+        self.reject()
+
+    def set_missing(self, detail: str = "") -> None:
+        self.progress.hide()
+        self.install_button.setEnabled(True)
+        self.recheck_button.setEnabled(True)
+        self.not_now_button.setEnabled(True)
+        self.not_now_button.setText("Not Now")
+        text = "Google Chrome was not detected. Browser automation remains blocked."
+        if detail:
+            text += f"\n\n{detail}"
+        self.status.setText(text)
+
+    def set_progress_state(self, progress: ChromeInstallProgress) -> None:
+        stage = progress.stage
+        self.progress.show()
+        if progress.total > 0 and stage == "downloading":
+            self.progress.setRange(0, 100)
+            self.progress.setValue(min(100, int(progress.current * 100 / progress.total)))
+        else:
+            self.progress.setRange(0, 0)
+        self.status.setText(progress.message)
+        active = stage in {"downloading", "downloaded", "verifying", "verified", "awaiting_uac", "installing", "rechecking"}
+        self.install_button.setEnabled(not active)
+        self.recheck_button.setEnabled(not active)
+        cancellable = stage in {"downloading", "downloaded", "verifying", "verified"}
+        self.not_now_button.setText("Cancel" if cancellable else "Not Now")
+        self.not_now_button.setEnabled(cancellable or not active)
+
+    def set_success(self, runtime: ChromeRuntimeInfo) -> None:
+        self.progress.setRange(0, 100)
+        self.progress.setValue(100)
+        self.progress.show()
+        self.status.setText(
+            f"Google Chrome {runtime.version or ''} is installed and ready.".strip()
+        )
+        self.install_button.setEnabled(False)
+        self.recheck_button.setEnabled(True)
+        self.not_now_button.setText("Close")
+        self.not_now_button.setEnabled(True)
+
+    def set_failure(self, message: str) -> None:
+        self.progress.hide()
+        self.status.setText(message)
+        self.install_button.setEnabled(True)
+        self.recheck_button.setEnabled(True)
+        self.not_now_button.setText("Not Now")
+        self.not_now_button.setEnabled(True)
+
+    def reject(self) -> None:  # type: ignore[override]
+        if self.app.chrome_install_is_active():
+            if self.app._chrome_install_state in {"awaiting_uac", "installing", "rechecking"}:
+                self.status.setText(
+                    "Chrome installation is in progress. Complete or cancel the Windows installer before closing this dialog."
+                )
+                return
+            self.app.cancel_chrome_install()
+            self.status.setText("Cancelling Chrome installer download…")
+            return
+        super().reject()
+
+    def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
+        if self.app.chrome_install_is_active():
+            if self.app._chrome_install_state in {"awaiting_uac", "installing", "rechecking"}:
+                self.status.setText("Chrome installation is in progress. Complete or cancel the Windows installer before closing this dialog.")
+                event.ignore()
+                return
+            self.app.cancel_chrome_install()
+            self.status.setText("Cancelling Chrome installer download…")
+            event.ignore()
+            return
+        super().closeEvent(event)
+
+
 class TaskSlotWidget(QFrame):
     """One independent browser/task slot using the frozen Vib Tools card contract."""
 
@@ -1506,6 +1640,8 @@ class TaskSlotWidget(QFrame):
             self.worker.request_focus()
             self.app.log_ui(f"Task {self.slot_id}: browser focus requested")
             return
+        if not self.app.ensure_chrome_ready(interactive=True):
+            return
         allowed, reason = self.app.can_open_task_browser(self)
         if not allowed:
             _message(self, "Browser launch blocked", reason, "warning")
@@ -2103,6 +2239,13 @@ class MainWindow(QMainWindow):
         self.workflow_settings_selector: QComboBox | None = None
         self.workflow_settings_selected_id: str | None = self.active_workflow_id
         self.browser_setting_widgets: dict[str, QWidget] = {}
+        self.chrome_runtime_status_labels: dict[str, QLabel] = {}
+        self.chrome_install_button: QPushButton | None = None
+        self.chrome_recheck_button: QPushButton | None = None
+        self._chrome_requirement_dialog: ChromeRequiredDialog | None = None
+        self._chrome_install_thread: threading.Thread | None = None
+        self._chrome_install_cancel_event: threading.Event | None = None
+        self._chrome_install_state = "idle"
         self._workspace_active = False
         self._workspace_transitioning = False
         self.activation_page: ActivationPage | None = None
@@ -2138,6 +2281,7 @@ class MainWindow(QMainWindow):
 
         self.show_login_or_main()
         self.start_license_recheck()
+        QTimer.singleShot(250, self.check_chrome_prerequisite_on_startup)
         logging.info("Vib Tools UI edition started")
 
     # ---------- top-level shell ----------
@@ -2713,10 +2857,10 @@ class MainWindow(QMainWindow):
                 )
             self.refresh_workflow_settings_widgets()
         elif name == "Browser Settings":
-            # Always render the current persisted SettingsManager values when the
-            # advanced page is opened; this prevents stale UI if a value changed
-            # through migration, reset, or another application code path.
+            # Always render current persisted values and re-check the authoritative
+            # Google Chrome prerequisite when the advanced page is opened.
             self.refresh_browser_settings_widgets()
+            self.refresh_chrome_runtime_status()
         self.schedule_workspace_save()
 
     # ---------- pages ----------
@@ -3409,21 +3553,33 @@ class MainWindow(QMainWindow):
         chrome_runtime = discover_google_chrome()
         policy = card("Chrome-Only Runtime Policy")
         policy_layout = policy.layout()
-        detected_path = str(chrome_runtime.executable_path) if chrome_runtime.executable_path else "Not detected"
-        detected_version = chrome_runtime.version or "Unavailable"
-        detected_status = "Detected" if chrome_runtime.available else "Not detected"
+        policy_layout.addWidget(label("Engine: Google Chrome (system-installed)", "Description", False))
+        self.chrome_runtime_status_labels = {
+            "status": label("", "Description", False),
+            "version": label("", "Description", False),
+            "path": label("", "Description", False),
+        }
+        for widget in self.chrome_runtime_status_labels.values():
+            policy_layout.addWidget(widget)
         for text in (
-            "Engine: Google Chrome (system-installed)",
-            f"Chrome Status: {detected_status}",
-            f"Chrome Version: {detected_version}",
-            f"Chrome Executable: {detected_path}",
             "Sandbox: Enabled / Required",
             "Chromium Fallback: Disabled",
             "Custom Browser Binary: Disabled",
             "Unpacked Chromium Extensions: Disabled in Chrome-only mode",
         ):
             policy_layout.addWidget(label(text, "Description", False))
+        chrome_actions = QWidget()
+        chrome_actions_layout = hbox(chrome_actions, margins=(0, 4, 0, 0), spacing=8)
+        self.chrome_install_button = button("Install Google Chrome", "primary")
+        self.chrome_install_button.clicked.connect(self.start_chrome_install)
+        chrome_actions_layout.addWidget(self.chrome_install_button)
+        self.chrome_recheck_button = button("Re-check Chrome", "secondary")
+        self.chrome_recheck_button.clicked.connect(self.recheck_chrome_prerequisite)
+        chrome_actions_layout.addWidget(self.chrome_recheck_button)
+        chrome_actions_layout.addStretch(1)
+        policy_layout.addWidget(chrome_actions)
         lay.addWidget(policy)
+        self.refresh_chrome_runtime_status(chrome_runtime)
 
         self.browser_setting_widgets.clear()
         for group_name, keys in BROWSER_SETTING_GROUPS.items():
@@ -4058,6 +4214,224 @@ class MainWindow(QMainWindow):
             )
         self.schedule_workspace_save()
 
+    def chrome_install_is_active(self) -> bool:
+        return self._chrome_install_state in {
+            "downloading", "downloaded", "verifying", "verified",
+            "awaiting_uac", "installing", "rechecking",
+        }
+
+    def refresh_chrome_runtime_status(
+        self, runtime: ChromeRuntimeInfo | None = None
+    ) -> ChromeRuntimeInfo:
+        current = runtime or discover_google_chrome()
+        values = {
+            "status": "Detected" if current.available else "Not detected",
+            "version": current.version or "Unavailable",
+            "path": str(current.executable_path) if current.executable_path else "Not detected",
+        }
+        for key, value in values.items():
+            widget = self.chrome_runtime_status_labels.get(key)
+            if widget is not None:
+                prefix = {"status": "Chrome Status", "version": "Chrome Version", "path": "Chrome Executable"}[key]
+                widget.setText(f"{prefix}: {value}")
+        if self.chrome_install_button is not None:
+            self.chrome_install_button.setVisible(not current.available)
+            self.chrome_install_button.setEnabled(not self.chrome_install_is_active())
+        if self.chrome_recheck_button is not None:
+            self.chrome_recheck_button.setEnabled(not self.chrome_install_is_active())
+        return current
+
+    def _chrome_dialog(self) -> ChromeRequiredDialog:
+        dialog = self._chrome_requirement_dialog
+        if dialog is None:
+            dialog = ChromeRequiredDialog(self)
+            dialog.finished.connect(self._chrome_requirement_dialog_finished)
+            self._chrome_requirement_dialog = dialog
+        return dialog
+
+    def _chrome_requirement_dialog_finished(self, _result: int) -> None:
+        if not self.chrome_install_is_active():
+            self._chrome_requirement_dialog = None
+
+    def show_chrome_required_dialog(self, runtime: ChromeRuntimeInfo | None = None) -> None:
+        current = runtime or discover_google_chrome()
+        if current.available:
+            self.refresh_chrome_runtime_status(current)
+            return
+        dialog = self._chrome_dialog()
+        dialog.set_missing(current.detail)
+        if not dialog.isVisible():
+            dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
+    def ensure_chrome_ready(self, *, interactive: bool = True) -> bool:
+        runtime = discover_google_chrome()
+        self.refresh_chrome_runtime_status(runtime)
+        if runtime.available:
+            return True
+        self.log_ui(
+            "Google Chrome prerequisite is unavailable; browser automation is blocked.",
+            "WARNING",
+        )
+        if interactive:
+            self.show_chrome_required_dialog(runtime)
+        return False
+
+    def check_chrome_prerequisite_on_startup(self) -> None:
+        if not self.ensure_chrome_ready(interactive=False):
+            self.show_chrome_required_dialog()
+
+    def recheck_chrome_prerequisite(self) -> None:
+        runtime = discover_google_chrome()
+        self.refresh_chrome_runtime_status(runtime)
+        dialog = self._chrome_requirement_dialog
+        if runtime.available:
+            self._chrome_install_state = "idle"
+            if dialog is not None:
+                dialog.set_success(runtime)
+            self.log_ui(
+                f"Google Chrome prerequisite available: {runtime.version or 'version unavailable'}.",
+                "INFO",
+            )
+            return
+        if dialog is not None:
+            dialog.set_missing(runtime.detail)
+        self.log_ui("Google Chrome prerequisite re-check: not detected.", "WARNING")
+
+    def _queue_chrome_install_progress(self, progress: ChromeInstallProgress) -> None:
+        try:
+            self.ui_queue.put_nowait(
+                (
+                    "chrome_install_progress",
+                    {
+                        "slot_id": 0,
+                        "stage": progress.stage,
+                        "message": progress.message,
+                        "current": progress.current,
+                        "total": progress.total,
+                    },
+                )
+            )
+        except queue.Full:
+            logging.warning("Chrome installer progress event dropped because the UI queue is full")
+
+    def start_chrome_install(self) -> None:
+        if self.chrome_install_is_active():
+            dialog = self._chrome_dialog()
+            dialog.raise_()
+            dialog.activateWindow()
+            return
+        runtime = discover_google_chrome()
+        if runtime.available:
+            self.refresh_chrome_runtime_status(runtime)
+            dialog = self._chrome_requirement_dialog
+            if dialog is not None:
+                dialog.set_success(runtime)
+            return
+
+        self._chrome_install_cancel_event = threading.Event()
+        self._chrome_install_state = "downloading"
+        dialog = self._chrome_dialog()
+        dialog.set_progress_state(
+            ChromeInstallProgress("downloading", "Downloading official Google Chrome installer…")
+        )
+        self.refresh_chrome_runtime_status(runtime)
+        self.log_ui("User approved secure Google Chrome download/install flow.")
+
+        def install_worker() -> None:
+            try:
+                result = install_google_chrome(
+                    cancel_event=self._chrome_install_cancel_event,
+                    progress=self._queue_chrome_install_progress,
+                )
+            except ChromeInstallError as exc:
+                payload = {
+                    "slot_id": 0,
+                    "ok": False,
+                    "code": exc.code,
+                    "message": str(exc),
+                    "detail": exc.detail,
+                }
+            except Exception as exc:
+                payload = {
+                    "slot_id": 0,
+                    "ok": False,
+                    "code": "unexpected_error",
+                    "message": "Google Chrome prerequisite installation failed unexpectedly.",
+                    "detail": str(exc),
+                }
+            else:
+                payload = {
+                    "slot_id": 0,
+                    "ok": True,
+                    "result": result,
+                    "message": "Google Chrome installed and verified successfully.",
+                }
+            # Completion is non-droppable: back-pressure is preferable to leaving
+            # the UI coordinator stuck in an active install state.
+            self.ui_queue.put(("chrome_install_result", payload))
+
+        self._chrome_install_thread = threading.Thread(
+            target=install_worker, daemon=True, name="VibraPilotChromeInstaller"
+        )
+        self._chrome_install_thread.start()
+
+    def cancel_chrome_install(self) -> None:
+        event = self._chrome_install_cancel_event
+        if event is not None and self._chrome_install_state in {
+            "downloading", "downloaded", "verifying", "verified"
+        }:
+            event.set()
+            self.log_ui("Google Chrome prerequisite installation cancellation requested.", "WARNING")
+
+    def _handle_chrome_install_progress(self, payload: dict[str, Any]) -> None:
+        progress = ChromeInstallProgress(
+            str(payload.get("stage", "")),
+            str(payload.get("message", "")),
+            int(payload.get("current", 0) or 0),
+            int(payload.get("total", 0) or 0),
+        )
+        self._chrome_install_state = progress.stage or self._chrome_install_state
+        dialog = self._chrome_dialog()
+        dialog.set_progress_state(progress)
+        self.refresh_chrome_runtime_status()
+        if progress.stage not in {"downloading"}:
+            self.log_ui(f"Chrome prerequisite: {progress.message}")
+
+    def _handle_chrome_install_result(self, payload: dict[str, Any]) -> None:
+        ok = bool(payload.get("ok"))
+        dialog = self._chrome_dialog()
+        if ok:
+            result = payload.get("result")
+            if isinstance(result, ChromeInstallResult):
+                runtime = result.runtime
+                self._chrome_install_state = "completed"
+                dialog.set_success(runtime)
+                self.refresh_chrome_runtime_status(runtime)
+                self.log_ui(
+                    "Google Chrome prerequisite installed and verified: "
+                    f"version={runtime.version or 'unknown'} publisher={result.publisher} "
+                    f"sha256={result.sha256} installer_exit={result.installer_exit_code}."
+                )
+            else:
+                self._chrome_install_state = "failed"
+                dialog.set_failure("Google Chrome installer returned an invalid completion result.")
+        else:
+            code = str(payload.get("code", "install_failed"))
+            message = str(payload.get("message", "Google Chrome installation failed."))
+            detail = str(payload.get("detail", ""))
+            self._chrome_install_state = "cancelled" if code in {"cancelled", "uac_cancelled"} else "failed"
+            display = message + (f"\n\n{detail}" if detail else "")
+            dialog.set_failure(display)
+            self.refresh_chrome_runtime_status()
+            self.log_ui(
+                f"Google Chrome prerequisite install result: {code}: {message}",
+                "WARNING" if code in {"cancelled", "uac_cancelled"} else "ERROR",
+            )
+        self._chrome_install_cancel_event = None
+        self._chrome_install_thread = None
+
     def _persistent_profile_claim(self, slot: TaskSlotWidget) -> str | None:
         if not bool(self.settings.get("use_persistent_context", DEFAULT_SETTINGS["use_persistent_context"])):
             return None
@@ -4070,6 +4444,12 @@ class MainWindow(QMainWindow):
         )
 
     def can_open_task_browser(self, slot: TaskSlotWidget) -> tuple[bool, str]:
+        chrome_runtime = discover_google_chrome()
+        if not chrome_runtime.available:
+            return False, (
+                "Google Chrome is required for browser automation and is not available. "
+                "Use the Google Chrome Required dialog or Browser Settings to install/re-check it."
+            )
         if self._workflow_restart_required:
             return False, "Workflow change is committed. Restart VibraPilot before opening automation browsers."
         if self.workflow_recovery_error:
@@ -5630,6 +6010,10 @@ class MainWindow(QMainWindow):
                 self._render_download_event(slot_id, payload)
             elif kind == "browser_file_chooser" and slot:
                 self._handle_browser_file_chooser(slot, payload)
+            elif kind == "chrome_install_progress":
+                self._handle_chrome_install_progress(payload)
+            elif kind == "chrome_install_result":
+                self._handle_chrome_install_result(payload)
             elif kind == "done":
                 pass
             elif kind == "license_invalid":
@@ -5951,6 +6335,26 @@ class MainWindow(QMainWindow):
         self.schedule_workspace_save()
 
     def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
+        if self.chrome_install_is_active():
+            if self._chrome_install_state in {"awaiting_uac", "installing", "rechecking"}:
+                _message(
+                    self,
+                    "Google Chrome installation in progress",
+                    "Complete or cancel the Windows Google Chrome installer before closing VibraPilot. "
+                    "VibraPilot will not force-terminate an elevated installer process.",
+                    "warning",
+                )
+                event.ignore()
+                return
+            self.cancel_chrome_install()
+            _message(
+                self,
+                "Cancelling Google Chrome download",
+                "VibraPilot is cancelling and cleaning up the prerequisite download. Close the app again after cancellation completes.",
+                "warning",
+            )
+            event.ignore()
+            return
         running = [t for t in self.tasks.values() if t.is_running()]
         if running:
             if not _confirm(

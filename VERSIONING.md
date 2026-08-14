@@ -1,9 +1,17 @@
+# Versioning — v1.0.6.32 Phase 2 Candidate
+
+- Official functional baseline: **v1.0.6.31 / Chrome-Only Runtime Foundation**, commit `fc9081b0f760ac6b380b8c574680fc2c15764be0`.
+- Current development candidate: **v1.0.6.32 / Chrome Prerequisite UX + Secure Install**.
+- v1.0.6.31 Phase 1 is complete and promoted to `main` with owner Windows acceptance and post-merge CI PASS.
+- v1.0.6.32 is not functionally complete until automated verification, owner Windows missing-Chrome/install/UAC acceptance, PR CI and main promotion all pass.
+- Build-system Chromium cleanup and EXE/MSI packaging remain a separate future approved track.
+
 # Versioning — v1.0.6.31 Phase 1 Candidate
 
 - Official Baseline Freeze: **v1.0.6.30 / Workflow Plugin System**, commit `c86b6faebd58be9bff61cc8fdc12c76dda49a975`.
 - Current development candidate: **v1.0.6.31 / Chrome-Only Runtime Foundation**.
-- v1.0.6.31 is **IMPLEMENTED / AUTOMATED VERIFIED / OWNER WINDOWS ACCEPTANCE PENDING**.
-- Phase 2 Chrome prerequisite/download/install UX is a separate future approved update and must receive a new version; it is not part of v1.0.6.31.
+- v1.0.6.31 is **COMPLETE / OWNER WINDOWS ACCEPTED / PR+MAIN CI PASS**.
+- Phase 2 Chrome prerequisite/download/install UX is implemented separately as the **v1.0.6.32** candidate; it is not part of v1.0.6.31.
 - Build-system Chromium cleanup and EXE/MSI packaging remain deferred until functional updates are complete.
 - The separate historical v1.0.6.29 PR-12 packaging lineage is not imported into this functional delta.
 

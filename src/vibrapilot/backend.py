@@ -51,6 +51,7 @@ from .browser_capabilities import (
     collision_safe_download_path,
     ensure_task_download_directory,
 )
+from .chrome_runtime import require_google_chrome
 from .browser_diagnostics import (
     browser_diagnostics_summary,
     browser_diagnostics_warnings,
@@ -2982,6 +2983,10 @@ class AutomationWorker(threading.Thread):
 
     def launch_browser(self) -> None:
         from playwright.sync_api import sync_playwright
+
+        # v1.0.6.32 defense-in-depth prerequisite gate. UI preflight is not
+        # authoritative because Chrome can be removed between the click and worker launch.
+        require_google_chrome()
 
         if self.playwright is None:
             self.playwright = sync_playwright().start()

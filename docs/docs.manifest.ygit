@@ -3,12 +3,12 @@
   "documentation": {
     "id": "vibrapilot",
     "title": "VibraPilot Documentation",
-    "description": "Documentation for VibraPilot v1.0.6.31 Chrome-Only Runtime Foundation development candidate by Vib Tools.",
-    "version": "1.0.6.31",
+    "description": "Documentation for VibraPilot v1.0.6.32 Chrome Prerequisite Secure Install development candidate by Vib Tools.",
+    "version": "1.0.6.32",
     "root": "docs",
     "home": "index.md"
   },
   "product": {
-    "description": "v1.0.6.31 enforces a system-installed Google Chrome-only browser runtime foundation while preserving the v1.0.6.30 workflow and managed-profile architecture."
+    "description": "v1.0.6.32 adds explicit, Authenticode-verified Google Chrome prerequisite installation while preserving the v1.0.6.31 Chrome-only runtime foundation."
   }
 }

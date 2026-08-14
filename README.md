@@ -1,3 +1,9 @@
+# VibraPilot v1.0.6.32 — Chrome Prerequisite Secure Install
+
+## v1.0.6.32 Phase 2
+
+VibraPilot now checks the Google Chrome prerequisite at startup, before new browser sessions and again inside the backend before Playwright starts. If Chrome is missing, browser automation is blocked while the rest of the application remains available. The user can explicitly request a secure download/install flow that retrieves Google's Stable x64 Enterprise MSI, records SHA-256, requires Windows Authenticode trust and a Google LLC signer, invokes elevated Windows Installer through UAC, and re-detects genuine Chrome after installation. Chromium fallback remains disabled and Phase-01 sandbox/cache/managed-profile behavior is preserved. Build/package work remains deferred.
+
 # VibraPilot v1.0.6.31 — Chrome-Only Runtime Foundation
 
 
@@ -7,7 +13,7 @@ The browser runtime is now policy-locked to system-installed Google Chrome throu
 
 ## Current development candidate
 
-Official Baseline Freeze: **v1.0.6.30 / Workflow Plugin System**, commit `c86b6faebd58be9bff61cc8fdc12c76dda49a975`. Current candidate: **v1.0.6.31 / Phase 1 Chrome-Only Runtime Foundation**. The Phase-1 browser update is implemented and automated-source verified; owner Windows Chrome acceptance remains required before Phase 1 is formally closed.
+Official functional baseline: **v1.0.6.31 / Phase 1 Chrome-Only Runtime Foundation**, commit `fc9081b0f760ac6b380b8c574680fc2c15764be0`, with owner Windows acceptance and post-merge CI PASS. Current candidate: **v1.0.6.32 / Phase 2 Chrome Prerequisite UX + Secure Install**.
 
 v1.0.6.30 remains the frozen non-browser behavior baseline: trusted local workflow plugins and dynamic Workflow/Task configuration preserve the existing one-active-workflow atomic switch/restart model.
 

@@ -1,11 +1,19 @@
+# VibraPilot Roadmap — v1.0.6.32 Chrome Prerequisite Secure Install
+
+- Official baseline: **v1.0.6.31 / Phase 1 COMPLETE**, commit `fc9081b0f760ac6b380b8c574680fc2c15764be0`.
+- Current functional candidate: **v1.0.6.32 / Phase 2 Chrome Prerequisite UX + Secure Install**.
+- Phase 2 implements startup/Open Browser/backend prerequisite checks, explicit user-consented official Google MSI download, Authenticode + Google LLC signer validation, elevated Windows Installer execution and post-install Chrome re-detection.
+- Chrome-only runtime, sandbox, cache defaults, managed profiles, workflows, licensing and persistence remain preserved.
+- Build-system Chromium cleanup, Nuitka, WiX and release packaging remain deferred until this functional phase is fully accepted.
+
 # VibraPilot Roadmap — v1.0.6.31 Chrome-Only Runtime Foundation
 
 - Official Baseline Freeze: **v1.0.6.30 / Workflow Plugin System**, commit `c86b6faebd58be9bff61cc8fdc12c76dda49a975`.
-- Current functional candidate: **v1.0.6.31 / Phase 1 Chrome-Only Runtime Foundation**.
-- Phase 1 status: **IMPLEMENTED / AUTOMATED VERIFIED / OWNER WINDOWS ACCEPTANCE PENDING**.
+- Historical Phase 1 candidate: **v1.0.6.31 / Chrome-Only Runtime Foundation**.
+- Phase 1 status: **COMPLETE / OWNER WINDOWS ACCEPTED / PR+MAIN CI PASS**.
 - Phase 1 locks browser launch to branded Google Chrome, mandates sandboxing, enables normal HTTP cache by default, removes Chromium/custom-binary runtime escape paths, migrates stale browser policy settings, and adds Chrome runtime discovery/status foundation.
 - Preserve the v1.0.6.30 Workflow Plugin System, one-active-workflow switch/recovery model, Tasks, persistence, licensing, reports, downloads/uploads and managed browser profiles outside the approved browser policy surface.
-- Next functional phase: Chrome prerequisite/download/install UX, **NOT STARTED / NOT APPROVED**, and must use a new version.
+- Next functional phase was promoted to **v1.0.6.32 / Phase 2 Chrome Prerequisite UX + Secure Install** and is now the current approved implementation candidate.
 - Build-system Chromium cleanup and EXE/MSI packaging remain deferred until all functional updates are complete.
 
 # VibraPilot Roadmap — PR-11 Candidate

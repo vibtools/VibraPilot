@@ -1,3 +1,7 @@
+# Project Structure — v1.0.6.32 Chrome Prerequisite Secure Install
+
+v1.0.6.32 adds `src/vibrapilot/chrome_installer.py` as the isolated secure prerequisite installer service. `chrome_runtime.py` remains responsible for installed Google Chrome discovery/identity; `qt_app.py` owns explicit consent/UI coordination; `backend.py` owns the final pre-Playwright fail-closed guard. No workflow, persistence, licensing, dependency, CI or build structure is changed.
+
 # Project Structure — v1.0.6.31 Chrome-Only Runtime Foundation
 
 v1.0.6.31 adds `src/vibrapilot/chrome_runtime.py` and updates the existing browser runtime/settings/diagnostics surfaces while retaining the v1.0.6.30 workflow, Task, persistence, licensing and managed-profile architecture.

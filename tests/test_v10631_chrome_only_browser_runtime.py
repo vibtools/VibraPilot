@@ -8,6 +8,17 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.fixture(autouse=True)
+def _v10632_satisfy_new_chrome_prerequisite_guard(monkeypatch):
+    """Keep historical v1.0.6.31 launch-policy tests focused on fallback semantics.
+
+    v1.0.6.32 adds a separate, independently tested installed-Chrome prerequisite
+    guard before Playwright startup.  These historical tests inject a satisfied
+    prerequisite so they continue exercising the v1.0.6.31 launch behavior.
+    """
+    monkeypatch.setattr("src.vibrapilot.backend.require_google_chrome", lambda: object())
+
+
 def test_v10631_source_defaults_are_chrome_only_and_secure():
     defaults = json.loads((ROOT / "config/settings.defaults.json").read_text(encoding="utf-8"))
     assert defaults["browser_runtime_policy_version"] == 1
