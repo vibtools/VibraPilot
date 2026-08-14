@@ -1,3 +1,7 @@
+## v1.0.6.33 — Browser Forensic Closure
+
+Confirmed Phase-01/Phase-02 defects were closed without expanding product scope: trusted Chrome launch-target binding, installed-binary Authenticode identity, exact installer URL policy, cancellation/UI coordinator semantics, and diagnostic evidence integrity.
+
 ## v1.0.6.32 — Phase 2 Chrome Prerequisite Secure Install — 2026-08-14
 
 Adds explicit Chrome prerequisite UX and a fail-closed official Google MSI download/Authenticode/UAC/install/re-detection flow. No Chromium fallback or build/package work is introduced.

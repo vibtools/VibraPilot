@@ -1,3 +1,9 @@
+# VibraPilot Roadmap — v1.0.6.33 Forensic Closure
+
+- Frozen audit baseline: **v1.0.6.32**, commit `a001f67972c47832a5e59af5f9350a0409e7eab6`.
+- Current hotfix candidate: **v1.0.6.33**, confirmed-defect browser forensic closure only.
+- Phase-01 and Phase-02 functional scope remains locked; build/Nuitka/WiX/package track remains deferred.
+
 # VibraPilot Roadmap — v1.0.6.32 Chrome Prerequisite Secure Install
 
 - Official baseline: **v1.0.6.31 / Phase 1 COMPLETE**, commit `fc9081b0f760ac6b380b8c574680fc2c15764be0`.

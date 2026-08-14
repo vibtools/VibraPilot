@@ -4259,7 +4259,10 @@ class MainWindow(QMainWindow):
             self.refresh_chrome_runtime_status(current)
             return
         dialog = self._chrome_dialog()
-        dialog.set_missing(current.detail)
+        # A second Task/Open-Browser request must never reset an active installer
+        # dialog back to the idle/missing controls. Preserve the coordinator stage.
+        if not self.chrome_install_is_active():
+            dialog.set_missing(current.detail)
         if not dialog.isVisible():
             dialog.show()
         dialog.raise_()
@@ -4283,6 +4286,13 @@ class MainWindow(QMainWindow):
             self.show_chrome_required_dialog()
 
     def recheck_chrome_prerequisite(self) -> None:
+        if self.chrome_install_is_active():
+            dialog = self._chrome_dialog()
+            if not dialog.isVisible():
+                dialog.show()
+            dialog.raise_()
+            dialog.activateWindow()
+            return
         runtime = discover_google_chrome()
         self.refresh_chrome_runtime_status(runtime)
         dialog = self._chrome_requirement_dialog
@@ -4300,21 +4310,29 @@ class MainWindow(QMainWindow):
         self.log_ui("Google Chrome prerequisite re-check: not detected.", "WARNING")
 
     def _queue_chrome_install_progress(self, progress: ChromeInstallProgress) -> None:
-        try:
-            self.ui_queue.put_nowait(
-                (
-                    "chrome_install_progress",
-                    {
-                        "slot_id": 0,
-                        "stage": progress.stage,
-                        "message": progress.message,
-                        "current": progress.current,
-                        "total": progress.total,
-                    },
+        event = (
+            "chrome_install_progress",
+            {
+                "slot_id": 0,
+                "stage": progress.stage,
+                "message": progress.message,
+                "current": progress.current,
+                "total": progress.total,
+            },
+        )
+        if progress.stage == "downloading":
+            # Byte-level download updates are coalescible; dropping one does not
+            # change security/lifecycle state and avoids producer backpressure.
+            try:
+                self.ui_queue.put_nowait(event)
+            except queue.Full:
+                logging.warning(
+                    "Chrome installer download progress event dropped because the UI queue is full"
                 )
-            )
-        except queue.Full:
-            logging.warning("Chrome installer progress event dropped because the UI queue is full")
+            return
+        # Security/lifecycle transitions are authoritative. They must not be
+        # dropped, otherwise UI close/cancel behavior can lag the real MSI stage.
+        self.ui_queue.put(event)
 
     def start_chrome_install(self) -> None:
         if self.chrome_install_is_active():
@@ -4421,13 +4439,14 @@ class MainWindow(QMainWindow):
             code = str(payload.get("code", "install_failed"))
             message = str(payload.get("message", "Google Chrome installation failed."))
             detail = str(payload.get("detail", ""))
-            self._chrome_install_state = "cancelled" if code in {"cancelled", "uac_cancelled"} else "failed"
+            cancellation_codes = {"cancelled", "uac_cancelled", "installer_cancelled"}
+            self._chrome_install_state = "cancelled" if code in cancellation_codes else "failed"
             display = message + (f"\n\n{detail}" if detail else "")
             dialog.set_failure(display)
             self.refresh_chrome_runtime_status()
             self.log_ui(
                 f"Google Chrome prerequisite install result: {code}: {message}",
-                "WARNING" if code in {"cancelled", "uac_cancelled"} else "ERROR",
+                "WARNING" if code in cancellation_codes else "ERROR",
             )
         self._chrome_install_cancel_event = None
         self._chrome_install_thread = None

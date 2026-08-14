@@ -1,8 +1,11 @@
-"""Google Chrome runtime discovery for VibraPilot.
+"""Trusted Google Chrome runtime discovery for VibraPilot.
 
-Phase 1 keeps Playwright as the automation layer while making the browser-engine
-policy authoritative: only a genuine, system-installed Google Chrome runtime is
-accepted. Download/install orchestration is intentionally deferred to Phase 2.
+VibraPilot launches Playwright's branded ``channel="chrome"``.  On Windows,
+Playwright 1.61.0 resolves that channel from the first accessible Chrome path in
+LOCALAPPDATA, Program Files, Program Files (x86), then HOMEDRIVE fallbacks.
+Runtime preflight therefore validates exactly that same first existing target;
+it never accepts a lower-priority or registry-only executable that Playwright
+would not launch.
 """
 from __future__ import annotations
 
@@ -14,6 +17,15 @@ from pathlib import Path
 from shutil import which
 from typing import Callable, Iterable
 
+from .windows_authenticode import (
+    WindowsAuthenticodeInfo,
+    inspect_windows_authenticode,
+    publisher_matches,
+)
+
+GOOGLE_CHROME_EXPECTED_PUBLISHER = "Google LLC"
+_CHROME_CHANNEL_SUFFIX = Path("Google") / "Chrome" / "Application" / "chrome.exe"
+
 
 @dataclass(frozen=True)
 class ChromeRuntimeInfo:
@@ -24,68 +36,47 @@ class ChromeRuntimeInfo:
     product_name: str = ""
     source: str = ""
     detail: str = ""
+    publisher: str = ""
+    signature_trusted: bool = False
 
 
-def _registry_candidates() -> list[tuple[str, Path]]:
-    if os.name != "nt":
-        return []
-    try:
-        import winreg  # type: ignore[attr-defined]
-    except Exception:
-        return []
-
-    results: list[tuple[str, Path]] = []
-    subkey = r"Software\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
-    views = [0]
-    for view_name in ("KEY_WOW64_64KEY", "KEY_WOW64_32KEY"):
-        value = getattr(winreg, view_name, None)
-        if isinstance(value, int) and value not in views:
-            views.append(value)
-    for hive_name in ("HKEY_CURRENT_USER", "HKEY_LOCAL_MACHINE"):
-        hive = getattr(winreg, hive_name, None)
-        if hive is None:
-            continue
-        for view in views:
-            try:
-                with winreg.OpenKey(hive, subkey, 0, winreg.KEY_READ | view) as key:
-                    value, _kind = winreg.QueryValueEx(key, None)
-                text = str(value or "").strip().strip('"')
-                if text:
-                    results.append((f"registry:{hive_name}", Path(text)))
-            except OSError:
-                continue
-    return results
-
-
-def _filesystem_candidates(env: dict[str, str] | None = None) -> list[tuple[str, Path]]:
+def _playwright_channel_candidates(
+    env: dict[str, str] | None = None,
+) -> list[tuple[str, Path]]:
+    """Mirror Playwright 1.61.0's Windows ``chrome`` channel lookup order."""
     environ = os.environ if env is None else env
-    roots = (
-        ("localappdata", environ.get("LOCALAPPDATA", "")),
-        ("programfiles", environ.get("PROGRAMFILES", "")),
-        ("programfiles_x86", environ.get("PROGRAMFILES(X86)", "")),
-    )
-    candidates: list[tuple[str, Path]] = []
-    for source, raw_root in roots:
-        root = str(raw_root or "").strip()
-        if not root:
-            continue
-        candidates.append(
-            (source, Path(root) / "Google" / "Chrome" / "Application" / "chrome.exe")
+    raw_roots: list[tuple[str, str]] = [
+        ("localappdata", str(environ.get("LOCALAPPDATA", "") or "")),
+        ("programfiles", str(environ.get("PROGRAMFILES", "") or "")),
+        ("programfiles_x86", str(environ.get("PROGRAMFILES(X86)", "") or "")),
+    ]
+    home_drive = str(environ.get("HOMEDRIVE", "") or "").strip()
+    if home_drive:
+        raw_roots.extend(
+            [
+                ("homedrive_programfiles", home_drive.rstrip("\\/") + r"\Program Files"),
+                ("homedrive_programfiles_x86", home_drive.rstrip("\\/") + r"\Program Files (x86)"),
+            ]
         )
-    return candidates
 
-
-def google_chrome_candidates() -> list[tuple[str, Path]]:
-    """Return de-duplicated Chrome candidates in discovery priority order."""
     output: list[tuple[str, Path]] = []
     seen: set[str] = set()
-    for source, path in [*_registry_candidates(), *_filesystem_candidates()]:
-        key = os.path.normcase(str(Path(path).expanduser()))
+    for source, raw_root in raw_roots:
+        root = raw_root.strip()
+        if not root:
+            continue
+        path = Path(root).expanduser() / _CHROME_CHANNEL_SUFFIX
+        key = os.path.normcase(os.path.normpath(str(path)))
         if key in seen:
             continue
         seen.add(key)
-        output.append((source, Path(path).expanduser()))
+        output.append((source, path))
     return output
+
+
+def google_chrome_candidates() -> list[tuple[str, Path]]:
+    """Return candidates in the exact Playwright Chrome-channel priority order."""
+    return _playwright_channel_candidates()
 
 
 def _windows_file_metadata(path: Path) -> tuple[str, str]:
@@ -130,27 +121,39 @@ try {
     )
 
 
-def validate_google_chrome_executable(path: str | Path, product_name: str = "") -> bool:
-    """Return True only when the candidate can be identified as Google Chrome."""
+def validate_google_chrome_executable(
+    path: str | Path,
+    product_name: str = "",
+    *,
+    authenticode: WindowsAuthenticodeInfo | None = None,
+) -> bool:
+    """Accept only branded Google Chrome with trusted Google Authenticode identity."""
     candidate = Path(path).expanduser()
-    if not candidate.is_file() or candidate.name.lower() != "chrome.exe":
+    if not candidate.is_file() or candidate.name.casefold() != "chrome.exe":
         return False
-    product = str(product_name or "").strip().lower()
-    # Fail closed when file metadata cannot establish branded-browser identity.
-    # A canonical-looking path alone is not proof that chrome.exe is genuine.
-    return bool(product) and "google chrome" in product
+    product = str(product_name or "").strip().casefold()
+    if not product or "google chrome" not in product:
+        return False
+    trust = authenticode if authenticode is not None else inspect_windows_authenticode(candidate)
+    return bool(
+        trust.trusted
+        and publisher_matches(trust.publisher, GOOGLE_CHROME_EXPECTED_PUBLISHER)
+    )
 
 
 def discover_google_chrome(
     *,
     candidate_paths: Iterable[tuple[str, str | Path]] | None = None,
     metadata_reader: Callable[[Path], tuple[str, str]] | None = None,
+    authenticode_reader: Callable[[Path], WindowsAuthenticodeInfo] | None = None,
     platform_name: str | None = None,
 ) -> ChromeRuntimeInfo:
-    """Discover and validate an installed Google Chrome executable.
+    """Validate exactly the executable Playwright's Windows Chrome channel will use.
 
-    Optional arguments provide deterministic test injection only; production
-    callers use the platform defaults.
+    ``candidate_paths`` is deterministic test injection. Production callers use
+    the exact Playwright channel search order and stop at the first existing
+    executable. If that target is not trusted Google Chrome, discovery fails
+    closed instead of skipping to a lower-priority executable.
     """
     platform = os.name if platform_name is None else platform_name
     if platform != "nt" and candidate_paths is None:
@@ -160,13 +163,14 @@ def discover_google_chrome(
             detail="Google Chrome discovery is Windows-only.",
         )
 
-    reader = _windows_file_metadata if metadata_reader is None else metadata_reader
+    metadata = _windows_file_metadata if metadata_reader is None else metadata_reader
+    trust_reader = inspect_windows_authenticode if authenticode_reader is None else authenticode_reader
     candidates = (
         google_chrome_candidates()
         if candidate_paths is None
         else [(str(source), Path(path).expanduser()) for source, path in candidate_paths]
     )
-    rejected: list[str] = []
+
     for source, path in candidates:
         try:
             resolved = path.resolve()
@@ -174,10 +178,34 @@ def discover_google_chrome(
             resolved = path
         if not resolved.is_file():
             continue
-        product_name, version = reader(resolved)
-        if not validate_google_chrome_executable(resolved, product_name):
-            rejected.append(str(resolved))
-            continue
+
+        # Playwright returns the first accessible channel path. Do not skip an
+        # invalid first target and "validate" another executable it would not launch.
+        product_name, version = metadata(resolved)
+        trust = trust_reader(resolved)
+        if not validate_google_chrome_executable(
+            resolved, product_name, authenticode=trust
+        ):
+            reasons: list[str] = []
+            if "google chrome" not in str(product_name or "").casefold():
+                reasons.append("ProductName does not identify Google Chrome")
+            if not trust.trusted:
+                reasons.append(trust.detail or "Windows Authenticode trust failed")
+            elif not publisher_matches(trust.publisher, GOOGLE_CHROME_EXPECTED_PUBLISHER):
+                reasons.append(
+                    f"Authenticode publisher is {trust.publisher or 'unavailable'}, not {GOOGLE_CHROME_EXPECTED_PUBLISHER}"
+                )
+            return ChromeRuntimeInfo(
+                False,
+                "untrusted_channel_target",
+                executable_path=resolved,
+                version=version,
+                product_name=product_name,
+                source=source,
+                detail="; ".join(reasons) or "Chrome channel target failed identity validation.",
+                publisher=trust.publisher,
+                signature_trusted=trust.trusted,
+            )
         return ChromeRuntimeInfo(
             True,
             "available",
@@ -185,12 +213,16 @@ def discover_google_chrome(
             version=version,
             product_name=product_name,
             source=source,
+            publisher=trust.publisher,
+            signature_trusted=True,
         )
 
-    detail = ""
-    if rejected:
-        detail = "Rejected unverified/non-Google Chrome candidate(s): " + "; ".join(rejected)
-    return ChromeRuntimeInfo(False, "not_found", detail=detail)
+    return ChromeRuntimeInfo(
+        False,
+        "not_found",
+        detail="Google Chrome was not found in Playwright's Windows chrome-channel locations.",
+    )
+
 
 class ChromeRuntimeRequiredError(RuntimeError):
     """Raised when Google Chrome is required but no trusted installation is available."""
@@ -202,8 +234,7 @@ def require_google_chrome() -> ChromeRuntimeInfo:
     if not runtime.available:
         detail = f" Detail: {runtime.detail}" if runtime.detail else ""
         raise ChromeRuntimeRequiredError(
-            "Google Chrome is required for VibraPilot browser automation and was not detected."
+            "Google Chrome is required for VibraPilot browser automation and no trusted Chrome channel target is available."
             + detail
         )
     return runtime
-

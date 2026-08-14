@@ -1,3 +1,7 @@
+## v1.0.6.33 browser forensic compatibility
+
+Windows browser automation requires the exact Playwright Chrome-channel target to pass ProductName, WinVerifyTrust and Google LLC publisher validation. Existing Playwright 1.61.0, managed profiles, sandbox/cache policy and workflow behavior are retained.
+
 ## v1.0.6.32 Chrome prerequisite/install compatibility
 
 VibraPilot continues to require Windows x64 and genuine system-installed Google Chrome. If Chrome is missing, non-browser app functions remain available while browser automation is blocked. The optional in-app prerequisite recovery uses Google's Stable x64 Enterprise MSI, validates Windows Authenticode and Google LLC signer identity, elevates only Windows Installer through UAC, and re-detects genuine Chrome before enabling browser automation. Phase-01 sandbox/cache/managed-profile behavior is unchanged.

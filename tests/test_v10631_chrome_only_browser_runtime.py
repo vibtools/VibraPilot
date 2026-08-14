@@ -132,9 +132,14 @@ def test_v10631_chrome_runtime_discovery_accepts_only_google_chrome(tmp_path):
     chrome.parent.mkdir(parents=True)
     chrome.write_bytes(b"stub")
 
+    from src.vibrapilot.windows_authenticode import WindowsAuthenticodeInfo
+
     result = discover_google_chrome(
         candidate_paths=[("test", chrome)],
         metadata_reader=lambda _path: ("Google Chrome", "151.0.0.0"),
+        authenticode_reader=lambda _path: WindowsAuthenticodeInfo(
+            True, "Google LLC", "CN=Google LLC", 0, "trusted"
+        ),
         platform_name="nt",
     )
     assert result.available is True
@@ -149,20 +154,26 @@ def test_v10631_chrome_runtime_rejects_non_google_product(tmp_path):
 
     chrome = tmp_path / "chrome.exe"
     chrome.write_bytes(b"stub")
+    from src.vibrapilot.windows_authenticode import WindowsAuthenticodeInfo
+
     result = discover_google_chrome(
         candidate_paths=[("test", chrome)],
         metadata_reader=lambda _path: ("Chromium", "151.0"),
+        authenticode_reader=lambda _path: WindowsAuthenticodeInfo(
+            True, "Google LLC", "CN=Google LLC", 0, "trusted"
+        ),
         platform_name="nt",
     )
     assert result.available is False
-    assert result.status == "not_found"
+    assert result.status == "untrusted_channel_target"
 
 
 def test_v10631_diagnostics_marks_non_google_runtime_as_policy_violation():
     from src.vibrapilot.browser_diagnostics import browser_runtime_policy_status
 
     assert browser_runtime_policy_status("google_chrome") == "compliant"
-    assert browser_runtime_policy_status("google_chrome_channel") == "compliant"
+    assert browser_runtime_policy_status("google_chrome_channel_unverified") == "unverified"
+    assert browser_runtime_policy_status("google_chrome_channel") == "violation"
     assert browser_runtime_policy_status("playwright_chromium") == "violation"
     assert browser_runtime_policy_status("playwright_chromium_fallback") == "violation"
     assert browser_runtime_policy_status("custom_chromium_executable") == "violation"

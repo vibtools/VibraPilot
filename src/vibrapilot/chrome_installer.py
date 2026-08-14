@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import ctypes
 import hashlib
-import json
 import os
 import shutil
 import subprocess
@@ -21,10 +20,13 @@ import urllib.request
 from ctypes import wintypes
 from dataclasses import dataclass
 from pathlib import Path
-from shutil import which
 from typing import Callable
 
 from .chrome_runtime import ChromeRuntimeInfo, discover_google_chrome
+from .windows_authenticode import (
+    inspect_windows_authenticode,
+    publisher_matches,
+)
 
 GOOGLE_CHROME_ENTERPRISE_MSI_URL = (
     "https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi"
@@ -32,8 +34,10 @@ GOOGLE_CHROME_ENTERPRISE_MSI_URL = (
 GOOGLE_CHROME_INSTALLER_FILENAME = "googlechromestandaloneenterprise64.msi"
 GOOGLE_CHROME_ALLOWED_DOWNLOAD_HOSTS = frozenset({"dl.google.com"})
 GOOGLE_CHROME_EXPECTED_PUBLISHER = "Google LLC"
+GOOGLE_CHROME_APPROVED_DOWNLOAD_PATH = "/dl/chrome/install/googlechromestandaloneenterprise64.msi"
 _DOWNLOAD_CHUNK_SIZE = 1024 * 1024
 _ERROR_CANCELLED = 1223
+_ERROR_INSTALL_USEREXIT = 1602
 _SUCCESS_REBOOT_INITIATED = 1641
 _SUCCESS_REBOOT_REQUIRED = 3010
 
@@ -99,8 +103,8 @@ def validate_download_url(url: str) -> str:
         raise ValueError("Google Chrome installer source contains unsupported authority data.")
     if parsed.query or parsed.fragment:
         raise ValueError("Google Chrome installer source must not contain query or fragment data.")
-    if not parsed.path.lower().endswith("/googlechromestandaloneenterprise64.msi"):
-        raise ValueError("Google Chrome installer source path is not the approved Stable x64 MSI.")
+    if parsed.path != GOOGLE_CHROME_APPROVED_DOWNLOAD_PATH:
+        raise ValueError("Google Chrome installer source path is not the exact approved Stable x64 MSI path.")
     return text
 
 
@@ -218,147 +222,29 @@ def download_google_chrome_msi(
         ) from exc
 
 
-class _GUID(ctypes.Structure):
-    _fields_ = [
-        ("Data1", ctypes.c_uint32),
-        ("Data2", ctypes.c_uint16),
-        ("Data3", ctypes.c_uint16),
-        ("Data4", ctypes.c_ubyte * 8),
-    ]
-
-
-class _WINTRUST_FILE_INFO(ctypes.Structure):
-    _fields_ = [
-        ("cbStruct", ctypes.c_uint32),
-        ("pcwszFilePath", wintypes.LPCWSTR),
-        ("hFile", wintypes.HANDLE),
-        ("pgKnownSubject", ctypes.c_void_p),
-    ]
-
-
-class _WINTRUST_DATA(ctypes.Structure):
-    _fields_ = [
-        ("cbStruct", ctypes.c_uint32),
-        ("pPolicyCallbackData", ctypes.c_void_p),
-        ("pSIPClientData", ctypes.c_void_p),
-        ("dwUIChoice", ctypes.c_uint32),
-        ("fdwRevocationChecks", ctypes.c_uint32),
-        ("dwUnionChoice", ctypes.c_uint32),
-        ("pFile", ctypes.POINTER(_WINTRUST_FILE_INFO)),
-        ("dwStateAction", ctypes.c_uint32),
-        ("hWVTStateData", wintypes.HANDLE),
-        ("pwszURLReference", wintypes.LPCWSTR),
-        ("dwProvFlags", ctypes.c_uint32),
-        ("dwUIContext", ctypes.c_uint32),
-        ("pSignatureSettings", ctypes.c_void_p),
-    ]
-
-
-_WINTRUST_ACTION_GENERIC_VERIFY_V2 = _GUID(
-    0x00AAC56B,
-    0xCD44,
-    0x11D0,
-    (ctypes.c_ubyte * 8)(0x8C, 0xC2, 0x00, 0xC0, 0x4F, 0xC2, 0x95, 0xEE),
-)
-
-
-def winverifytrust_file(path: str | Path) -> tuple[bool, int, str]:
-    """Verify Authenticode trust with the Windows Software Publisher provider."""
-    if os.name != "nt":
-        return False, -1, "WinVerifyTrust is available only on Windows."
-    candidate = Path(path).expanduser().resolve()
-    if not candidate.is_file():
-        return False, -2, "Installer file does not exist."
-    file_info = _WINTRUST_FILE_INFO(
-        ctypes.sizeof(_WINTRUST_FILE_INFO), str(candidate), None, None
-    )
-    data = _WINTRUST_DATA()
-    data.cbStruct = ctypes.sizeof(_WINTRUST_DATA)
-    data.dwUIChoice = 2  # WTD_UI_NONE
-    data.fdwRevocationChecks = 0  # WTD_REVOKE_NONE; OS provider policy remains authoritative.
-    data.dwUnionChoice = 1  # WTD_CHOICE_FILE
-    data.pFile = ctypes.pointer(file_info)
-    data.dwStateAction = 1  # WTD_STATEACTION_VERIFY
-    data.dwProvFlags = 0
-    data.dwUIContext = 1  # WTD_UICONTEXT_INSTALL
-    wintrust = ctypes.WinDLL("wintrust", use_last_error=True)
-    verify = wintrust.WinVerifyTrust
-    verify.argtypes = [wintypes.HWND, ctypes.POINTER(_GUID), ctypes.POINTER(_WINTRUST_DATA)]
-    verify.restype = ctypes.c_long
-    status = int(verify(None, ctypes.byref(_WINTRUST_ACTION_GENERIC_VERIFY_V2), ctypes.byref(data)))
-    data.dwStateAction = 2  # WTD_STATEACTION_CLOSE
-    try:
-        verify(None, ctypes.byref(_WINTRUST_ACTION_GENERIC_VERIFY_V2), ctypes.byref(data))
-    except Exception:
-        pass
-    return status == 0, status, "trusted" if status == 0 else f"WinVerifyTrust status {status}"
-
-
-def read_authenticode_publisher(path: str | Path) -> tuple[str, str]:
-    """Return the Authenticode signer simple name and subject using Windows PowerShell."""
-    if os.name != "nt":
-        return "", ""
-    powershell = which("pwsh") or which("powershell")
-    if not powershell:
-        return "", ""
-    candidate = Path(path).expanduser().resolve()
-    script = r"""
-$p = $env:VIBRAPILOT_CHROME_INSTALLER
-try {
-  $sig = Get-AuthenticodeSignature -LiteralPath $p -ErrorAction Stop
-  $cert = $sig.SignerCertificate
-  if ($null -eq $cert) { exit 3 }
-  @{
-    status = [string]$sig.Status
-    publisher = [string]$cert.GetNameInfo([System.Security.Cryptography.X509Certificates.X509NameType]::SimpleName, $false)
-    subject = [string]$cert.Subject
-  } | ConvertTo-Json -Compress
-} catch { exit 2 }
-"""
-    env = dict(os.environ)
-    env["VIBRAPILOT_CHROME_INSTALLER"] = str(candidate)
-    try:
-        completed = subprocess.run(
-            [powershell, "-NoProfile", "-NonInteractive", "-Command", script],
-            capture_output=True,
-            text=True,
-            timeout=20,
-            check=False,
-            env=env,
-            creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
-        )
-    except Exception:
-        return "", ""
-    if completed.returncode != 0:
-        return "", ""
-    try:
-        payload = json.loads(completed.stdout.strip() or "{}")
-    except Exception:
-        return "", ""
-    if not isinstance(payload, dict) or str(payload.get("status", "")).lower() != "valid":
-        return "", str(payload.get("subject") or "") if isinstance(payload, dict) else ""
-    return str(payload.get("publisher") or "").strip(), str(payload.get("subject") or "").strip()
-
-
 def verify_google_chrome_installer(path: str | Path) -> AuthenticodeResult:
     candidate = Path(path).expanduser().resolve()
-    if not candidate.is_file() or candidate.suffix.lower() != ".msi":
-        raise ChromeInstallError("installer_invalid", "Downloaded Google Chrome installer is not a valid MSI file path.")
-    trusted, status, detail = winverifytrust_file(candidate)
-    if not trusted:
+    if not candidate.is_file() or candidate.suffix.casefold() != ".msi":
+        raise ChromeInstallError(
+            "installer_invalid",
+            "Downloaded Google Chrome installer is not a valid MSI file path.",
+        )
+    auth = inspect_windows_authenticode(candidate)
+    if not auth.trusted:
         raise ChromeInstallError(
             "signature_invalid",
             "Google Chrome installer failed Windows Authenticode trust verification.",
-            detail=detail,
+            detail=auth.detail,
         )
-    publisher, subject = read_authenticode_publisher(candidate)
-    if publisher.casefold() != GOOGLE_CHROME_EXPECTED_PUBLISHER.casefold():
+    if not publisher_matches(auth.publisher, GOOGLE_CHROME_EXPECTED_PUBLISHER):
         raise ChromeInstallError(
             "wrong_publisher",
             "Google Chrome installer signer is not the required Google LLC publisher.",
-            detail=subject or publisher or "Signer identity unavailable.",
+            detail=auth.subject or auth.publisher or "Signer identity unavailable.",
         )
-    return AuthenticodeResult(True, publisher, subject, status, detail)
+    return AuthenticodeResult(
+        True, auth.publisher, auth.subject, auth.trust_status, auth.detail
+    )
 
 
 class _SHELLEXECUTEINFOW(ctypes.Structure):
@@ -379,6 +265,24 @@ class _SHELLEXECUTEINFOW(ctypes.Structure):
         ("hIconOrMonitor", wintypes.HANDLE),
         ("hProcess", wintypes.HANDLE),
     ]
+
+
+def _installer_execution_result(exit_code: int) -> InstallerExecutionResult:
+    """Classify Windows Installer completion without conflating user cancellation."""
+    code = int(exit_code)
+    if code == _ERROR_INSTALL_USEREXIT:
+        raise ChromeInstallError(
+            "installer_cancelled",
+            "Google Chrome installation was cancelled in Windows Installer.",
+        )
+    if code not in {0, _SUCCESS_REBOOT_INITIATED, _SUCCESS_REBOOT_REQUIRED}:
+        raise ChromeInstallError(
+            "installer_failed",
+            f"Google Chrome installer failed with Windows Installer exit code {code}.",
+        )
+    return InstallerExecutionResult(
+        code, code in {_SUCCESS_REBOOT_INITIATED, _SUCCESS_REBOOT_REQUIRED}
+    )
 
 
 def run_google_chrome_installer(path: str | Path) -> InstallerExecutionResult:
@@ -465,6 +369,11 @@ def run_google_chrome_installer(path: str | Path) -> InstallerExecutionResult:
         if com_initialized:
             co_uninitialize()
 
+    if code == _ERROR_INSTALL_USEREXIT:
+        raise ChromeInstallError(
+            "installer_cancelled",
+            "Google Chrome installation was cancelled in Windows Installer.",
+        )
     if code not in {0, _SUCCESS_REBOOT_INITIATED, _SUCCESS_REBOOT_REQUIRED}:
         raise ChromeInstallError(
             "installer_failed",

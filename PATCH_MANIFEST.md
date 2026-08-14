@@ -1,63 +1,57 @@
-# VibraPilot v1.0.6.32 Phase 2 — Replace-Ready Delta Manifest
+# VibraPilot v1.0.6.33 — Phase-01 + Phase-02 Browser Forensic Closure Delta
 
 ## Classification
 
-- Official functional baseline: `v1.0.6.31`
-- Baseline Git commit: `fc9081b0f760ac6b380b8c574680fc2c15764be0`
-- Target version: `1.0.6.32`
-- Branch: `feature/v1.0.6.32-chrome-prerequisite-install`
-- Update: `Phase 2 — Chrome Prerequisite UX + Secure Install`
-- Implementation: `IMPLEMENTED / AUTOMATED VERIFIED`
-- Owner Windows missing-Chrome/install/UAC acceptance: `PENDING`
-- Build/package work: `NOT PERFORMED / DEFERRED`
+- Frozen source baseline: `VibraPilot_v1.0.6.32_BASELINE.zip`
+- Baseline SHA-256: `fdc18905084f41f9418d239f5e8f0ab632fa114c05b065835dcc126d32a1664f`
+- Baseline Git commit: `a001f67972c47832a5e59af5f9350a0409e7eab6`
+- Target version: `1.0.6.33`
+- Recommended branch: `hotfix/v1.0.6.33-browser-forensic-closure`
+- Update: Phase-01 + Phase-02 A–Z forensic confirmed-defect closure
+- Build/package: `NOT PERFORMED / DEFERRED`
 
-## Functional changes
+## Confirmed closures
 
-- Re-checks for genuine installed Google Chrome at app startup, before every new Open Browser request and again in the backend before Playwright startup.
-- Adds one process-owned **Google Chrome Required** dialog with explicit Download & Install, Re-check and Not Now actions.
-- Performs no download or install without the user's explicit Download & Install action.
-- Downloads the code-owned Stable x64 Enterprise MSI from `https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi` with HTTPS/host/path enforcement.
-- Uses atomic `.part` download promotion and records SHA-256 evidence.
-- Requires Windows WinVerifyTrust Authenticode trust and signer publisher `Google LLC` before installer execution.
-- Elevates only Windows Installer via `runas`; distinguishes UAC cancellation/elevation/installer failures.
-- Requires post-install genuine Google Chrome path/product/version re-detection before browser automation becomes available.
-- Prevents concurrent duplicate prerequisite installers and blocks app/dialog close while an elevated install is active.
-- Preserves v1.0.6.31 Chrome-only launch, `fallback=no`, sandbox mandatory ON, normal HTTP cache defaults and managed `BrowserProfiles/slot_N` profiles.
+- Bind Chrome preflight to Playwright 1.61.0's actual Windows Chrome-channel target order.
+- Require Windows Authenticode trust and `Google LLC` publisher identity for installed `chrome.exe`.
+- Require the exact approved Google Enterprise MSI HTTPS path.
+- Treat Windows Installer exit 1602 as user cancellation.
+- Make installer security/lifecycle stage events non-droppable while retaining droppable byte-progress updates.
+- Preserve active installer dialog/coordinator state across concurrent Open Browser/Re-check requests.
+- Require measured process executable equality with the trusted Chrome target for diagnostic compliance.
+- Synchronize current-state documentation and remove the v1.0.6.32 Chrome runtime EOF hygiene defect.
 
-## Preserved / frozen
+## Preserved/frozen
 
-- Playwright automation and all workflow/Share Invite behavior.
-- Licensing/device identity.
-- TaskRuntimeStore, workspace and report schemas.
-- Browser diagnostics schema.
-- `config/settings.defaults.json` (no new user-editable installer/security switches).
-- `requirements.txt`, `requirements-build.txt` (no dependency change).
-- `.github/workflows/ci.yml`.
-- `build.py`, Nuitka/WiX/installer/package surfaces.
+- Playwright `channel="chrome"`; no Chromium fallback/custom browser executable.
+- Mandatory sandbox and HTTP cache defaults.
+- Managed `BrowserProfiles/slot_N` behavior.
+- Workflows/Share Invite, licensing, TaskRuntimeStore/workspace/report schemas.
+- `config/settings.defaults.json`, `requirements.txt`, `requirements-build.txt`, `.github/workflows/ci.yml`, `build.py`.
+- No CAPTCHA bypass, stealth or fingerprint spoofing.
 
 ## Automated evidence
 
 ```text
-compileall: PASS
-Phase-02 targeted + Phase-01 regression: PASS
+Uploaded baseline SHA/hygiene: PASS
+Untouched baseline verifier: PASS
+Untouched baseline pytest: 431 passed, 6 skipped, 113 subtests
+Untouched baseline unittest: 200 OK, 6 skipped
+Targeted Phase-01/02 + forensic closure: PASS
 Repository verification: PASS
-Full pytest: 431 passed, 6 skipped, 113 subtests passed
-Unittest: 200 OK, 6 skipped
-Phase-02 source diagnostic: PASS
-Frozen-surface SHA verification: PASS
-Windows secure install/UAC runtime acceptance: OWNER PENDING
+Full pytest: 442 passed, 6 skipped, 113 subtests
+Full unittest: 200 OK, 6 skipped
+compileall: PASS
+v1.0.6.33 source diagnostic: PASS (Windows acceptance not run in audit environment)
 ```
+
+## Owner Windows gate
+
+Before Git publication, confirm trusted installed Chrome signer/publisher evidence and normal Open → Close → Open behavior. The full missing-Chrome download/UAC/install path remains an owner Windows acceptance gate and must not be represented as live-PASS until actually exercised on a safe Windows environment.
 
 ## Delta safety
 
 - File deletions: `0`
-- Runtime `AppData`: excluded
-- Logs/Reports/FailedData: excluded
-- `.git`: excluded
-- caches/`__pycache__`/`.pyc`: excluded
-- build artifacts: excluded
-- `project/` is private/local-only, remains gitignored and must never be force-added or pushed.
-
-## Apply
-
-Extract the ZIP at the v1.0.6.31 project root and choose **Replace All**. Run the provided verification/Windows acceptance sequence before commit/push.
+- Private `project/`: absent from frozen baseline and absent from this public delta
+- Runtime AppData/Logs/Reports/FailedData: excluded
+- caches/pyc/.git/build artifacts: excluded

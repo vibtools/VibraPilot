@@ -1,3 +1,11 @@
+# v1.0.6.33 Browser Forensic Closure
+
+- Update: `docs/updates/v1.0.6.33-browser-forensic-closure.md`
+- Verification: `docs/verification/V1.0.6.33_BROWSER_FORENSIC_CLOSURE.md`
+- A–Z forensic audit: `docs/forensic/V1.0.6.33_PHASE01_PHASE02_AZ_FORENSIC_AUDIT.md`
+- Scope compliance: `docs/verification/V1.0.6.33_SCOPE_COMPLIANCE_MATRIX.md`
+- Frozen audit baseline: v1.0.6.32 / `a001f67972c47832a5e59af5f9350a0409e7eab6`
+
 # VibraPilot Documentation — v1.0.6.32 Chrome Prerequisite Secure Install
 
 Current functional candidate: **v1.0.6.32 / Phase 2 Chrome Prerequisite UX + Secure Install**. Official functional baseline: **v1.0.6.31 / Phase 1 COMPLETE** at `fc9081b0f760ac6b380b8c574680fc2c15764be0`.

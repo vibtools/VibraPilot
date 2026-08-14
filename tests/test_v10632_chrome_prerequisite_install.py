@@ -82,13 +82,21 @@ def test_v10632_authenticode_requires_trust_and_google_llc(monkeypatch, tmp_path
 
     msi = tmp_path / "googlechromestandaloneenterprise64.msi"
     msi.write_bytes(b"msi")
-    monkeypatch.setattr(chrome_installer, "winverifytrust_file", lambda _path: (True, 0, "trusted"))
-    monkeypatch.setattr(chrome_installer, "read_authenticode_publisher", lambda _path: ("Google LLC", "CN=Google LLC"))
+    from src.vibrapilot.windows_authenticode import WindowsAuthenticodeInfo
+    monkeypatch.setattr(
+        chrome_installer,
+        "inspect_windows_authenticode",
+        lambda _path: WindowsAuthenticodeInfo(True, "Google LLC", "CN=Google LLC", 0, "trusted"),
+    )
     result = chrome_installer.verify_google_chrome_installer(msi)
     assert result.trusted is True
     assert result.publisher == "Google LLC"
 
-    monkeypatch.setattr(chrome_installer, "read_authenticode_publisher", lambda _path: ("Example Corp", "CN=Example Corp"))
+    monkeypatch.setattr(
+        chrome_installer,
+        "inspect_windows_authenticode",
+        lambda _path: WindowsAuthenticodeInfo(True, "Example Corp", "CN=Example Corp", 0, "trusted"),
+    )
     with pytest.raises(chrome_installer.ChromeInstallError) as exc:
         chrome_installer.verify_google_chrome_installer(msi)
     assert exc.value.code == "wrong_publisher"
@@ -99,7 +107,12 @@ def test_v10632_invalid_authenticode_fails_closed(monkeypatch, tmp_path):
 
     msi = tmp_path / "googlechromestandaloneenterprise64.msi"
     msi.write_bytes(b"msi")
-    monkeypatch.setattr(chrome_installer, "winverifytrust_file", lambda _path: (False, 123, "bad"))
+    from src.vibrapilot.windows_authenticode import WindowsAuthenticodeInfo
+    monkeypatch.setattr(
+        chrome_installer,
+        "inspect_windows_authenticode",
+        lambda _path: WindowsAuthenticodeInfo(False, "", "", 123, "bad"),
+    )
     with pytest.raises(chrome_installer.ChromeInstallError) as exc:
         chrome_installer.verify_google_chrome_installer(msi)
     assert exc.value.code == "signature_invalid"

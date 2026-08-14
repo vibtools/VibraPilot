@@ -3,12 +3,12 @@
   "documentation": {
     "id": "vibrapilot",
     "title": "VibraPilot Documentation",
-    "description": "Documentation for VibraPilot v1.0.6.32 Chrome Prerequisite Secure Install development candidate by Vib Tools.",
-    "version": "1.0.6.32",
+    "description": "Documentation for VibraPilot v1.0.6.33 Browser Forensic Closure candidate by Vib Tools.",
+    "version": "1.0.6.33",
     "root": "docs",
     "home": "index.md"
   },
   "product": {
-    "description": "v1.0.6.32 adds explicit, Authenticode-verified Google Chrome prerequisite installation while preserving the v1.0.6.31 Chrome-only runtime foundation."
+    "description": "v1.0.6.33 closes confirmed Phase-01/Phase-02 browser forensic defects while preserving the Chrome-only runtime foundation, workflows, persistence, licensing, dependencies and build boundaries."
   }
 }

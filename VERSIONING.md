@@ -1,3 +1,7 @@
+# v1.0.6.33 — Browser Forensic Closure Candidate
+
+`v1.0.6.32` is the immutable forensic input baseline. `v1.0.6.33` is a patch release containing only confirmed Phase-01/Phase-02 defect closures.
+
 # Versioning — v1.0.6.32 Phase 2 Candidate
 
 - Official functional baseline: **v1.0.6.31 / Chrome-Only Runtime Foundation**, commit `fc9081b0f760ac6b380b8c574680fc2c15764be0`.

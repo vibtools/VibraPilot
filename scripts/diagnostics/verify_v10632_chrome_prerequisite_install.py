@@ -34,6 +34,7 @@ def main() -> int:
     backend = (ROOT / "src/vibrapilot/backend.py").read_text(encoding="utf-8")
     qt = (ROOT / "src/vibrapilot/qt_app.py").read_text(encoding="utf-8")
     installer = (ROOT / "src/vibrapilot/chrome_installer.py").read_text(encoding="utf-8")
+    authenticode = (ROOT / "src/vibrapilot/windows_authenticode.py").read_text(encoding="utf-8")
     for marker in (
         "require_google_chrome()",
         'launch_args["channel"] = "chrome"',
@@ -48,9 +49,12 @@ def main() -> int:
     ):
         if marker not in qt:
             fail("UI marker missing: " + marker)
-    for marker in ("WinVerifyTrust", 'info.lpVerb = "runas"', 'GOOGLE_CHROME_EXPECTED_PUBLISHER = "Google LLC"'):
+    for marker in ('info.lpVerb = "runas"', 'GOOGLE_CHROME_EXPECTED_PUBLISHER = "Google LLC"'):
         if marker not in installer:
             fail("installer security marker missing: " + marker)
+    for marker in ("WinVerifyTrust", "inspect_windows_authenticode"):
+        if marker not in authenticode:
+            fail("shared Authenticode security marker missing: " + marker)
 
     runtime = discover_google_chrome()
     print("V1.0.6.32 CHROME PREREQUISITE VERIFY: SOURCE POLICY PASS")

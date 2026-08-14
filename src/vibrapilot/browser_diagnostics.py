@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import json
+import ntpath
 import os
 import re
 import subprocess
@@ -15,6 +16,8 @@ from datetime import datetime
 from pathlib import Path
 from shutil import which
 from typing import Any
+
+from .chrome_runtime import ChromeRuntimeInfo, discover_google_chrome
 
 BROWSER_DIAGNOSTICS_SCHEMA_VERSION = 1
 EXPECTED_PLAYWRIGHT_VERSION = "1.61.0"
@@ -270,29 +273,50 @@ if ($items) { $items | ConvertTo-Json -Compress } else { '[]' }
 
 
 def browser_runtime_policy_status(engine: str) -> str:
-    """Classify captured browser identity against the v1.0.6.31 Chrome-only policy."""
-    return "compliant" if str(engine) in {"google_chrome", "google_chrome_channel"} else "violation"
+    """Classify measured browser identity against the Chrome-only policy."""
+    value = str(engine or "")
+    if value == "google_chrome":
+        return "compliant"
+    if value == "google_chrome_channel_unverified":
+        return "unverified"
+    return "violation"
 
 
-def _classify_engine(*, requested_channel: str | None, requested_executable: str | None,
-                     fallback_used: bool, process: dict[str, Any]) -> tuple[str, str]:
+def _windows_path_key(value: str | Path | None) -> str:
+    text = str(value or "").strip().replace("/", "\\")
+    return ntpath.normcase(ntpath.normpath(text)) if text else ""
+
+
+def _classify_engine(
+    *,
+    requested_channel: str | None,
+    requested_executable: str | None,
+    fallback_used: bool,
+    process: dict[str, Any],
+    trusted_runtime: ChromeRuntimeInfo,
+) -> tuple[str, str]:
     executable = str(process.get("executable_path") or "")
-    normalized = executable.replace("/", "\\").lower()
-    if "\\google\\chrome\\application\\chrome.exe" in normalized:
-        return "google_chrome", "confirmed_by_windows_process_path"
-    if executable and "ms-playwright" in normalized:
-        return "playwright_chromium", "confirmed_by_windows_process_path"
+    actual_key = _windows_path_key(executable)
+    trusted_key = _windows_path_key(trusted_runtime.executable_path)
+
+    if actual_key:
+        if trusted_runtime.available and trusted_key and actual_key == trusted_key:
+            return "google_chrome", "confirmed_by_trusted_windows_process_path"
+        normalized = actual_key.casefold()
+        if "ms-playwright" in normalized:
+            return "playwright_chromium", "confirmed_by_windows_process_path"
+        if normalized.endswith(r"\google\chrome\application\chrome.exe"):
+            return "untrusted_chrome_executable", "captured_process_path_not_equal_to_trusted_channel_target"
+        return "unexpected_browser_executable", "captured_process_path_not_equal_to_trusted_channel_target"
     if fallback_used:
         return "playwright_chromium_fallback", "inferred_from_successful_fallback_path"
     if requested_executable:
         return "custom_chromium_executable", "inferred_from_requested_executable"
     if requested_channel == "chrome":
-        return "google_chrome_channel", "inferred_from_successful_requested_channel"
+        return "google_chrome_channel_unverified", "requested_channel_without_process_path_evidence"
     if requested_channel == "chromium":
         return "playwright_chromium_channel", "inferred_from_successful_requested_channel"
     return "playwright_default_chromium", "inferred_from_launch_path"
-
-
 def build_browser_diagnostics(*, slot_id: int, settings: dict[str, Any],
                               requested_launch_kwargs: dict[str, Any],
                               effective_launch_kwargs: dict[str, Any],
@@ -303,12 +327,15 @@ def build_browser_diagnostics(*, slot_id: int, settings: dict[str, Any],
     requested_channel = requested_launch_kwargs.get("channel")
     requested_executable = requested_launch_kwargs.get("executable_path")
     process = collect_windows_browser_process(user_data_dir)
+    trusted_runtime = discover_google_chrome()
     cdp = collect_cdp_browser_metadata(context, page)
     environment = collect_page_environment(page)
     engine, evidence = _classify_engine(
         requested_channel=str(requested_channel) if requested_channel else None,
         requested_executable=str(requested_executable) if requested_executable else None,
-        fallback_used=bool(fallback_used), process=process,
+        fallback_used=bool(fallback_used),
+        process=process,
+        trusted_runtime=trusted_runtime,
     )
     command_line = str(process.get("command_line") or "")
     if not command_line and isinstance(cdp.get("browser_command_line_arguments"), list):
@@ -356,6 +383,12 @@ def build_browser_diagnostics(*, slot_id: int, settings: dict[str, Any],
             "protocol_version": cdp.get("protocol_version"),
             "javascript_version": cdp.get("javascript_version"),
             "executable_path": process.get("executable_path"),
+            "trusted_chrome_executable": (
+                str(trusted_runtime.executable_path)
+                if trusted_runtime.executable_path else None
+            ),
+            "trusted_chrome_publisher": trusted_runtime.publisher or None,
+            "trusted_chrome_signature": bool(trusted_runtime.signature_trusted),
             "pid": process.get("pid"),
             "profile_path": process.get("profile_path") or profile,
             "command_line": command_line or None,
@@ -365,7 +398,7 @@ def build_browser_diagnostics(*, slot_id: int, settings: dict[str, Any],
         "runtime_policy": {
             "name": "chrome_only_v1",
             "status": browser_runtime_policy_status(engine),
-            "accepted_engines": ["google_chrome", "google_chrome_channel"],
+            "accepted_engines": ["google_chrome"],
             "sandbox_required": True,
             "chromium_fallback_allowed": False,
         },
@@ -408,10 +441,17 @@ def browser_diagnostics_warnings(record: dict[str, Any]) -> list[str]:
         )
     actual = record.get("actual") if isinstance(record.get("actual"), dict) else {}
     engine = str(actual.get("engine") or "unknown")
-    if browser_runtime_policy_status(engine) != "compliant":
+    policy_status = browser_runtime_policy_status(engine)
+    if policy_status == "violation":
         warnings.append(
             "Chrome-only runtime policy violation: "
-            f"captured engine={engine}. VibraPilot v1.0.6.31 accepts Google Chrome only."
+            f"captured engine={engine}. VibraPilot requires the measured browser process "
+            "to match the trusted Google Chrome channel executable."
+        )
+    elif policy_status == "unverified":
+        warnings.append(
+            "Chrome-only runtime identity is unverified: the Chrome channel was requested, "
+            "but the Windows browser process executable path was not captured."
         )
     return warnings
 

@@ -1,3 +1,12 @@
+## v1.0.6.33 — Phase-01 + Phase-02 Browser Forensic Closure — 2026-08-14
+
+- Binds Chrome prerequisite validation to Playwright 1.61.0's actual Windows Chrome-channel target order.
+- Requires WinVerifyTrust + Google LLC signer identity for installed Chrome.
+- Enforces the exact official Google MSI URL path and distinguishes Windows Installer user cancellation (1602).
+- Makes installer security/lifecycle UI events non-droppable and preserves active coordinator state.
+- Requires measured browser process-path equality for diagnostic Chrome compliance.
+- No workflow, licensing, dependency, database, CI, build, Nuitka, WiX or package change.
+
 ## v1.0.6.32 — Chrome Prerequisite UX + Secure Install — 2026-08-14
 
 - Adds startup, Open Browser and backend Google Chrome prerequisite checks on top of the v1.0.6.31 Chrome-only runtime foundation.

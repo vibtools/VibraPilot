@@ -51,6 +51,7 @@ PR11_WINDOWS_MULTITASK_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0
 V10630_WORKFLOW_PLUGIN_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.30_workflow_plugin_system_scope.json"
 V10631_CHROME_ONLY_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.31_chrome_only_browser_runtime_scope.json"
 V10632_CHROME_INSTALL_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.32_chrome_prerequisite_install_scope.json"
+V10633_BROWSER_FORENSIC_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.33_browser_forensic_closure_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -286,8 +287,21 @@ v10632_allowed_files = (
     | set(v10632_scope.get("authorized_nonproduction_files", []))
 )
 v10632_worker_methods = set(v10632_scope.get("authorized_automationworker_method_changes", []))
-current_worker_methods = v10630_worker_methods | v10631_worker_methods | v10632_worker_methods
-current_allowed_files = v10630_allowed_files | v10631_allowed_files | v10632_allowed_files
+
+# v1.0.6.33 closes confirmed Phase-01/02 forensic defects only.
+if not V10633_BROWSER_FORENSIC_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.33 browser forensic closure scope contract is missing")
+try:
+    v10633_scope = json.loads(V10633_BROWSER_FORENSIC_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.33 browser forensic closure scope contract is invalid: {exc}")
+v10633_allowed_files = (
+    set(v10633_scope.get("allowed_production_source_changes", []))
+    | set(v10633_scope.get("authorized_nonproduction_files", []))
+)
+v10633_worker_methods = set(v10633_scope.get("authorized_automationworker_method_changes", []))
+current_worker_methods = v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods
+current_allowed_files = v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files
 if pr08_allowed_files != {
     "src/vibrapilot/workflow_inputs.py",
     "src/vibrapilot/workflow/input_state.py",
@@ -2111,6 +2125,8 @@ if v10632_scope.get("allowed_download_hosts") != ["dl.google.com"]:
 if v10632_scope.get("required_installer_publisher") != "Google LLC":
     fail("v1.0.6.32 installer publisher policy mismatch")
 for relative, expected_sha in v10632_scope.get("frozen_file_sha256", {}).items():
+    if relative in v10633_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.32 frozen surface drift detected: {relative}")
@@ -2122,9 +2138,8 @@ for required_marker in (
     'GOOGLE_CHROME_ENTERPRISE_MSI_URL = (',
     '"https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi"',
     'GOOGLE_CHROME_EXPECTED_PUBLISHER = "Google LLC"',
-    'def winverifytrust_file(',
-    'WinVerifyTrust',
-    'def read_authenticode_publisher(',
+    'inspect_windows_authenticode',
+    'publisher_matches',
     'def run_google_chrome_installer(',
     'info.lpVerb = "runas"',
     'def install_google_chrome(',
@@ -2156,6 +2171,63 @@ if "require_google_chrome()" not in launch_source:
 if launch_source.index("require_google_chrome()") > launch_source.index("sync_playwright().start()"):
     fail("v1.0.6.32 backend prerequisite guard must run before Playwright startup")
 
+if v10633_scope.get("plan_id") != "VP-V10633-BROWSER-FORENSIC-CLOSURE-001":
+    fail("v1.0.6.33 browser forensic closure plan identifier mismatch")
+if v10633_scope.get("baseline_version") != "1.0.6.32":
+    fail("v1.0.6.33 forensic baseline version mismatch")
+if v10633_scope.get("baseline_github_commit") != "a001f67972c47832a5e59af5f9350a0409e7eab6":
+    fail("v1.0.6.33 forensic baseline GitHub commit mismatch")
+if v10633_scope.get("baseline_archive_sha256") != "fdc18905084f41f9418d239f5e8f0ab632fa114c05b065835dcc126d32a1664f":
+    fail("v1.0.6.33 forensic baseline archive mismatch")
+if v10633_scope.get("target_version") != "1.0.6.33":
+    fail("v1.0.6.33 target version mismatch")
+for key, expected in {
+    "chrome_only_runtime_retained": True,
+    "chromium_fallback_allowed": False,
+    "sandbox_mandatory_retained": True,
+    "http_cache_default_enabled_retained": True,
+    "playwright_channel_resolution_mirrored": True,
+    "installed_chrome_authenticode_required": True,
+    "installed_chrome_publisher": "Google LLC",
+    "installer_exact_url_required": True,
+    "installer_user_cancel_1602_distinct": True,
+    "diagnostics_measured_path_required_for_compliance": True,
+    "build_changes": False,
+    "dependency_changes": False,
+    "build_track_deferred": True,
+}.items():
+    if v10633_scope.get(key) != expected:
+        fail(f"v1.0.6.33 forensic scope boundary mismatch: {key}")
+for relative, expected_sha in v10633_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+        fail(f"v1.0.6.33 frozen surface drift detected: {relative}")
+for required in (
+    SRC / "windows_authenticode.py",
+    ROOT / "tests" / "test_v10633_browser_forensic_closure.py",
+):
+    if not required.is_file():
+        fail(f"v1.0.6.33 required forensic closure file missing: {required.relative_to(ROOT)}")
+chrome_runtime_text = (SRC / "chrome_runtime.py").read_text(encoding="utf-8")
+windows_auth_text = (SRC / "windows_authenticode.py").read_text(encoding="utf-8")
+for required_marker in (
+    'def _playwright_channel_candidates(',
+    'untrusted_channel_target',
+    'inspect_windows_authenticode',
+    'GOOGLE_CHROME_EXPECTED_PUBLISHER = "Google LLC"',
+):
+    if required_marker not in chrome_runtime_text:
+        fail(f"v1.0.6.33 trusted Chrome runtime marker missing: {required_marker}")
+for required_marker in ('def winverifytrust_file(', 'WinVerifyTrust', 'def read_authenticode_publisher(', 'def inspect_windows_authenticode('):
+    if required_marker not in windows_auth_text:
+        fail(f"v1.0.6.33 Authenticode marker missing: {required_marker}")
+if 'parsed.path != GOOGLE_CHROME_APPROVED_DOWNLOAD_PATH' not in chrome_installer_text:
+    fail("v1.0.6.33 installer must enforce the exact approved Google MSI path")
+if '_ERROR_INSTALL_USEREXIT = 1602' not in chrome_installer_text or '"installer_cancelled"' not in chrome_installer_text:
+    fail("v1.0.6.33 Windows Installer user-cancellation classification missing")
+if 'google_chrome_channel_unverified' not in (SRC / "browser_diagnostics.py").read_text(encoding="utf-8"):
+    fail("v1.0.6.33 diagnostics unverified-channel classification missing")
+
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
 app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
@@ -2165,8 +2237,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.32":
-    fail("AppConfig VERSION must be 1.0.6.32 for the Chrome prerequisite secure-install candidate")
+if app_version != "1.0.6.33":
+    fail("AppConfig VERSION must be 1.0.6.33 for the browser forensic closure candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -2903,8 +2975,10 @@ required = [
     "config/verification/v1.0.6.30_workflow_plugin_system_scope.json",
     "config/verification/v1.0.6.31_chrome_only_browser_runtime_scope.json",
     "config/verification/v1.0.6.32_chrome_prerequisite_install_scope.json",
+    "config/verification/v1.0.6.33_browser_forensic_closure_scope.json",
     "src/vibrapilot/chrome_runtime.py",
     "src/vibrapilot/chrome_installer.py",
+    "src/vibrapilot/windows_authenticode.py",
     "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
     "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "src/vibrapilot/workflow/input_state.py", "src/vibrapilot/workflow/recovery.py", "src/vibrapilot/workspace_state.py", "src/vibrapilot/browser_capabilities.py",
     "src/vibrapilot/workflow/plugin_loader.py", "src/vibrapilot/workflow/schemas.py", "src/vibrapilot/workflow/settings_state.py", "src/vibrapilot/workflow/task_state.py",
@@ -2913,6 +2987,11 @@ required = [
     "docs/verification/V1.0.6.31_CHROME_ONLY_RUNTIME_FOUNDATION.md",
     "docs/updates/v1.0.6.32-chrome-prerequisite-install.md",
     "docs/verification/V1.0.6.32_CHROME_PREREQUISITE_INSTALL.md",
+    "docs/updates/v1.0.6.33-browser-forensic-closure.md",
+    "docs/verification/V1.0.6.33_BROWSER_FORENSIC_CLOSURE.md",
+    "docs/forensic/V1.0.6.33_PHASE01_PHASE02_AZ_FORENSIC_AUDIT.md",
+    "docs/verification/V1.0.6.33_SCOPE_COMPLIANCE_MATRIX.md",
+    "scripts/diagnostics/verify_v10633_browser_forensic_closure.py",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
     "docs/updates/v1.0.6.1-vibrapilot-branding.md", "docs/updates/v1.0.6.1-github-ci-repository-hygiene-fix.md",
     "docs/updates/v1.0.6.1-github-ci-deterministic-ast-contract-fix.md",

@@ -1,3 +1,7 @@
+# v1.0.6.33 Browser Forensic Closure
+
+`src/vibrapilot/windows_authenticode.py` centralizes Windows file trust/publisher evidence for both installed Chrome and the approved Chrome MSI. No workflow, persistence, licensing, dependency, CI or build structure changed.
+
 # Project Structure — v1.0.6.32 Chrome Prerequisite Secure Install
 
 v1.0.6.32 adds `src/vibrapilot/chrome_installer.py` as the isolated secure prerequisite installer service. `chrome_runtime.py` remains responsible for installed Google Chrome discovery/identity; `qt_app.py` owns explicit consent/UI coordination; `backend.py` owns the final pre-Playwright fail-closed guard. No workflow, persistence, licensing, dependency, CI or build structure is changed.

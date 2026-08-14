@@ -1,3 +1,7 @@
+# VibraPilot v1.0.6.33 — Browser Forensic Closure
+
+The v1.0.6.33 hotfix closes confirmed Phase-01/Phase-02 browser trust, launch-target, installer-policy, coordinator and diagnostic-evidence defects against the frozen v1.0.6.32 baseline. Google Chrome remains the only production browser engine; Playwright, sandbox, cache defaults, managed profiles and non-browser behavior are preserved.
+
 # VibraPilot v1.0.6.32 — Chrome Prerequisite Secure Install
 
 ## v1.0.6.32 Phase 2

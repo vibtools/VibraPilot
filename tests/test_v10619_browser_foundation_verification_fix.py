@@ -92,6 +92,13 @@ class BrowserFoundationVerificationFixTest(unittest.TestCase):
                 return_value="1.60.0",
             ),
             patch(
+                "vibrapilot.browser_diagnostics.discover_google_chrome",
+                return_value=__import__("vibrapilot.chrome_runtime", fromlist=["ChromeRuntimeInfo"]).ChromeRuntimeInfo(
+                    True, "available", Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+                    "151", "Google Chrome", "programfiles", publisher="Google LLC", signature_trusted=True
+                ),
+            ),
+            patch(
                 "vibrapilot.browser_diagnostics.collect_windows_browser_process",
                 return_value={
                     "status": "found",
