@@ -1,6 +1,6 @@
-# Project Structure — v1.0.6.30 Workflow Plugin System
+# Project Structure — v1.0.6.31 Chrome-Only Runtime Foundation
 
-v1.0.6.30 adds a trusted workflow extension layer while retaining the existing Core Task/Browser/persistence architecture.
+v1.0.6.31 adds `src/vibrapilot/chrome_runtime.py` and updates the existing browser runtime/settings/diagnostics surfaces while retaining the v1.0.6.30 workflow, Task, persistence, licensing and managed-profile architecture.
 
 ```text
 src/vibrapilot/workflow/

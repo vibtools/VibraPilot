@@ -10,7 +10,7 @@ class BrowserFoundationTest(unittest.TestCase):
   s=json.loads((ROOT/'config/verification/v1.0.6.18_browser_foundation_scope.json').read_text())
   self.assertEqual(s['plan_id'],'VP-BROWSER-FOUNDATION-STABILIZATION-001'); self.assertEqual(s['target_version'],'1.0.6.18')
   self.assertFalse(s['sandbox_default_change_applied']); self.assertEqual(s['windows_sandbox_on_acceptance'],'RUNTIME_TEST_BLOCKED_NON_WINDOWS_ENVIRONMENT')
-  defaults=json.loads((ROOT/'config/settings.defaults.json').read_text()); self.assertIs(defaults['sandbox_enabled'],False); self.assertIs(defaults['use_chrome_channel'],True); self.assertIs(defaults['allow_chromium_fallback'],True)
+  defaults=json.loads((ROOT/'config/settings.defaults.json').read_text()); current=(ROOT/'config/verification/v1.0.6.31_chrome_only_browser_runtime_scope.json').is_file(); self.assertIs(defaults['sandbox_enabled'], True if current else False); self.assertIs(defaults['use_chrome_channel'],True); self.assertIs(defaults['allow_chromium_fallback'], False if current else True)
  def test_sanitization(self):
   x=sanitize_launch_kwargs({'channel':'chrome','env':{'PRIVATE_TOKEN':'secret'},'args':['--api-key=secret']})
   self.assertNotIn('secret',json.dumps(x)); self.assertEqual(sanitize_command_argument('--api-key=secret'),'--api-key=<redacted>')
@@ -32,5 +32,5 @@ class BrowserFoundationTest(unittest.TestCase):
  def test_no_detection_evasion(self):
   s=(ROOT/'src/vibrapilot/browser_diagnostics.py').read_text(); low=s.lower(); self.assertNotIn('stealth',low); self.assertIsNone(re.search(r'navigator\.webdriver\s*=(?!=)',s)); self.assertNotIn('object.defineproperty(navigator',low)
  def test_backend_connection(self):
-  s=(ROOT/'src/vibrapilot/backend.py').read_text(); self.assertIn('def _capture_browser_foundation_diagnostics',s); self.assertIn('Browser diagnostics evidence saved:',s); self.assertIn('falling back to bundled Chromium',s)
+  s=(ROOT/'src/vibrapilot/backend.py').read_text(); self.assertIn('def _capture_browser_foundation_diagnostics',s); self.assertIn('Browser diagnostics evidence saved:',s); self.assertNotIn('falling back to bundled Chromium',s); self.assertIn('does not fall back to Chromium',s)
 if __name__=='__main__': unittest.main()

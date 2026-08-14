@@ -1,3 +1,15 @@
+## v1.0.6.31 — Chrome-Only Runtime Foundation — 2026-08-14
+
+- Enforced Playwright `channel="chrome"` as the only production browser engine; removed Chrome-to-Playwright-Chromium retry paths.
+- Made Chromium sandboxing mandatory for browser launch and changed the source/default migration policy to sandbox enabled.
+- Changed normal HTTP cache policy to enabled by default while preserving explicit resource-blocking/cache controls.
+- Added a versioned browser-runtime policy migration so stale settings cannot re-enable fallback, custom executable selection, sandbox-off, or unpacked Chromium extension mode.
+- Added Windows Google Chrome discovery/identity foundation in `src/vibrapilot/chrome_runtime.py`.
+- Removed browser-engine/fallback/sandbox/custom-binary/unpacked-extension controls from editable Browser Settings and replaced them with a read-only Chrome-only runtime policy/status card.
+- Extended diagnostics with a Chrome-only policy compliance result while preserving the existing diagnostics schema and historical engine classifications.
+- Preserved application-managed persistent profiles, Task isolation, workflows, licensing, persistence, downloads/uploads, and build/installer surfaces.
+- Chrome download/install UX is intentionally deferred to the separately approved Phase 2. Build-system Chromium cleanup is also deferred until all functional updates are complete.
+
 ## v1.0.6.30 — Workflow Plugin System — 2026-08-12
 
 ### Added

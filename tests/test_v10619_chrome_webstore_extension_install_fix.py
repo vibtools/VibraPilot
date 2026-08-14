@@ -22,7 +22,7 @@ def test_normal_browser_mode_keeps_chrome_extension_service_enabled():
     assert "--disable-extensions" in ignored
 
 
-def test_unpacked_extension_mode_still_filters_playwright_disable_extensions_default():
+def test_legacy_extension_argument_does_not_disable_normal_chrome_extension_service():
     settings = dict(DEFAULT_SETTINGS)
     ignored = effective_ignored_default_args(settings, extensions_enabled=True)
     assert ignored.count("--disable-extensions") == 1

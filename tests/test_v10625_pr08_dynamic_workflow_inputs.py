@@ -30,6 +30,7 @@ PR10_SCOPE = json.loads(
     (ROOT / "config/verification/v1.0.6.27_pr10_workflow_error_recovery_scope.json").read_text(encoding="utf-8")
 )
 V10630_SCOPE_PATH = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
+V10631_SCOPE_PATH = ROOT / "config/verification/v1.0.6.31_chrome_only_browser_runtime_scope.json"
 
 
 
@@ -168,8 +169,10 @@ def test_automationworker_snapshot_is_detached_and_immutable():
 def test_share_invite_runtime_and_pr06_workflow_engine_are_frozen():
     pr10_authorized = set(PR10_SCOPE["allowed_production_source_changes"])
     v10630 = json.loads(V10630_SCOPE_PATH.read_text(encoding="utf-8")) if V10630_SCOPE_PATH.is_file() else {}
+    v10631 = json.loads(V10631_SCOPE_PATH.read_text(encoding="utf-8")) if V10631_SCOPE_PATH.is_file() else {}
     current_authorized = (pr10_authorized
-        | set(v10630.get("allowed_production_source_changes", [])) | set(v10630.get("authorized_nonproduction_files", [])))
+        | set(v10630.get("allowed_production_source_changes", [])) | set(v10630.get("authorized_nonproduction_files", []))
+        | set(v10631.get("allowed_production_source_changes", [])) | set(v10631.get("authorized_nonproduction_files", [])))
     for relative, expected in SCOPE["frozen_file_sha256"].items():
         if relative in current_authorized:
             continue

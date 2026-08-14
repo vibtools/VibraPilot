@@ -1,8 +1,15 @@
-# VibraPilot v1.0.6.30 — Workflow Plugin System
+# VibraPilot v1.0.6.31 — Chrome-Only Runtime Foundation
+
+
+## v1.0.6.31 Phase 1
+
+The browser runtime is now policy-locked to system-installed Google Chrome through Playwright's branded Chrome channel. Sandbox is mandatory, HTTP cache is enabled by default, Chromium/custom-binary escape paths are disabled, and Browser Settings expose the policy as read-only runtime status while retaining the existing managed persistent-profile architecture. Chrome prerequisite download/install UX remains Phase 2; build/installer changes remain deferred.
 
 ## Current development candidate
 
-Official implementation baseline: **v1.0.6.28 / PR-11 — RELEASE COMPLETE**, commit `fff8160157d4d9b68b2d28b11105b0f7f38ed17d`. v1.0.6.30 adds trusted local workflow plugins and dynamic Workflow/Task configuration while preserving the existing one-active-workflow atomic switch/restart model.
+Official Baseline Freeze: **v1.0.6.30 / Workflow Plugin System**, commit `c86b6faebd58be9bff61cc8fdc12c76dda49a975`. Current candidate: **v1.0.6.31 / Phase 1 Chrome-Only Runtime Foundation**. The Phase-1 browser update is implemented and automated-source verified; owner Windows Chrome acceptance remains required before Phase 1 is formally closed.
+
+v1.0.6.30 remains the frozen non-browser behavior baseline: trusted local workflow plugins and dynamic Workflow/Task configuration preserve the existing one-active-workflow atomic switch/restart model.
 
 Core continues to own Task lifecycle, browser lifecycle/profiles, retry/backoff, persistence/recovery, reports/logs and licensing. Workflow packages provide validated metadata/schemas plus trusted Python business logic. JSON remains declarative only; there is no JSON Playwright interpreter, per-Task mixed workflow mode, marketplace, sandbox or automatic dependency installation in this release.
 

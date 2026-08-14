@@ -50,8 +50,6 @@ from .task_runtime_store import TaskRuntimeStore
 from .browser_capabilities import (
     collision_safe_download_path,
     ensure_task_download_directory,
-    normalize_extension_paths,
-    validate_unpacked_extension_directories,
 )
 from .browser_diagnostics import (
     browser_diagnostics_summary,
@@ -652,6 +650,16 @@ def effective_ignored_default_args(
     return ignored
 
 
+def _enforce_browser_runtime_policy(data: dict[str, Any]) -> None:
+    """Apply the non-bypassable v1.0.6.31 browser identity/security policy."""
+    data["browser_runtime_policy_version"] = 1
+    data["use_chrome_channel"] = True
+    data["allow_chromium_fallback"] = False
+    data["browser_executable_path"] = ""
+    data["sandbox_enabled"] = True
+    data["extensions_enabled"] = False
+
+
 class SettingsManager:
     def __init__(self, path: Path):
         self.path = path
@@ -732,6 +740,17 @@ class SettingsManager:
         if raw and all(raw.get(key) == value for key, value in legacy_persistent_defaults.items()):
             self.data["use_persistent_context"] = True
 
+        # v1.0.6.31 Chrome-only runtime policy. The first migration promotes
+        # ordinary HTTP caching; mandatory browser identity/security values are
+        # enforced on every load so stale/manual settings cannot re-enable a
+        # Chromium/custom-binary or sandbox-disabled launch path.
+        try:
+            browser_policy_version = int(raw.get("browser_runtime_policy_version", 0) or 0)
+        except (TypeError, ValueError):
+            browser_policy_version = 0
+        if browser_policy_version < 1:
+            self.data["http_cache_enabled"] = True
+
         browser_bool_keys = (
             "headless",
             "use_chrome_channel",
@@ -797,6 +816,8 @@ class SettingsManager:
                     self.data.get(key), default=bool(DEFAULT_SETTINGS[key])
                 )
 
+        _enforce_browser_runtime_policy(self.data)
+
         enum_defaults = {
             "navigation_wait_until": {"commit", "domcontentloaded", "load", "networkidle"},
             "profile_lock_policy": {"fail", "fallback_ephemeral"},
@@ -839,6 +860,7 @@ class SettingsManager:
         return self.data
 
     def save(self) -> None:
+        _enforce_browser_runtime_policy(self.data)
         self.path.write_text(json.dumps(self.data, indent=2), encoding="utf-8")
 
     def reset(self) -> None:
@@ -3120,58 +3142,32 @@ class AutomationWorker(threading.Thread):
             )
         ).strip()
         if extra_args:
-            browser_args.extend(
-                shlex.split(extra_args, posix=(os.name != "nt"))
+            parsed_extra_args = shlex.split(extra_args, posix=(os.name != "nt"))
+            forbidden_prefixes = (
+                "--no-sandbox",
+                "--disable-sandbox",
+                "--disable-setuid-sandbox",
+                "--load-extension",
+                "--disable-extensions-except",
+                "--user-data-dir",
             )
+            for argument in parsed_extra_args:
+                lowered = str(argument).strip().lower()
+                if any(
+                    lowered == prefix or lowered.startswith(prefix + "=")
+                    for prefix in forbidden_prefixes
+                ):
+                    raise RuntimeError(
+                        "Chrome-only runtime policy blocks the browser argument "
+                        f"{argument!r}. Sandbox, managed profiles and Chromium "
+                        "extension side-loading cannot be overridden."
+                    )
+            browser_args.extend(parsed_extra_args)
 
-        extensions_enabled = bool(
-            self.settings.get(
-                "extensions_enabled", DEFAULT_SETTINGS["extensions_enabled"]
-            )
-        )
-        extension_paths_raw = str(
-            self.settings.get(
-                "extension_paths", DEFAULT_SETTINGS["extension_paths"]
-            )
-        ).strip()
-        extension_paths = normalize_extension_paths(extension_paths_raw)
-        if extensions_enabled:
-            if not bool(
-                self.settings.get(
-                    "use_persistent_context",
-                    DEFAULT_SETTINGS["use_persistent_context"],
-                )
-            ):
-                raise RuntimeError(
-                    "Extension Loading requires Persistent Browser Context."
-                )
-            executable_path = str(
-                self.settings.get(
-                    "browser_executable_path",
-                    DEFAULT_SETTINGS["browser_executable_path"],
-                )
-            ).strip()
-            if bool(
-                self.settings.get(
-                    "use_chrome_channel",
-                    DEFAULT_SETTINGS["use_chrome_channel"],
-                )
-            ) and not executable_path:
-                raise RuntimeError(
-                    "Chrome extension side-loading requires bundled/custom Chromium. "
-                    "Disable Google Chrome Channel or provide a compatible Chromium executable."
-                )
-            try:
-                extension_paths = validate_unpacked_extension_directories(extension_paths_raw)
-            except ValueError as exc:
-                raise RuntimeError(str(exc)) from exc
-            joined_extensions = ",".join(str(path) for path in extension_paths)
-            browser_args.extend(
-                [
-                    f"--disable-extensions-except={joined_extensions}",
-                    f"--load-extension={joined_extensions}",
-                ]
-            )
+        # v1.0.6.31: unpacked extension side-loading previously required
+        # Playwright Chromium. Chrome-only policy keeps Chrome's normal extension
+        # subsystem enabled but disables VibraPilot's explicit Chromium side-load mode.
+        extensions_enabled = False
 
         launch_env = dict(os.environ)
         env_text = str(
@@ -3240,11 +3236,7 @@ class AutomationWorker(threading.Thread):
                 ),
             ),
             "env": launch_env,
-            "chromium_sandbox": bool(
-                self.settings.get(
-                    "sandbox_enabled", DEFAULT_SETTINGS["sandbox_enabled"]
-                )
-            ),
+            "chromium_sandbox": True,
             "handle_sigint": bool(
                 self.settings.get("handle_sigint", DEFAULT_SETTINGS["handle_sigint"])
             ),
@@ -3282,28 +3274,9 @@ class AutomationWorker(threading.Thread):
             traces_dir.mkdir(parents=True, exist_ok=True)
             launch_args["traces_dir"] = str(traces_dir.resolve())
 
-        executable_path = str(
-            self.settings.get(
-                "browser_executable_path",
-                DEFAULT_SETTINGS["browser_executable_path"],
-            )
-        ).strip()
-        if executable_path:
-            launch_args["executable_path"] = str(
-                Path(executable_path).expanduser().resolve()
-            )
-        elif extensions_enabled:
-            # Playwright documents unpacked extension testing against its full
-            # Chromium channel (persistent context required). This also keeps
-            # extension loading functional in headless mode instead of falling
-            # back to the separate headless shell.
-            launch_args["channel"] = "chromium"
-        elif bool(
-            self.settings.get(
-                "use_chrome_channel", DEFAULT_SETTINGS["use_chrome_channel"]
-            )
-        ):
-            launch_args["channel"] = "chrome"
+        # v1.0.6.31 browser identity is not user-selectable. Playwright's
+        # branded Chrome channel is the only accepted launch target.
+        launch_args["channel"] = "chrome"
 
         startup_url = str(
             self.settings.get(
@@ -3393,8 +3366,6 @@ class AutomationWorker(threading.Thread):
             persistent_args.update(self.context_arguments())
             requested_persistent_args = dict(persistent_args)
             effective_persistent_args = dict(persistent_args)
-            chrome_fallback_used = False
-            chrome_fallback_reason = ""
             persistent_error: Exception | None = None
             try:
                 self.context = self.playwright.chromium.launch_persistent_context(
@@ -3403,35 +3374,11 @@ class AutomationWorker(threading.Thread):
                 )
             except Exception as exc:
                 persistent_error = exc
-                if persistent_args.get("channel") == "chrome" and bool(
-                    self.settings.get(
-                        "allow_chromium_fallback",
-                        DEFAULT_SETTINGS["allow_chromium_fallback"],
-                    )
-                ):
-                    fallback_args = dict(persistent_args)
-                    fallback_args.pop("channel", None)
-                    chrome_fallback_reason = sanitize_diagnostic_text(str(exc))
-                    self.log(
-                        f"Chrome channel persistent launch unavailable; falling back "
-                        f"to bundled Chromium. Detail: {chrome_fallback_reason}",
-                        "WARNING",
-                    )
-                    try:
-                        self.context = self.playwright.chromium.launch_persistent_context(
-                            str(user_data_dir.resolve()),
-                            **fallback_args,
-                        )
-                        effective_persistent_args = dict(fallback_args)
-                        chrome_fallback_used = True
-                        persistent_error = None
-                    except Exception as fallback_exc:
-                        persistent_error = fallback_exc
 
             if self.context is not None:
                 self.browser = self.context.browser
                 self.log(
-                    f"Persistent browser context launched for task {self.state.slot_id}."
+                    f"Persistent Google Chrome context launched for task {self.state.slot_id}."
                 )
             else:
                 policy = str(
@@ -3440,69 +3387,60 @@ class AutomationWorker(threading.Thread):
                         DEFAULT_SETTINGS["profile_lock_policy"],
                     )
                 ).strip().lower()
-                if policy != "fallback_ephemeral" or extensions_enabled:
+                if policy != "fallback_ephemeral":
                     if persistent_error is not None:
-                        raise persistent_error
-                    raise RuntimeError("Persistent browser context could not be opened.")
+                        raise RuntimeError(
+                            "Google Chrome persistent context could not be opened. "
+                            "VibraPilot v1.0.6.31 does not fall back to Chromium."
+                        ) from persistent_error
+                    raise RuntimeError("Google Chrome persistent context could not be opened.")
                 self.log(
-                    f"Persistent context could not be opened; falling back to an "
-                    f"ephemeral browser context. Detail: {persistent_error}",
+                    "Persistent Google Chrome context could not be opened; falling back "
+                    "to an ephemeral Google Chrome context without changing browser engine.",
                     "WARNING",
                 )
                 self.persistent_context_mode = False
                 self.context = None
                 self.browser = None
                 ephemeral_args = dict(launch_args)
-                self.browser = self.playwright.chromium.launch(**ephemeral_args)
+                try:
+                    self.browser = self.playwright.chromium.launch(**ephemeral_args)
+                except Exception as exc:
+                    raise RuntimeError(
+                        "Google Chrome could not be opened. VibraPilot v1.0.6.31 "
+                        "does not fall back to Chromium."
+                    ) from exc
                 effective_persistent_args = dict(ephemeral_args)
-                chrome_fallback_used = False
-                chrome_fallback_reason = ""
 
             self.new_context(initial_url=startup_url)
             self._capture_browser_foundation_diagnostics(
                 requested_launch_kwargs=requested_persistent_args,
                 effective_launch_kwargs=effective_persistent_args,
                 user_data_dir=(user_data_dir if self.persistent_context_mode else None),
-                fallback_used=chrome_fallback_used,
-                fallback_reason=chrome_fallback_reason,
+                fallback_used=False,
+                fallback_reason="",
             )
             return
 
         requested_launch_args = dict(launch_args)
         effective_launch_args = dict(launch_args)
-        chrome_fallback_used = False
-        chrome_fallback_reason = ""
         try:
             self.browser = self.playwright.chromium.launch(**launch_args)
             self.log(
-                "Fresh browser launched; authenticated session will be retained for this task."
+                "Fresh Google Chrome launched; authenticated session will be retained for this task."
             )
         except Exception as exc:
-            if launch_args.get("channel") and bool(
-                self.settings.get(
-                    "allow_chromium_fallback",
-                    DEFAULT_SETTINGS["allow_chromium_fallback"],
-                )
-            ):
-                chrome_fallback_reason = sanitize_diagnostic_text(str(exc))
-                launch_args.pop("channel", None)
-                self.log(
-                    "Chrome channel unavailable; falling back to bundled Chromium. "
-                    f"Detail: {chrome_fallback_reason}",
-                    "WARNING",
-                )
-                self.browser = self.playwright.chromium.launch(**launch_args)
-                effective_launch_args = dict(launch_args)
-                chrome_fallback_used = True
-            else:
-                raise
+            raise RuntimeError(
+                "Google Chrome could not be opened. VibraPilot v1.0.6.31 "
+                "does not fall back to Chromium."
+            ) from exc
         self.new_context(initial_url=startup_url)
         self._capture_browser_foundation_diagnostics(
             requested_launch_kwargs=requested_launch_args,
             effective_launch_kwargs=effective_launch_args,
             user_data_dir=None,
-            fallback_used=chrome_fallback_used,
-            fallback_reason=chrome_fallback_reason,
+            fallback_used=False,
+            fallback_reason="",
         )
 
     def context_arguments(

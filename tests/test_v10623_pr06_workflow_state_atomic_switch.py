@@ -382,10 +382,14 @@ def test_frozen_out_of_scope_files_are_byte_identical_to_v10622_baseline():
     pr08_authorized_supersession = {"src/vibrapilot/workflow_inputs.py"}
     v10630_path = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
     v10630 = json.loads(v10630_path.read_text(encoding="utf-8")) if v10630_path.is_file() else {}
+    v10631_path = ROOT / "config/verification/v1.0.6.31_chrome_only_browser_runtime_scope.json"
+    v10631 = json.loads(v10631_path.read_text(encoding="utf-8")) if v10631_path.is_file() else {}
     current_authorized = (
         pr08_authorized_supersession
         | set(v10630.get("allowed_production_source_changes", []))
         | set(v10630.get("authorized_nonproduction_files", []))
+        | set(v10631.get("allowed_production_source_changes", []))
+        | set(v10631.get("authorized_nonproduction_files", []))
     )
     for relative, expected in _scope()["frozen_file_sha256"].items():
         if relative in current_authorized:
@@ -398,7 +402,12 @@ def test_safety_critical_worker_methods_remain_baseline_identical():
     methods = _worker_methods()
     current_path = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
     current = json.loads(current_path.read_text(encoding="utf-8")) if current_path.is_file() else {}
-    authorized_methods = set(current.get("authorized_automationworker_method_changes", []))
+    v10631_path = ROOT / "config/verification/v1.0.6.31_chrome_only_browser_runtime_scope.json"
+    v10631 = json.loads(v10631_path.read_text(encoding="utf-8")) if v10631_path.is_file() else {}
+    authorized_methods = (
+        set(current.get("authorized_automationworker_method_changes", []))
+        | set(v10631.get("authorized_automationworker_method_changes", []))
+    )
     for name, expected in _scope()["frozen_automationworker_method_canonical_ast_sha256"].items():
         if name in authorized_methods:
             continue

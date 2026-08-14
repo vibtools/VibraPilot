@@ -71,7 +71,6 @@ def test_browser_settings_are_grouped_as_advanced_master_controls():
         "Identity & Proxy",
         "Resource Loading & Media",
         "Security & Network",
-        "Extensions",
         "DevTools & Debugging",
         "Launch Arguments & Environment",
         "Performance",
@@ -131,16 +130,13 @@ def test_master_launch_controls_are_real_backend_inputs():
     backend = _automation_worker_source()
     for marker in (
         "launch_persistent_context",
-        '"browser_executable_path"',
         '"persistent_user_data_dir"',
         '"gpu_enabled"',
-        '"sandbox_enabled"',
         '"window_width"',
         '"window_position_x"',
         '"remote_debugging_port"',
         '"additional_chromium_args"',
         '"browser_env_json"',
-        '"extensions_enabled"',
         '"background_throttling_enabled"',
         '"renderer_process_limit"',
         '"auto_restart_browser_on_crash"',
@@ -221,8 +217,9 @@ def test_app_reset_does_not_reset_browser_settings():
 
 def test_browser_settings_page_contains_only_editable_runtime_backed_controls():
     ui = QT_PATH.read_text(encoding="utf-8")
-    assert "Runtime Browser Contract (Informational)" not in ui
-    assert "Chrome Policy / Profile-managed Features (Informational)" not in ui
+    assert "Chrome-Only Runtime Policy" in ui
+    assert "Chromium Fallback: Disabled" in ui
+    assert "Sandbox: Enabled / Required" in ui
     for fake_key in (
         "safe_browsing_enabled",
         "password_manager_enabled",

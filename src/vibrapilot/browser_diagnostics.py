@@ -269,6 +269,11 @@ if ($items) { $items | ConvertTo-Json -Compress } else { '[]' }
     }
 
 
+def browser_runtime_policy_status(engine: str) -> str:
+    """Classify captured browser identity against the v1.0.6.31 Chrome-only policy."""
+    return "compliant" if str(engine) in {"google_chrome", "google_chrome_channel"} else "violation"
+
+
 def _classify_engine(*, requested_channel: str | None, requested_executable: str | None,
                      fallback_used: bool, process: dict[str, Any]) -> tuple[str, str]:
     executable = str(process.get("executable_path") or "")
@@ -357,6 +362,13 @@ def build_browser_diagnostics(*, slot_id: int, settings: dict[str, Any],
             "process_evidence_status": process.get("status"),
             "cdp_command_line_status": cdp.get("browser_command_line_cdp_status", "captured" if cdp.get("browser_command_line_arguments") else "not_captured"),
         },
+        "runtime_policy": {
+            "name": "chrome_only_v1",
+            "status": browser_runtime_policy_status(engine),
+            "accepted_engines": ["google_chrome", "google_chrome_channel"],
+            "sandbox_required": True,
+            "chromium_fallback_allowed": False,
+        },
         "browser_environment": environment,
         "cdp": cdp,
         "windows_process": process,
@@ -393,6 +405,13 @@ def browser_diagnostics_warnings(record: dict[str, Any]) -> list[str]:
             "Browser diagnostics dependency mismatch: "
             f"Playwright runtime={actual_version}, project-required={expected_version}. "
             "Reinstall the exact project dependencies before production acceptance."
+        )
+    actual = record.get("actual") if isinstance(record.get("actual"), dict) else {}
+    engine = str(actual.get("engine") or "unknown")
+    if browser_runtime_policy_status(engine) != "compliant":
+        warnings.append(
+            "Chrome-only runtime policy violation: "
+            f"captured engine={engine}. VibraPilot v1.0.6.31 accepts Google Chrome only."
         )
     return warnings
 

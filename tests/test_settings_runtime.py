@@ -87,7 +87,7 @@ def test_browser_settings_defaults_and_round_trip():
     expected_defaults = {
         "headless": False,
         "use_chrome_channel": True,
-        "allow_chromium_fallback": True,
+        "allow_chromium_fallback": False,
         "start_maximized": False,
         "no_viewport": False,
         "navigation_wait_until": "domcontentloaded",
@@ -153,9 +153,9 @@ def test_master_browser_settings_defaults_preserve_existing_runtime_behavior():
         "use_persistent_context": True,
         "headless": False,
         "use_chrome_channel": True,
-        "allow_chromium_fallback": True,
+        "allow_chromium_fallback": False,
         "gpu_enabled": True,
-        "sandbox_enabled": False,
+        "sandbox_enabled": True,
         "start_maximized": False,
         "no_viewport": False,
         "viewport_width": 1280,
@@ -182,7 +182,6 @@ def test_master_browser_settings_round_trip_exactly():
         path = Path(td) / "settings.json"
         manager = SettingsManager(path)
         values = {
-            "browser_executable_path": r"C:\\Chrome\\chrome.exe",
             "use_persistent_context": True,
             "persistent_user_data_dir": r"C:\\BrowserProfiles",
             "window_width": 1440,

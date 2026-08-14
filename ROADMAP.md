@@ -1,11 +1,12 @@
-# VibraPilot Roadmap — v1.0.6.30 Workflow Plugin System
+# VibraPilot Roadmap — v1.0.6.31 Chrome-Only Runtime Foundation
 
-- Official implementation baseline: **v1.0.6.28 / PR-11 — RELEASE COMPLETE**, commit `fff8160157d4d9b68b2d28b11105b0f7f38ed17d`.
-- Current functional target: **v1.0.6.30 / Trusted Workflow Plugin System**.
-- Preserve one active workflow at a time; existing atomic switch/restart/recovery remains authoritative.
-- Add trusted local `.vpworkflow` loading, unified catalog, Workflow Inputs/Settings selectors, Task Settings schemas and workflow step/metrics.
-- Keep Core Task/Browser/retry/persistence/report/log/licensing behavior authoritative.
-- Deferred: per-Task mixed workflows, JSON automation interpreter, marketplace, sandbox, automatic dependencies, remote plugin updates and arbitrary plugin UI code.
+- Official Baseline Freeze: **v1.0.6.30 / Workflow Plugin System**, commit `c86b6faebd58be9bff61cc8fdc12c76dda49a975`.
+- Current functional candidate: **v1.0.6.31 / Phase 1 Chrome-Only Runtime Foundation**.
+- Phase 1 status: **IMPLEMENTED / AUTOMATED VERIFIED / OWNER WINDOWS ACCEPTANCE PENDING**.
+- Phase 1 locks browser launch to branded Google Chrome, mandates sandboxing, enables normal HTTP cache by default, removes Chromium/custom-binary runtime escape paths, migrates stale browser policy settings, and adds Chrome runtime discovery/status foundation.
+- Preserve the v1.0.6.30 Workflow Plugin System, one-active-workflow switch/recovery model, Tasks, persistence, licensing, reports, downloads/uploads and managed browser profiles outside the approved browser policy surface.
+- Next functional phase: Chrome prerequisite/download/install UX, **NOT STARTED / NOT APPROVED**, and must use a new version.
+- Build-system Chromium cleanup and EXE/MSI packaging remain deferred until all functional updates are complete.
 
 # VibraPilot Roadmap — PR-11 Candidate
 
@@ -68,3 +69,8 @@ Source implementation is substantial, but the remaining target-Windows download/
 ## Next phase rule
 
 PR-07 Workflow Showcase UI does not start automatically. It requires a fresh forensic plan, scope lock and explicit owner approval after PR-06 release closure.
+
+## Next approved continuation
+
+- Phase 2: Chrome prerequisite detection, user-facing required-Chrome UX, secure official download/install, re-detection and Windows acceptance.
+- Later separate build-system track: remove packaged Chromium assets/downloads, then build and validate EXE/MSI.

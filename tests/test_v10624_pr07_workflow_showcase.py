@@ -17,6 +17,7 @@ QT_TREE = ast.parse(QT_TEXT, filename=str(QT_PATH))
 SCOPE_PATH = ROOT / "config/verification/v1.0.6.24_pr07_workflow_showcase_scope.json"
 PR10_SCOPE_PATH = ROOT / "config/verification/v1.0.6.27_pr10_workflow_error_recovery_scope.json"
 V10630_SCOPE_PATH = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
+V10631_SCOPE_PATH = ROOT / "config/verification/v1.0.6.31_chrome_only_browser_runtime_scope.json"
 
 
 def _scope() -> dict:
@@ -204,8 +205,10 @@ def test_frozen_runtime_config_dependency_and_ci_files_are_byte_identical():
         json.loads(PR10_SCOPE_PATH.read_text(encoding="utf-8"))["allowed_production_source_changes"]
     )
     v10630 = json.loads(V10630_SCOPE_PATH.read_text(encoding="utf-8")) if V10630_SCOPE_PATH.is_file() else {}
+    v10631 = json.loads(V10631_SCOPE_PATH.read_text(encoding="utf-8")) if V10631_SCOPE_PATH.is_file() else {}
     current_authorized = (pr08_authorized_supersession | pr10_authorized_supersession
-        | set(v10630.get("allowed_production_source_changes", [])) | set(v10630.get("authorized_nonproduction_files", [])))
+        | set(v10630.get("allowed_production_source_changes", [])) | set(v10630.get("authorized_nonproduction_files", []))
+        | set(v10631.get("allowed_production_source_changes", [])) | set(v10631.get("authorized_nonproduction_files", [])))
     for relative, expected in _scope()["frozen_file_sha256"].items():
         if relative in current_authorized:
             continue

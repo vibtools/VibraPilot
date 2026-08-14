@@ -133,7 +133,7 @@ def test_client_certificate_json_is_wired_into_context_arguments(tmp_path):
     assert args["client_certificates"][0]["keyPath"] == str(key_file.resolve())
 
 
-def test_persistent_profile_and_extension_controls_are_source_wired():
+def test_persistent_profile_controls_remain_and_chromium_extension_launch_is_removed():
     backend = (
         Path(__file__).resolve().parents[1]
         / "src"
@@ -142,8 +142,9 @@ def test_persistent_profile_and_extension_controls_are_source_wired():
     ).read_text(encoding="utf-8")
     assert "launch_persistent_context(" in backend
     assert "--profile-directory=" in backend
-    assert "--disable-extensions-except=" in backend
-    assert "--load-extension=" in backend
+    assert "--disable-extensions-except=" not in backend
+    assert "--load-extension=" not in backend
+    assert 'launch_args["channel"] = "chrome"' in backend
     assert "fallback_ephemeral" in backend
     assert "BrowserProfilesTemp" in backend
 
@@ -155,7 +156,7 @@ def test_chromium_launch_master_flags_are_source_wired():
         / "vibrapilot"
         / "backend.py"
     ).read_text(encoding="utf-8")
-    assert '"chromium_sandbox": bool(' in backend
+    assert '"chromium_sandbox": True' in backend
     for marker in (
         "--window-size=",
         "--window-position=",
@@ -237,16 +238,17 @@ def test_background_throttling_setting_overrides_playwright_defaults():
 
 
 
-def test_extension_loading_uses_full_playwright_chromium_channel():
+def test_chrome_only_runtime_has_no_playwright_chromium_channel_or_fallback():
     backend = (
         Path(__file__).resolve().parents[1]
         / "src"
         / "vibrapilot"
         / "backend.py"
     ).read_text(encoding="utf-8")
-    assert 'elif extensions_enabled:' in backend
-    assert 'launch_args["channel"] = "chromium"' in backend
-    assert 'persistent_args.get("channel") == "chrome"' in backend
+    assert 'launch_args["channel"] = "chrome"' in backend
+    assert 'launch_args["channel"] = "chromium"' not in backend
+    assert 'fallback_args.pop("channel", None)' not in backend
+    assert 'launch_args.pop("channel", None)' not in backend
 
 def test_extension_mode_suppresses_playwright_disable_extensions_default():
     settings = dict(DEFAULT_SETTINGS)

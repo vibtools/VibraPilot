@@ -60,6 +60,12 @@ class ProductionScopeFreezeTest(unittest.TestCase):
             settings.pop("export_path", None)
             settings.pop("saved_logs_path", None)
             settings["default_target_url"] = "https://dashboard.razorpay.com/app/paymentpages/"
+        v10631_scope = ROOT / "config/verification/v1.0.6.31_chrome_only_browser_runtime_scope.json"
+        if v10631_scope.is_file():
+            settings.pop("browser_runtime_policy_version", None)
+            settings["allow_chromium_fallback"] = True
+            settings["sandbox_enabled"] = False
+            settings["http_cache_enabled"] = False
         payload = json.dumps(settings, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
         self.assertEqual(
             hashlib.sha256(payload).hexdigest(),
@@ -92,6 +98,11 @@ class ProductionScopeFreezeTest(unittest.TestCase):
         current_allowed |= set(v10630.get("allowed_production_source_changes", []))
         current_allowed |= set(v10630.get("authorized_nonproduction_files", []))
         approved_worker |= set(v10630.get("authorized_automationworker_method_changes", []))
+        v10631_scope = ROOT / "config/verification/v1.0.6.31_chrome_only_browser_runtime_scope.json"
+        v10631 = json.loads(v10631_scope.read_text(encoding="utf-8")) if v10631_scope.is_file() else {}
+        current_allowed |= set(v10631.get("allowed_production_source_changes", []))
+        current_allowed |= set(v10631.get("authorized_nonproduction_files", []))
+        approved_worker |= set(v10631.get("authorized_automationworker_method_changes", []))
         for relative, expected in CONTRACT["frozen_file_sha256"].items():
             if current_focus_scope.is_file() and relative == "vib_validation_app/focus_manager.py":
                 continue

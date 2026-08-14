@@ -1,8 +1,9 @@
 {
   "browser_slot_default": 1,
+  "browser_runtime_policy_version": 1,
   "headless": false,
   "use_chrome_channel": true,
-  "allow_chromium_fallback": true,
+  "allow_chromium_fallback": false,
   "start_maximized": false,
   "no_viewport": false,
   "browser_launch_timeout": 45000,
@@ -76,7 +77,7 @@
   "persist_profile_between_runs": true,
   "persist_profile_cache": true,
   "gpu_enabled": true,
-  "sandbox_enabled": false,
+  "sandbox_enabled": true,
   "window_width": 0,
   "window_height": 0,
   "window_position_x": -1,
@@ -163,7 +164,7 @@
   "record_video_directory": "",
   "record_video_width": 0,
   "record_video_height": 0,
-  "http_cache_enabled": false,
+  "http_cache_enabled": true,
   "client_certificates_json": "[]",
   "export_path": "",
   "saved_logs_path": ""

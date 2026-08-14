@@ -1,9 +1,11 @@
-# Versioning — v1.0.6.30 Candidate
+# Versioning — v1.0.6.31 Phase 1 Candidate
 
-- Official implementation baseline: **v1.0.6.28 / PR-11**, commit `fff8160157d4d9b68b2d28b11105b0f7f38ed17d`.
-- Current development candidate: **v1.0.6.30 / Workflow Plugin System**.
-- v1.0.6.29 remains a separate packaging-line candidate and is not imported into this functional delta.
-- v1.0.6.30 is not RELEASE COMPLETE until owner local acceptance, user-performed GitHub publication and CI verification complete.
+- Official Baseline Freeze: **v1.0.6.30 / Workflow Plugin System**, commit `c86b6faebd58be9bff61cc8fdc12c76dda49a975`.
+- Current development candidate: **v1.0.6.31 / Chrome-Only Runtime Foundation**.
+- v1.0.6.31 is **IMPLEMENTED / AUTOMATED VERIFIED / OWNER WINDOWS ACCEPTANCE PENDING**.
+- Phase 2 Chrome prerequisite/download/install UX is a separate future approved update and must receive a new version; it is not part of v1.0.6.31.
+- Build-system Chromium cleanup and EXE/MSI packaging remain deferred until functional updates are complete.
+- The separate historical v1.0.6.29 PR-12 packaging lineage is not imported into this functional delta.
 
 # Versioning — PR-11 Candidate
 

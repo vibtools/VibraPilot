@@ -1,3 +1,7 @@
+## v1.0.6.31 Chrome-only runtime compatibility
+
+VibraPilot now requires the branded Google Chrome runtime for browser launch. The Playwright automation layer and VibraPilot-managed persistent `slot_N` profiles are preserved. Playwright Chromium fallback, arbitrary browser executable selection, and VibraPilot unpacked Chromium side-loading are no longer accepted runtime paths. Existing profile-installed Chrome extensions are not removed. Sandbox is mandatory. HTTP cache is enabled by default; explicit Playwright routing for resource blocking or operator-disabled cache can still affect cache behavior. Chrome auto-download/install is not part of Phase 1. Advanced browser arguments remain available except policy-conflicting sandbox-disable, unpacked-extension side-loading and alternate user-data-dir overrides, which fail closed.
+
 ## v1.0.6.30 workflow plugin compatibility
 
 v1.0.6.30 extends the existing source-controlled workflow framework with trusted local plugin discovery/installation without replacing the one-active-workflow state model. Built-in Share Invite remains registered and behaviorally preserved. External plugins use plugin API version 1 and declarative JSON for Inputs/Settings/Task UI while executable business logic remains Python. Invalid/incompatible plugins fail closed. Existing browser, TaskRuntimeStore, workspace/report, licensing/device, Chrome-preferred/Chromium-fallback and managed-profile contracts remain preserved.

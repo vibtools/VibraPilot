@@ -1,6 +1,12 @@
-# VibraPilot Documentation — v1.0.6.30 Workflow Plugin System
+# VibraPilot Documentation — v1.0.6.31 Chrome-Only Runtime Foundation
 
-Official implementation baseline: **v1.0.6.28 / PR-11 — RELEASE COMPLETE**. Current functional candidate: **v1.0.6.30 / Workflow Plugin System**.
+Current functional candidate: **v1.0.6.31 / Phase 1 Chrome-Only Runtime Foundation**. The v1.0.6.30 Workflow Plugin System remains preserved as the implementation baseline for non-browser functionality.
+
+- `updates/v1.0.6.31-chrome-only-runtime-foundation.md`
+- `verification/V1.0.6.31_CHROME_ONLY_RUNTIME_FOUNDATION.md`
+
+
+Official Baseline Freeze: **v1.0.6.30 / Workflow Plugin System** at `c86b6faebd58be9bff61cc8fdc12c76dda49a975`. Current functional candidate: **v1.0.6.31 / Chrome-Only Runtime Foundation**, automated-source verified with owner Windows acceptance pending.
 
 v1.0.6.30 documents trusted local `.vpworkflow` loading, unified built-in/external workflow resolution, Workflow Inputs/Settings schemas, Task Settings, workflow step/metrics and compatibility-preserving Core integration.
 

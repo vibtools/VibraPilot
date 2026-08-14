@@ -71,7 +71,10 @@ def test_production_registry_remains_share_invite_only_with_one_factory():
 
 
 def test_approved_frozen_runtime_surfaces_remain_byte_identical():
-    scope_paths = (ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json",)
+    scope_paths = (
+        ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json",
+        ROOT / "config/verification/v1.0.6.31_chrome_only_browser_runtime_scope.json",
+    )
     current_authorized: set[str] = set()
     for scope_path in scope_paths:
         scope = json.loads(scope_path.read_text(encoding="utf-8")) if scope_path.is_file() else {}

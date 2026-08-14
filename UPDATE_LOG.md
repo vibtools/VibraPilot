@@ -1,3 +1,7 @@
+## v1.0.6.31 — Phase 1 Chrome-Only Runtime Foundation — 2026-08-14
+
+Phase 1 changes only the browser runtime policy foundation: Google Chrome only, mandatory sandboxing, HTTP cache enabled by default, persisted-policy migration, Chrome discovery foundation, Browser Settings policy/status cleanup, and diagnostic policy enforcement. No build/package work or Chrome installer UX is included.
+
 ## v1.0.6.30 — Workflow Plugin System — 2026-08-12
 
 Adds trusted local workflow package loading and a unified workflow catalog; extends existing Workflow Inputs with workflow selection; adds per-workflow settings, declarative Task Settings, workflow step/metrics and Core-owned dynamic UI rendering. Existing one-active-workflow switching, Share Invite behavior, browser engine, persistence/recovery, reports/logs and licensing remain preserved. Global Default Target URL is no longer used for new Tasks, and required data-safety behavior is always enforced. Post-apply repair history now includes both the lightweight `TaskSlotWidget` host-compatibility correction and the startup/UI recovery correction that restores `MainWindow._transaction_root_has_directories` as the frozen static helper.

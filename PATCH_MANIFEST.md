@@ -1,60 +1,65 @@
-# VibraPilot v1.0.6.30 Workflow Plugin System — Startup/UI Repair Delta Manifest
+# VibraPilot v1.0.6.31 Phase 1 — Replace-Ready Delta Manifest
 
-Patch status: **IMPLEMENTATION VERIFIED / REPLACE-READY / WINDOWS STARTUP RECHECK REQUIRED**
-Patch type: **targeted repair delta over the pushed v1.0.6.30 candidate**
+## Classification
 
-## Repair Baseline Freeze
+- Official Baseline Freeze: `VibraPilot_v1.0.6.30_Baseline(1).zip`
+- Baseline SHA-256: `3a7fdde038ca4c6483888bbbc0fb9fd3466252cbc83845b141b9d6055d7eaaad`
+- Baseline Git commit: `c86b6faebd58be9bff61cc8fdc12c76dda49a975`
+- Target version: `1.0.6.31`
+- Update: `Phase 1 — Chrome-Only Runtime Foundation`
+- Implementation: `IMPLEMENTED / AUTOMATED VERIFIED`
+- Owner Windows acceptance: `PENDING`
+- Phase 2: `NOT STARTED / NOT APPROVED`
+- Build/package work: `NOT PERFORMED / DEFERRED`
 
-- Product: VibraPilot
-- Version: `1.0.6.30`
-- Baseline branch: `v10630-workflow-plugin-system`
-- Baseline GitHub commit: `e0a080062a4ddb783dc94568801358ce2e01598c`
-- Baseline parent: `fff8160157d4d9b68b2d28b11105b0f7f38ed17d`
-- Baseline commit message: `feat(workflows): add trusted plugin loading and dynamic workflow controls`
-- GitHub write by assistant: **NO**
+## Functional changes
 
-## Primary Error
+- Google Chrome branded channel is the only production browser engine.
+- Chrome-to-Playwright-Chromium retry paths are removed.
+- Persistent-profile `fallback_ephemeral` keeps Google Chrome as the engine.
+- Custom executable runtime authority is neutralized.
+- VibraPilot unpacked Chromium side-loading runtime is disabled.
+- Chromium sandbox is mandatory.
+- HTTP cache source/default migration is enabled while existing explicit routing/resource controls remain available.
+- Existing settings are migrated to the v1.0.6.31 mandatory browser policy.
+- Policy-conflicting advanced args (`--no-sandbox`, sandbox-disable, unpacked-extension side-load and alternate `--user-data-dir`) fail closed before launch.
+- `src/vibrapilot/chrome_runtime.py` adds Windows Google Chrome discovery and fail-closed product identity validation.
+- Browser Settings removes editable engine/fallback/sandbox/custom-binary/unpacked-extension controls and adds a read-only Chrome-only runtime policy/status card.
+- Diagnostics add Chrome-only compliance/violation evidence.
 
-- ID: `V10630-MAINWINDOW-STATICMETHOD-STARTUP-001`
-- Reproduction: `py run.py`
-- Failure: `TypeError: MainWindow._transaction_root_has_directories() takes 1 positional argument but 2 were given`
-- Exact path: workspace construction → Workflows page registration → workflow card → workflow recovery blocker.
-- Root cause: v1.0.6.30 dropped the frozen `@staticmethod` decorator from `MainWindow._transaction_root_has_directories(root)`. Instance invocation therefore injected `self` in addition to the explicit path argument.
-- UI effect: workspace shell construction aborted before initial Task creation, leaving a partially built shell that appeared as a broken/blank UI.
+## Preserved
 
-## Scope-Locked Fix
+- Playwright automation layer.
+- VibraPilot-managed persistent `slot_N` profiles and storage/session behavior.
+- Task/browser lifecycle behavior outside the approved launch-policy surface.
+- downloads/uploads, workflows, Share Invite behavior, licensing, TaskRuntimeStore/workspace/report schemas.
+- `.github/workflows/ci.yml`, `build.py`, `requirements.txt`, `requirements-build.txt`.
 
-- Restore the exact frozen `@staticmethod` descriptor only.
-- Add a generic AST regression that detects any `self.<method>(...)` target whose descriptor/signature cannot accept instance binding.
-- Extend the v1.0.6.30 post-apply verifier with the same descriptor contract.
-- Record the repair in v1.0.6.30 scope/changelog/README/update/verification documentation.
-- Correct the previously observed patch-manifest trailing whitespace and verification-document EOF formatting.
-- No workflow business logic, browser engine, Task lifecycle, persistence schema, licensing, report logic, global design tokens, palette, or unrelated UI behavior is changed.
-
-## Forensic Findings
-
-- The pushed GitHub branch is exactly one commit ahead of PR-11 baseline and contains the approved 55-file v1.0.6.30 feature delta.
-- Global UI design assignments remain unchanged except approved navigation/browser-settings ownership changes; `TaskSlotWidget.task_qss` only adds the approved Task Settings button selector.
-- The uploaded full baseline archive contains unrelated PR-12 packaging/runtime/private-development material and is not byte-equivalent to the clean public v1.0.6.30 branch. This repair delta therefore targets the GitHub candidate commit above and does not delete or rewrite unrelated PR-12/private files.
-- No fake/demo production workflow was found; the invoice-like workflow remains test-only.
-
-## Verification
+## Automated evidence
 
 ```text
-clean candidate pre-repair pytest: 402 passed, 5 skipped, 113 subtests
-targeted affected repair matrix: 40 passed
-post-repair compileall: PASS
-post-repair full pytest: 403 passed, 5 skipped, 113 subtests
-post-repair unittest: 200 OK, 5 skipped
-descriptor consistency audit: PASS
+compileall: PASS
+Phase-1 targeted tests: 19 passed
+Repository verification: PASS
+Full pytest: 421 passed, 6 skipped, 113 subtests passed
+Unittest: 200 OK, 6 skipped
+Phase-1 source diagnostic: PASS
+Windows runtime acceptance: NOT RUN in audit environment / OWNER PENDING
+Frozen-surface SHA verification: PASS
 ```
 
-Final Windows/PySide6 `py run.py` startup acceptance remains an owner-side runtime gate because the repair environment does not provide PySide6.
+## Delta safety
 
-## Required Commit Message
+- File deletions: `0`
+- Runtime `AppData`: excluded
+- Logs/Reports/FailedData: excluded
+- `.git`: excluded
+- caches/`__pycache__`/`.pyc`: excluded
+- build artifacts: excluded
+- the five baseline ZIP line-ending-only working-tree differences are excluded.
+- `project/` files are private/local-only and are ignored by Git; never force-add or push them.
 
-`fix(ui): restore workflow recovery startup contract`
+## Apply
 
-## Payload
-
-`DELTA_FILE_LIST.txt` lists the eight project-relative replacement files. `SHA256SUMS.txt` covers those files plus this manifest and the delta file list.
+Extract the ZIP at the VibraPilot project root and choose **Replace All**.
+After applying, run the owner Windows acceptance commands/instructions provided with the delivery before committing or pushing the feature branch.

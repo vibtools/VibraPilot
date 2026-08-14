@@ -153,11 +153,8 @@ from .workflow import (
     normalize_form_values,
     normalize_task_values,
 )
-from .browser_capabilities import (
-    ensure_task_download_directory,
-    normalize_extension_paths,
-    validate_unpacked_extension_directories,
-)
+from .browser_capabilities import ensure_task_download_directory
+from .chrome_runtime import discover_google_chrome
 
 
 NAV_SECTIONS = ["Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Workflow Settings", "Reports", "Live Logs", "App Settings", "Browser Settings", "About"]
@@ -274,12 +271,8 @@ def workflow_field_widget_value(field: WorkflowFieldSchema, widget: QWidget) -> 
 
 
 BROWSER_SETTING_GROUPS: dict[str, list[str]] = {'Browser Engine & Binary': ['browser_slot_default',
-                             'browser_executable_path',
                              'headless',
-                             'use_chrome_channel',
-                             'allow_chromium_fallback',
                              'gpu_enabled',
-                             'sandbox_enabled',
                              'browser_launch_timeout',
                              'slow_mo_delay',
                              'handle_sigint',
@@ -359,7 +352,6 @@ BROWSER_SETTING_GROUPS: dict[str, list[str]] = {'Browser Engine & Binary': ['bro
                         'http_cache_enabled',
                         'dns_host_resolver_rules',
                         'webrtc_ip_policy'],
- 'Extensions': ['extensions_enabled', 'extension_paths'],
  'Page & Window Behavior': ['auto_focus_browser_on_open',
                             'auto_dismiss_browser_dialogs',
                             'scroll_before_interaction'],
@@ -506,7 +498,7 @@ BROWSER_SETTING_LABELS = {'browser_slot_default': 'Browser Slot Default',
  'scroll_before_interaction': 'Scroll Element Into View Before Interaction',
  'devtools_auto_open': 'Auto-open DevTools',
  'remote_debugging_port': 'Remote Debugging / CDP Port (0 = disabled, loopback only)',
- 'additional_chromium_args': 'Additional Chromium Arguments',
+ 'additional_chromium_args': 'Additional Google Chrome Arguments',
  'ignored_default_args': 'Ignored Playwright Default Arguments',
  'browser_env_json': 'Browser Environment Variables (JSON object)',
  'enable_chrome_features': 'Enable Chrome Features',
@@ -3398,7 +3390,7 @@ class MainWindow(QMainWindow):
         root.addWidget(
             page_header(
                 "Browser Settings",
-                "Advanced Playwright/Chromium controls backed by real persisted runtime settings.",
+                "Advanced Playwright controls for the managed Google Chrome runtime.",
                 [save_btn, reset_btn],
             )
         )
@@ -3411,9 +3403,27 @@ class MainWindow(QMainWindow):
             spacing=CONST.content_gap,
         )
 
-        # Browser Settings contains editable, backend-backed controls only.
-        # Architecture notes and unsupported Chrome policies are documented in
-        # README/CHANGELOG instead of appearing as read-only UI settings.
+        # v1.0.6.31 makes browser identity/security policy authoritative.
+        # Keep operator-tunable runtime settings editable, while showing the
+        # non-bypassable Chrome-only contract as read-only status.
+        chrome_runtime = discover_google_chrome()
+        policy = card("Chrome-Only Runtime Policy")
+        policy_layout = policy.layout()
+        detected_path = str(chrome_runtime.executable_path) if chrome_runtime.executable_path else "Not detected"
+        detected_version = chrome_runtime.version or "Unavailable"
+        detected_status = "Detected" if chrome_runtime.available else "Not detected"
+        for text in (
+            "Engine: Google Chrome (system-installed)",
+            f"Chrome Status: {detected_status}",
+            f"Chrome Version: {detected_version}",
+            f"Chrome Executable: {detected_path}",
+            "Sandbox: Enabled / Required",
+            "Chromium Fallback: Disabled",
+            "Custom Browser Binary: Disabled",
+            "Unpacked Chromium Extensions: Disabled in Chrome-only mode",
+        ):
+            policy_layout.addWidget(label(text, "Description", False))
+        lay.addWidget(policy)
 
         self.browser_setting_widgets.clear()
         for group_name, keys in BROWSER_SETTING_GROUPS.items():
@@ -3445,12 +3455,8 @@ class MainWindow(QMainWindow):
                     w = line_input("", str(value))
 
                 launch_only_keys = {
-                    "browser_executable_path",
                     "headless",
-                    "use_chrome_channel",
-                    "allow_chromium_fallback",
                     "gpu_enabled",
-                    "sandbox_enabled",
                     "audio_enabled",
                     "autoplay_policy",
                     "hardware_video_decode_enabled",
@@ -3559,7 +3565,6 @@ class MainWindow(QMainWindow):
                     "persist_profile_between_runs",
                     "persist_profile_cache",
                     "restore_previous_session",
-                    "extensions_enabled",
                 }:
                     w.setToolTip(
                         "Persistent-profile control. Applies when the next browser session is opened."
@@ -4855,14 +4860,6 @@ class MainWindow(QMainWindow):
                     "Screen Width and Screen Height must both be 0 or both be greater than 0."
                 )
 
-            executable_path = str(
-                parsed_settings["browser_executable_path"]
-            ).strip()
-            if executable_path and not Path(executable_path).expanduser().is_file():
-                raise ValueError(
-                    "Google Chrome / Chromium Executable Path does not exist."
-                )
-
             startup_url = str(parsed_settings["browser_startup_url"]).strip()
             if startup_url and not startup_url.startswith(("http://", "https://")):
                 raise ValueError(
@@ -4901,9 +4898,6 @@ class MainWindow(QMainWindow):
                         "Page Initialization Script File does not exist."
                     )
 
-            extension_paths = normalize_extension_paths(
-                str(parsed_settings["extension_paths"])
-            )
             if parsed_settings["restore_previous_session"] and not parsed_settings["use_persistent_context"]:
                 raise ValueError(
                     "Restore Previous Browser Session requires Use Persistent Browser Context."
@@ -4912,27 +4906,6 @@ class MainWindow(QMainWindow):
                 raise ValueError(
                     "Restore Previous Browser Session requires Persist Profile Between Runs."
                 )
-
-            if parsed_settings["extensions_enabled"]:
-                if not parsed_settings["use_persistent_context"]:
-                    raise ValueError(
-                        "Extension Loading requires Use Persistent Browser Context."
-                    )
-                extension_paths = validate_unpacked_extension_directories(
-                    str(parsed_settings["extension_paths"])
-                )
-                parsed_settings["extension_paths"] = ";".join(
-                    str(path) for path in extension_paths
-                )
-                if (
-                    parsed_settings["use_chrome_channel"]
-                    and not executable_path
-                ):
-                    raise ValueError(
-                        "Google Chrome no longer supports Playwright side-loaded extension flags. "
-                        "For unpacked extensions, disable Use Google Chrome Channel and use bundled Chromium, "
-                        "or provide a compatible custom Chromium executable."
-                    )
 
             if parsed_settings["use_persistent_context"]:
                 raw_profile_root = str(parsed_settings["persistent_user_data_dir"]).strip()

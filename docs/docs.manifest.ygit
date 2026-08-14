@@ -3,12 +3,12 @@
   "documentation": {
     "id": "vibrapilot",
     "title": "VibraPilot Documentation",
-    "description": "Documentation for VibraPilot v1.0.6.30 Workflow Plugin System development candidate by Vib Tools.",
-    "version": "1.0.6.30",
+    "description": "Documentation for VibraPilot v1.0.6.31 Chrome-Only Runtime Foundation development candidate by Vib Tools.",
+    "version": "1.0.6.31",
     "root": "docs",
     "home": "index.md"
   },
   "product": {
-    "description": "v1.0.6.30 adds trusted local workflow plugins and dynamic workflow controls from the v1.0.6.28 PR-11 official implementation baseline."
+    "description": "v1.0.6.31 enforces a system-installed Google Chrome-only browser runtime foundation while preserving the v1.0.6.30 workflow and managed-profile architecture."
   }
 }

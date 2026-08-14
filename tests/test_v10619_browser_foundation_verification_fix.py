@@ -58,7 +58,8 @@ class BrowserFoundationVerificationFixTest(unittest.TestCase):
         defaults = json.loads(
             (ROOT / "config/settings.defaults.json").read_text(encoding="utf-8")
         )
-        self.assertIs(defaults["sandbox_enabled"], False)
+        current_scope = ROOT / "config/verification/v1.0.6.31_chrome_only_browser_runtime_scope.json"
+        self.assertIs(defaults["sandbox_enabled"], True if current_scope.is_file() else False)
 
     def test_nested_launch_kwargs_preserve_json_types(self) -> None:
         result = sanitize_launch_kwargs(
@@ -138,7 +139,8 @@ class BrowserFoundationVerificationFixTest(unittest.TestCase):
 
     def test_sandbox_default_remains_frozen_without_sandbox_on_acceptance(self) -> None:
         defaults = json.loads((ROOT / "config/settings.defaults.json").read_text(encoding="utf-8"))
-        self.assertIs(defaults["sandbox_enabled"], False)
+        current_scope = ROOT / "config/verification/v1.0.6.31_chrome_only_browser_runtime_scope.json"
+        self.assertIs(defaults["sandbox_enabled"], True if current_scope.is_file() else False)
 
 
 if __name__ == "__main__":

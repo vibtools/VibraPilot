@@ -1,0 +1,106 @@
+{
+  "plan_id": "VP-V10631-CHROME-ONLY-RUNTIME-FOUNDATION-001",
+  "baseline_version": "1.0.6.30",
+  "baseline_archive_sha256": "3a7fdde038ca4c6483888bbbc0fb9fd3466252cbc83845b141b9d6055d7eaaad",
+  "baseline_github_commit": "c86b6faebd58be9bff61cc8fdc12c76dda49a975",
+  "target_version": "1.0.6.31",
+  "phase": 1,
+  "phase_name": "Chrome-Only Runtime Foundation",
+  "chrome_only_runtime": true,
+  "playwright_automation_retained": true,
+  "managed_persistent_profiles_retained": true,
+  "sandbox_mandatory": true,
+  "http_cache_default_enabled": true,
+  "chromium_fallback_allowed": false,
+  "custom_browser_executable_allowed": false,
+  "unpacked_chromium_extension_runtime_allowed": false,
+  "chrome_auto_install": false,
+  "build_changes": false,
+  "allowed_production_source_changes": [
+    "src/vibrapilot/backend.py",
+    "src/vibrapilot/qt_app.py",
+    "src/vibrapilot/browser_diagnostics.py",
+    "src/vibrapilot/chrome_runtime.py"
+  ],
+  "authorized_nonproduction_files": [
+    "config/settings.defaults.json",
+    "config/AppConfig/app.py",
+    "pyproject.toml",
+    "CITATION.cff",
+    "vibproject.ygit",
+    "CHANGELOG.md",
+    "README.md",
+    "UPDATE_LOG.md",
+    "VERSIONING.md",
+    "COMPATIBILITY.md",
+    "ROADMAP.md",
+    "PROJECT_STRUCTURE.md",
+    "docs/index.md",
+    "docs/docs.manifest.ygit",
+    "docs/updates/v1.0.6.31-chrome-only-runtime-foundation.md",
+    "docs/verification/V1.0.6.31_CHROME_ONLY_RUNTIME_FOUNDATION.md",
+    "scripts/verify_repository.py",
+    "scripts/diagnostics/verify_v10631_chrome_only_runtime.py",
+    "tests/test_v10631_chrome_only_browser_runtime.py",
+    "tests/test_browser_settings_wiring.py",
+    "tests/test_settings_runtime.py",
+    "tests/test_feature_parity.py",
+    "tests/test_master_browser_runtime.py",
+    "tests/test_v10618_browser_foundation.py",
+    "tests/test_v10619_browser_foundation_verification_fix.py",
+    "tests/test_v10619_chrome_webstore_extension_install_fix.py",
+    "tests/test_app_config.py",
+    "PATCH_MANIFEST.md",
+    "DELTA_FILE_LIST.txt",
+    "SHA256SUMS.txt",
+    "tests/test_backend_contract.py",
+    "tests/test_pr03_workflow_contracts_registry.py",
+    "tests/test_production_scope_freeze.py",
+    "tests/test_v10620_pr04_share_invite_workflow_parity.py",
+    "tests/test_v10623_pr06_workflow_state_atomic_switch.py",
+    "tests/test_v10624_pr07_workflow_showcase.py",
+    "tests/test_v10625_pr08_dynamic_workflow_inputs.py",
+    "tests/test_v10627_pr10_workflow_error_recovery.py",
+    "tests/test_v10628_pr11_windows_multitask_regression.py"
+  ],
+  "frozen_file_sha256": {
+    "src/vibrapilot/workflow/registry.py": "347665e84d61f9d3012d8930ed70fc3679e13789bfac05868246b7f2706dc6bd",
+    "src/vibrapilot/workflow/contracts.py": "4d8ec303666ade71348d9f3d29d30995219eccc7397bf8316d0e475f054c0897",
+    "src/vibrapilot/workflow/state.py": "ff85c6afd9ad53bbeda4e33b4e2d92abbc239d2606f64a8670c211ab144ed5d0",
+    "src/vibrapilot/workflow/recovery.py": "fb00d68dce8492270594b7688d84763036dfa9551c23a3548ab935ab8db78012",
+    "src/vibrapilot/workflow/share_invite/workflow.py": "72010397d5b091cb1a01c47e3e63a5c4b88b49a90c2b370ea3e42f2bc8f122f5",
+    "src/vibrapilot/browser_capabilities.py": "8f256cbde7c1674c297547d0b2bf91a8a5641d4d28598833428ada828b76d4df",
+    "src/vibrapilot/task_runtime_store.py": "b4b581c936479a6a3f334170c033bae53f1d216e562cc1aff8b3e54e728dcf26",
+    "src/vibrapilot/workspace_state.py": "7b4af52a304b449504ed1a8b7333ed4738fac08a49cf431acb60e57936219ccd",
+    ".github/workflows/ci.yml": "a722955f9860315f77abdeb8b75cd1bfc269db24e8d46d437dd678917ba258a3",
+    "build.py": "3bd9a4fe725de8b6dce7127fd7d3c7924fbc1bd431dc2068fd2c8544ecbe61b7",
+    "requirements.txt": "92890827d0d19fe07168cf801d15c96cf48b846813d7f687a04531e40ed2b083",
+    "requirements-build.txt": "39d98aacb5781de72933397e6c431b83a4b62aa1177798600db1907c8def53eb"
+  },
+  "authorized_automationworker_method_changes": [
+    "launch_browser"
+  ],
+  "authorized_backend_helpers": [
+    "_enforce_browser_runtime_policy"
+  ],
+  "expected_browser_setting_control_count": 140,
+  "approved_new_setting_keys": [
+    "browser_runtime_policy_version"
+  ],
+  "approved_settings_default_changes": {
+    "allow_chromium_fallback": {
+      "from": true,
+      "to": false
+    },
+    "sandbox_enabled": {
+      "from": false,
+      "to": true
+    },
+    "http_cache_enabled": {
+      "from": false,
+      "to": true
+    }
+  },
+  "unsafe_additional_browser_args_blocked": true,
+  "ephemeral_profile_fallback_keeps_google_chrome": true
+}

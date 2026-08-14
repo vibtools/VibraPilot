@@ -28,6 +28,7 @@ PR04_CI_FIX_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.21_pr04_ci_p
 PR06_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json"
 PR08_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.25_pr08_dynamic_workflow_inputs_scope.json"
 V10630_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.30_workflow_plugin_system_scope.json"
+V10631_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.31_chrome_only_browser_runtime_scope.json"
 BASELINE_BACKEND = ROOT / "project" / "research" / "source_baseline" / "VibraPilot_v1.0.6_original_app.py"
 
 ALG = "canonical-semantic-ast-v2"
@@ -454,6 +455,10 @@ def test_pr04_frozen_runtime_files_are_byte_identical():
         superseded.update(pr08_scope.get("allowed_production_source_changes", []))
     if V10630_SCOPE_PATH.is_file():
         current = json.loads(V10630_SCOPE_PATH.read_text(encoding="utf-8"))
+        superseded.update(current.get("allowed_production_source_changes", []))
+        superseded.update(current.get("authorized_nonproduction_files", []))
+    if V10631_SCOPE_PATH.is_file():
+        current = json.loads(V10631_SCOPE_PATH.read_text(encoding="utf-8"))
         superseded.update(current.get("allowed_production_source_changes", []))
         superseded.update(current.get("authorized_nonproduction_files", []))
     for relative, expected in scope["frozen_file_sha256"].items():
