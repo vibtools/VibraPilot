@@ -1,39 +1,42 @@
-# VibraPilot v1.0.6.34 — UI-Only Compact Polish Delta
+# VibraPilot v1.0.6.35 — Workflow-Scoped Test Safety Isolation Delta
 
 ## Classification
 
-- Frozen source baseline: `VibraPilot_v1.0.6.33_BASELINE.zip`
-- Baseline Git commit: `dc149f768451383747ed02dc96607a4cfb4a3fb2`
-- Baseline ZIP SHA-256: `0cf40aac25af1422c945af23d91b0293f41396c24b24ceca9bf556db56bb3f8b`
-- Target version: `1.0.6.34`
-- Recommended branch: `feature/v1.0.6.34-ui-compact-polish`
-- Release classification: UI-Only Compact Polish
-- Backend/browser/workflow/licensing/persistence/build changes: `NONE`
+- Frozen source baseline: `VibraPilot_v1.0.6.34_BASELINE.zip`
+- Baseline Git commit: `a0e3621e831d402649ab55859e00b59d5f0ad634`
+- Baseline ZIP SHA-256: `91566da389aa05ea65e08a60d6ae56321d23dbf88fa26f87b22542e7cc0d3a70`
+- Target version: `1.0.6.35`
+- Recommended branch: `fix/v1.0.6.35-workflow-scoped-test-safety`
+- Release classification: Workflow-Scoped Test Safety Isolation
 
-## Production UI changes
+## Confirmed root cause
 
-- `src/vibrapilot/qt_app.py`
-- `vib_validation_app/widgets.py`
-- `vib_validation_app/styles.py`
+The legacy single-workflow Razorpay/Test Mode safety controls remained global after VibraPilot became a multi-workflow host. `TaskSlotWidget.start()` therefore blocked unrelated workflows when the legacy `authorized_testing_only` setting was false.
 
-The shared page header no longer reserves a subtitle row when no description is supplied. Workspace pages remove non-essential descriptive copy, Dashboard/Task presentation is denser, and Workflows use compact responsive 280–360 px tiles in a 1/2/3-column grid. Workflow tiles use a dedicated 2px border with the existing border token plus the shared surface/radius tokens so each compact card remains visually distinct from the page background. Functional state/actions and safety/security/runtime evidence remain visible.
+## Production changes
 
-## Frozen boundaries
+- `src/vibrapilot/qt_app.py` — removes the global authorization gate/Test Safety card, migrates the legacy send limit once, and resolves workflow-owned limits.
+  It also preserves historical/lightweight Qt host compatibility when `workflow_test_send_limit()` is not present on a test host object.
+- `src/vibrapilot/backend.py` — consumes immutable workflow settings for Test Send limits and uses workflow-neutral Core session wording.
+- `src/vibrapilot/workflow/manager.py` — registers Share Invite Workflow Settings.
+- `src/vibrapilot/workflow/schemas.py` — defines `max_test_send_limit` as a Share Invite integer setting.
 
-`backend.py`, Chrome runtime/installer/trust/diagnostics, workflow implementation/state, task/workspace persistence, data I/O, settings defaults, requirements, CI, build and packaging are frozen by the v1.0.6.34 scope contract.
+The Share Invite runtime implementation itself is byte-frozen, including live Test Mode banner verification and the pre-Send Test Mode assertion.
+
+## Compatibility
+
+The legacy `authorized_testing_only` and `max_test_send_limit` App settings keys remain readable so existing settings files do not break. The authorization key is inert for Task Start; the old send-limit value is only a one-time migration source when Share Invite has no namespaced value yet.
 
 ## Automated verification
 
-- Frozen v1.0.6.33 baseline verifier: PASS
-- Frozen v1.0.6.33 pytest: 442 passed, 6 skipped, 113 subtests
-- v1.0.6.34 targeted UI contract: 12 passed
-- v1.0.6.34 full pytest: 454 passed, 6 skipped, 107 subtests
+- Frozen v1.0.6.34 baseline verifier: PASS
+- Frozen v1.0.6.34 pytest: 454 passed, 6 skipped, 107 subtests
+- v1.0.6.35 targeted contract: 9 passed
+- v1.0.6.35 full pytest: 463 passed, 6 skipped, 106 subtests
 - Repository verifier: PASS
 - stdlib unittest: 200 OK, 6 skipped
 - compileall: PASS
-- frozen-surface SHA audit: PASS
-- v1.0.6.34 source diagnostic: PASS
-- Windows visual acceptance: OWNER PENDING
+- v1.0.6.35 source-policy diagnostic: PASS
 
 ## Delta safety
 

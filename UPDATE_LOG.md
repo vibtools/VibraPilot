@@ -1,3 +1,11 @@
+# v1.0.6.35 Workflow-Scoped Test Safety Isolation
+
+- Global `Authorized Testing Only` no longer gates every workflow.
+- Share Invite owns `Max Test Send Limit` through namespaced Workflow Settings.
+- Existing global send-limit values are migrated once for backward compatibility.
+- Core session messages no longer describe every workflow as Test Mode.
+- Share Invite Test Mode runtime enforcement remains frozen and fail-closed.
+
 ## v1.0.6.33 — Browser Forensic Closure
 
 Confirmed Phase-01/Phase-02 defects were closed without expanding product scope: trusted Chrome launch-target binding, installed-binary Authenticode identity, exact installer URL policy, cancellation/UI coordinator semantics, and diagnostic evidence integrity.

@@ -2,7 +2,7 @@ cff-version: 1.2.0
 title: "VibraPilot — Vib Tools Browser Automation Desktop"
 message: "If you reference this software, cite the Vib Tools project."
 type: software
-version: 1.0.6.34
+version: 1.0.6.35
 authors:
   - name: "Vib Tools"
 url: "https://vib.tools/"

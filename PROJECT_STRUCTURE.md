@@ -1,3 +1,10 @@
+# v1.0.6.35 Workflow-Scoped Test Safety Structure
+
+- `src/vibrapilot/workflow/manager.py` registers Share Invite's namespaced Workflow Settings schema.
+- `src/vibrapilot/workflow/schemas.py` defines the Share Invite Test Send limit field.
+- `src/vibrapilot/qt_app.py` removes the global Test Safety card/gate and performs one-time migration.
+- `src/vibrapilot/backend.py` consumes workflow-scoped send-limit snapshots and emits workflow-neutral session status.
+
 # v1.0.6.33 Browser Forensic Closure
 
 `src/vibrapilot/windows_authenticode.py` centralizes Windows file trust/publisher evidence for both installed Chrome and the approved Chrome MSI. No workflow, persistence, licensing, dependency, CI or build structure changed.

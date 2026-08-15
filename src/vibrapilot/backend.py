@@ -1769,9 +1769,7 @@ class AutomationWorker(threading.Thread):
         self.last_login_probe_at = 0.0
         self.last_autosave_at = time.monotonic()
         self.run_send_count = max(0, int(self.state.send_limit_used))
-        self.run_send_limit = safe_test_send_limit(
-            self.settings.get("max_test_send_limit", DEFAULT_SETTINGS["max_test_send_limit"])
-        )
+        self.run_send_limit = 0
         self.persistent_context_mode = False
         self.temporary_profile_dir: Path | None = None
         self.active_profile_dir: Path | None = None
@@ -1808,6 +1806,7 @@ class AutomationWorker(threading.Thread):
                 active_workflow_id=active_workflow_id
             )
         self._active_workflow_runtime_cache: WorkflowRuntime | None = None
+        self.run_send_limit = self._resolved_workflow_test_send_limit()
 
     def emit(self, kind: str, payload: dict[str, Any]) -> None:
         payload["slot_id"] = self.state.slot_id
@@ -2540,25 +2539,22 @@ class AutomationWorker(threading.Thread):
                     self.stop_event.clear()
                     self.pause_event.clear()
                     self.run_send_count = max(0, int(self.state.send_limit_used))
-                    self.run_send_limit = safe_test_send_limit(
-                        self.settings.get(
-                            "max_test_send_limit", DEFAULT_TEST_SEND_LIMIT
-                        )
-                    )
+                    self.run_send_limit = self._resolved_workflow_test_send_limit()
                     self.last_autosave_at = time.monotonic()
                     self._save_runtime_progress(force=True)
                     try:
                         self.ensure_authenticated_test_session()
-                        self.emit(
-                            "send_limit", {"used": self.run_send_count, "limit": self.run_send_limit}
-                        )
+                        if self._uses_test_send_limit():
+                            self.emit(
+                                "send_limit", {"used": self.run_send_count, "limit": self.run_send_limit}
+                            )
                         self.process_batch()
                     except SessionVerificationError as exc:
                         self.state.status = "Login/Test Mode Required"
                         self.login_verified_event.clear()
                         self.log(str(exc), "ERROR")
                         self.emit("login", {"verified": False, "message": str(exc)})
-                        self.emit("status", {"status": self.state.status})
+                        self.emit("status", {"status": "Login Required"})
         except Exception as exc:
             self.state.status = "Browser Failed"
             self.log(f"Browser worker failed: {exc}", "ERROR")
@@ -2611,6 +2607,29 @@ class AutomationWorker(threading.Thread):
 
     def _is_share_invite_workflow(self) -> bool:
         return self._workflow_manager.active_workflow_id == "share_invite"
+
+    def _uses_test_send_limit(self) -> bool:
+        workflow_id = self._workflow_manager.active_workflow_id
+        if not workflow_id:
+            return False
+        return bool(self._workflow_manager.task_schema(workflow_id).uses_test_send_limit)
+
+    def _resolved_workflow_test_send_limit(self) -> int:
+        workflow_id = self._workflow_manager.active_workflow_id
+        if not workflow_id:
+            # Compatibility for direct legacy worker construction used by recovery tests.
+            # Production workers always receive an explicit active workflow identity.
+            return safe_test_send_limit(
+                self.workflow_settings_values.get(
+                    "max_test_send_limit",
+                    self.settings.get("max_test_send_limit", DEFAULT_TEST_SEND_LIMIT),
+                )
+            )
+        if not self._uses_test_send_limit():
+            return 0
+        return safe_test_send_limit(
+            self.workflow_settings_values.get("max_test_send_limit", DEFAULT_TEST_SEND_LIMIT)
+        )
 
     def current_workflow_item_payload(self) -> dict[str, Any]:
         """Return the detached plugin payload matching the current Task item index."""
@@ -2674,9 +2693,9 @@ class AutomationWorker(threading.Thread):
             self.login_verified_event.clear()
         if force_emit or verified != previous:
             message = (
-                "Authenticated Test Mode page verified."
+                "Workflow session verified."
                 if verified
-                else "Login is not verified. Open the authenticated Target URL in Test Mode."
+                else "Workflow session is not verified. Prepare the authenticated browser session required by this workflow."
             )
             self.emit("login", {"verified": verified, "message": message})
             if not self.processing_event.is_set():
@@ -2782,9 +2801,7 @@ class AutomationWorker(threading.Thread):
                 self.save_unprocessed()
             elif session_blocked:
                 self.state.status = (
-                    "Login/Test Mode Required"
-                    if self._is_share_invite_workflow()
-                    else "Blocked"
+                    "Login/Test Mode Required" if self._is_share_invite_workflow() else "Blocked"
                 )
                 self.save_unprocessed()
             elif processing_interrupted:
@@ -2799,7 +2816,12 @@ class AutomationWorker(threading.Thread):
             self._save_runtime_progress(force=True)
             if self.runtime_store is not None and self.state.run_id:
                 self.runtime_store.mark_completed(self.state.run_id, self.state.status, now_str())
-            self.emit("status", {"status": self.state.status})
+            visible_status = (
+                "Login Required"
+                if self.state.status == "Login/Test Mode Required"
+                else self.state.status
+            )
+            self.emit("status", {"status": visible_status})
         except Exception as exc:
             self.state.status = "Failed"
             self.log(f"Task failed: {exc}", "ERROR")

@@ -1,3 +1,9 @@
+# Versioning — v1.0.6.35 Workflow-Scoped Test Safety
+
+- Frozen baseline: **v1.0.6.34**, commit `a0e3621e831d402649ab55859e00b59d5f0ad634`, ZIP SHA-256 `91566da389aa05ea65e08a60d6ae56321d23dbf88fa26f87b22542e7cc0d3a70`.
+- Current candidate: **v1.0.6.35 / Workflow-Scoped Test Safety Isolation**.
+- Share Invite retains real Test Mode enforcement; global workflow host semantics are neutral.
+
 # v1.0.6.33 — Browser Forensic Closure Candidate
 
 `v1.0.6.32` is the immutable forensic input baseline. `v1.0.6.33` is a patch release containing only confirmed Phase-01/Phase-02 defect closures.

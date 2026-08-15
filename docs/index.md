@@ -1,3 +1,9 @@
+# v1.0.6.35 Workflow-Scoped Test Safety Isolation
+
+- Update: `docs/updates/v1.0.6.35-workflow-scoped-test-safety.md`
+- Verification: `docs/verification/V1.0.6.35_WORKFLOW_SCOPED_TEST_SAFETY.md`
+- Frozen input: v1.0.6.34 / `a0e3621e831d402649ab55859e00b59d5f0ad634`.
+
 # v1.0.6.34 UI-Only Compact Polish
 
 - Update: `docs/updates/v1.0.6.34-ui-compact-polish.md`

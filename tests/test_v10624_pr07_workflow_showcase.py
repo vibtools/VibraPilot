@@ -114,11 +114,12 @@ def test_share_invite_card_metadata_is_manifest_owned():
     assert SHARE_INVITE_MANIFEST.logo == "logo.png"
 
 
-def test_card_preserves_manifest_identity_version_source_and_logo_without_description_copy():
+def test_card_preserves_manifest_identity_version_source_logo_and_readable_description_copy():
     source = _source("_workflow_card")
     for marker in ("manifest.name", "manifest.workflow_id", "manifest.version", "_workflow_logo_path(manifest)"):
         assert marker in source
-    assert "manifest.description" not in source
+    assert "manifest.description" in source
+    assert 'setObjectName("WorkflowDescription")' in source
     assert "workflow_origin" in source
 
 

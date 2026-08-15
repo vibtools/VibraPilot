@@ -25,6 +25,7 @@ from .registry import (
 from .schemas import (
     WorkflowFormSchema,
     WorkflowTaskSchema,
+    builtin_share_invite_settings_schema,
     builtin_share_invite_task_schema,
     coerce_legacy_input_schema,
 )
@@ -81,11 +82,7 @@ class WorkflowManager:
         from ..workflow_inputs import workflow_input_schema_for
 
         share_input = coerce_legacy_input_schema(workflow_input_schema_for("share_invite"))
-        share_settings = WorkflowFormSchema(
-            workflow_id="share_invite",
-            title="Share Invite Settings",
-            fields=(),
-        )
+        share_settings = builtin_share_invite_settings_schema()
         return cls(
             create_builtin_registry(),
             active_workflow_id=active_workflow_id,

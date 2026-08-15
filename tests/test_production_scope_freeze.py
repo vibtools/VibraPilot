@@ -107,6 +107,11 @@ class ProductionScopeFreezeTest(unittest.TestCase):
         v10634 = json.loads(v10634_scope.read_text(encoding="utf-8")) if v10634_scope.is_file() else {}
         current_allowed |= set(v10634.get("allowed_production_source_changes", []))
         current_allowed |= set(v10634.get("authorized_nonproduction_files", []))
+        v10635_scope = ROOT / "config/verification/v1.0.6.35_workflow_scoped_test_safety_scope.json"
+        v10635 = json.loads(v10635_scope.read_text(encoding="utf-8")) if v10635_scope.is_file() else {}
+        current_allowed |= set(v10635.get("allowed_production_source_changes", []))
+        current_allowed |= set(v10635.get("authorized_nonproduction_files", []))
+        approved_worker |= set(v10635.get("authorized_automationworker_method_changes", []))
         for relative, expected in CONTRACT["frozen_file_sha256"].items():
             if current_focus_scope.is_file() and relative == "vib_validation_app/focus_manager.py":
                 continue

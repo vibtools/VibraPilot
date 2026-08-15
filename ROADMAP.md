@@ -1,3 +1,9 @@
+# VibraPilot Roadmap — v1.0.6.35 Workflow-Scoped Test Safety
+
+- Baseline: v1.0.6.34 / `a0e3621e831d402649ab55859e00b59d5f0ad634`.
+- Scope: remove legacy global Test Mode coupling from the multi-workflow host while preserving Share Invite's workflow-owned safety enforcement.
+- Build/Nuitka/WiX remain deferred.
+
 # VibraPilot Roadmap — v1.0.6.33 Forensic Closure
 
 - Frozen audit baseline: **v1.0.6.32**, commit `a001f67972c47832a5e59af5f9350a0409e7eab6`.

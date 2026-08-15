@@ -3,12 +3,12 @@
   "documentation": {
     "id": "vibrapilot",
     "title": "VibraPilot Documentation",
-    "description": "Documentation for VibraPilot v1.0.6.34 UI-Only Compact Polish candidate by Vib Tools.",
-    "version": "1.0.6.34",
+    "description": "Documentation for VibraPilot v1.0.6.35 Workflow-Scoped Test Safety Isolation.",
+    "version": "1.0.6.35",
     "root": "docs",
     "home": "index.md"
   },
   "product": {
-    "description": "v1.0.6.34 applies compact presentation-only changes while preserving the frozen v1.0.6.33 backend, browser, workflow, licensing, persistence, dependency and build boundaries."
+    "description": "v1.0.6.35 removes the legacy global Test Mode start gate, scopes Share Invite send limits to Workflow Settings, and preserves live Share Invite Test Mode enforcement."
   }
 }

@@ -1,3 +1,9 @@
+# v1.0.6.35 Compatibility
+
+- Existing `settings.json` keys `authorized_testing_only` and `max_test_send_limit` remain readable for compatibility, but the authorization key is no longer a Task-start gate.
+- The legacy global send-limit value is used only as a one-time migration source for `share_invite.max_test_send_limit`.
+- Existing Share Invite runtime behavior and Test Mode verification remain compatible.
+
 ## v1.0.6.33 browser forensic compatibility
 
 Windows browser automation requires the exact Playwright Chrome-channel target to pass ProductName, WinVerifyTrust and Google LLC publisher validation. Existing Playwright 1.61.0, managed profiles, sandbox/cache policy and workflow behavior are retained.

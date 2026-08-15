@@ -29,6 +29,7 @@ PR06_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.23_pr06_workflow_st
 PR08_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.25_pr08_dynamic_workflow_inputs_scope.json"
 V10630_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.30_workflow_plugin_system_scope.json"
 V10631_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.31_chrome_only_browser_runtime_scope.json"
+V10635_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.35_workflow_scoped_test_safety_scope.json"
 BASELINE_BACKEND = ROOT / "project" / "research" / "source_baseline" / "VibraPilot_v1.0.6_original_app.py"
 
 ALG = "canonical-semantic-ast-v2"
@@ -429,7 +430,11 @@ def test_safety_critical_worker_methods_remain_ast_identical_to_approved_baselin
     scope = _scope()
     _, methods, _ = _backend_nodes()
     current = json.loads(V10630_SCOPE_PATH.read_text(encoding="utf-8")) if V10630_SCOPE_PATH.is_file() else {}
-    authorized = set(current.get("authorized_automationworker_method_changes", []))
+    v10635 = json.loads(V10635_SCOPE_PATH.read_text(encoding="utf-8")) if V10635_SCOPE_PATH.is_file() else {}
+    authorized = (
+        set(current.get("authorized_automationworker_method_changes", []))
+        | set(v10635.get("authorized_automationworker_method_changes", []))
+    )
     for name, expected in scope["frozen_automationworker_method_ast_sha256"].items():
         if name in authorized:
             continue

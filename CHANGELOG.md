@@ -1,3 +1,11 @@
+## v1.0.6.35 — Workflow-Scoped Test Safety Isolation — 2026-08-14
+
+- Removed the legacy global `Authorized Testing Only` Task-start gate so non-Share workflows are not blocked by Razorpay-specific safety UI.
+- Moved `Max Test Send Limit` into Share Invite Workflow Settings and migrate the prior global value once without overwriting an existing workflow value.
+- Preserved Share Invite's live authenticated Test Mode banner verification before Send operations.
+- Core browser-session wording is workflow-neutral; legacy persisted status compatibility remains intact.
+- Browser, licensing, persistence, dependencies, CI and build/package surfaces remain frozen.
+
 ## v1.0.6.34 — UI-Only Compact Polish — 2026-08-14
 
 - Removes non-essential explanatory copy and compacts workspace page headers.

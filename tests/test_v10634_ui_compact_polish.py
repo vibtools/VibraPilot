@@ -68,9 +68,11 @@ def test_task_card_keeps_workflow_identity_in_state_but_not_as_visible_subtitle(
     assert "self.workflow_id" in task_source
 
 
-def test_workflow_card_is_compact_metadata_tile_without_description_or_duplicate_active_action():
+def test_workflow_card_is_uniform_readable_metadata_tile_without_duplicate_active_action():
     source = _method_source("_workflow_card")
-    assert "manifest.description" not in source
+    assert "manifest.description" in source
+    assert 'setObjectName("WorkflowDescription")' in source
+    assert 'setObjectName("WorkflowCardTitle")' in source
     assert 'label("Workflow ID"' not in source
     assert 'button("Active", "secondary")' not in source
     assert "manifest.version" in source
@@ -78,6 +80,11 @@ def test_workflow_card_is_compact_metadata_tile_without_description_or_duplicate
     assert "_workflow_logo_path(manifest)" in source
     assert 'setMinimumWidth(280)' in source
     assert 'setMaximumWidth(360)' in source
+    assert 'setFixedHeight(240)' in source
+    assert 'QSizePolicy.Preferred, QSizePolicy.Fixed' in source
+    assert 'setObjectName("WorkflowActionRow")' in source
+    assert 'action_row.setFixedHeight(28)' in source
+    assert 'lay.addWidget(action_row)' in source
 
 
 def test_workflow_card_has_dedicated_subtle_two_pixel_tokenized_boundary():

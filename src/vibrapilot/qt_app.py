@@ -1198,6 +1198,22 @@ class TaskSlotWidget(QFrame):
             QProgressBar#TaskProgress::chunk { background: #3B82F6; border-radius: 1px; }
             """
 
+    def _resolved_test_send_limit(self) -> int:
+        """Resolve the workflow-owned send limit with compatibility for lightweight UI test hosts."""
+        resolver = getattr(self.app, "workflow_test_send_limit", None)
+        if callable(resolver):
+            return validate_test_send_limit(resolver(self.workflow_id))
+        if not self.task_schema.uses_test_send_limit:
+            return 0
+        settings = getattr(self.app, "settings", None)
+        getter = getattr(settings, "get", None)
+        legacy_value = (
+            getter("max_test_send_limit", DEFAULT_TEST_SEND_LIMIT)
+            if callable(getter)
+            else DEFAULT_TEST_SEND_LIMIT
+        )
+        return safe_test_send_limit(legacy_value)
+
     def _build(self) -> None:
         """Build the compact Core-owned Task card from the active workflow schema."""
         self.setProperty("vibTaskCard", "compact-v1")
@@ -1346,7 +1362,7 @@ class TaskSlotWidget(QFrame):
         }
         defaults_by_source = {
             "core_login": "Not Verified",
-            "core_send_limit": f"0/{safe_test_send_limit(self.app.settings.get('max_test_send_limit', DEFAULT_TEST_SEND_LIMIT))}",
+            "core_send_limit": f"0/{self._resolved_test_send_limit()}",
             "core_total": "0", "core_success": "0", "core_failed": "0", "core_remaining": "0",
         }
         visible_metrics = [metric for metric in self.task_schema.metrics if metric.visible]
@@ -1807,10 +1823,9 @@ class TaskSlotWidget(QFrame):
         except Exception as exc:
             self.app.log_ui(f"Task {self.slot_id}: restored workflow Task state could not be mirrored: {exc}", "WARNING")
         self._set_metric("Status", self.state.status)
-        limit = safe_test_send_limit(
-            self.app.settings.get("max_test_send_limit", DEFAULT_SETTINGS["max_test_send_limit"])
-        )
-        self._set_metric("Send Limit", f"{self.state.send_limit_used}/{limit}")
+        if self.task_schema.uses_test_send_limit:
+            limit = self._resolved_test_send_limit()
+            self._set_metric("Send Limit", f"{self.state.send_limit_used}/{limit}")
         self.update_counts()
 
     def start(self) -> None:
@@ -1843,9 +1858,6 @@ class TaskSlotWidget(QFrame):
         if target_field is not None and not url.startswith(("http://", "https://")):
             _message(self, "Invalid URL", "Configure a valid http/https Target URL in Task Settings.", "warning")
             return
-        if not bool(self.app.settings.get("authorized_testing_only", DEFAULT_SETTINGS["authorized_testing_only"])):
-            _message(self, "Authorization required", "Enable authorized testing mode in App Settings before running automation.", "warning")
-            return
         if not self.worker or not self.worker.is_alive() or not self.worker.is_browser_ready():
             _message(self, "Browser not ready", "Click Open Browser first and prepare the browser session.", "warning")
             return
@@ -1863,13 +1875,13 @@ class TaskSlotWidget(QFrame):
         if self.task_schema.uses_test_send_limit:
             try:
                 max_limit = validate_test_send_limit(
-                    self.app.settings.get("max_test_send_limit", DEFAULT_SETTINGS["max_test_send_limit"])
+                    self._resolved_test_send_limit()
                 )
             except (TypeError, ValueError) as exc:
                 _message(self, "Invalid send limit", str(exc), "warning")
                 return
             if max_limit == 0:
-                _message(self, "Sending disabled", "Max Test Send Limit is set to 0. Increase it in App Settings before starting automation.", "warning")
+                _message(self, "Sending disabled", "Max Test Send Limit is set to 0. Increase it in Share Invite Workflow Settings before starting automation.", "warning")
                 self._set_metric("Send Limit", "0/0")
                 return
             self._set_metric("Send Limit", f"{self.state.send_limit_used}/{max_limit}")
@@ -2008,7 +2020,7 @@ class TaskSlotWidget(QFrame):
         self._render_browser_status("Closed")
         self._set_metric("Login", "Not Verified")
         if not self.is_running() and self.state.status not in {
-            "Completed", "Failed", "Stopped", "Test Send Limit Reached", "Login/Test Mode Required"
+            "Completed", "Failed", "Stopped", "Test Send Limit Reached", "Login Required", "Login/Test Mode Required"
         }:
             self._set_metric("Status", "Ready")
         self.app.update_dashboard()
@@ -2037,7 +2049,7 @@ class TaskSlotWidget(QFrame):
             self._set_metric("Login", "Not Verified")
             self._set_metric("Status", "Closing")
         elif normalized == "Closed" and not self.is_running() and self.state.status not in {
-            "Completed", "Failed", "Stopped", "Test Send Limit Reached", "Login/Test Mode Required"
+            "Completed", "Failed", "Stopped", "Test Send Limit Reached", "Login Required", "Login/Test Mode Required"
         }:
             self._set_metric("Login", "Not Verified")
             self._set_metric("Status", "Ready")
@@ -2756,7 +2768,7 @@ class MainWindow(QMainWindow):
             spacing=4,
         )
         lay.addWidget(label(DISPLAY_APP_NAME, "SidebarTitle", False))
-        lay.addWidget(label("Vib Tools • Authorized Test Mode", "Caption", False))
+        lay.addWidget(label("Vib Tools • Authorized Automation", "Caption", False))
 
         nav_host = QWidget()
         nav_host.setObjectName("SidebarNavHost")
@@ -3162,7 +3174,12 @@ class MainWindow(QMainWindow):
         panel.setProperty("workflowId", manifest.workflow_id)
         panel.setMinimumWidth(280)
         panel.setMaximumWidth(360)
-        panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        # Workflow cards use one stable geometry across ACTIVE/AVAILABLE/RECOVERY
+        # states so a workflow switch never makes the showcase jump vertically.
+        # 240 px leaves room for long wrapped plugin names, the workflow
+        # description, metadata and the reserved action row.
+        panel.setFixedHeight(240)
+        panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         lay = panel.layout()
         lay.setSpacing(10)
 
@@ -3187,7 +3204,10 @@ class MainWindow(QMainWindow):
 
         identity = QWidget()
         identity_lay = vbox(identity, margins=(0, 0, 0, 0), spacing=4)
-        identity_lay.addWidget(label(manifest.name, "CardTitle"))
+        workflow_name = label(manifest.name, "CardTitle")
+        workflow_name.setObjectName("WorkflowCardTitle")
+        workflow_name.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        identity_lay.addWidget(workflow_name)
         origin = self.workflow_catalog.workflow_origin(manifest.workflow_id)
         source_name = "Built-in" if origin == "builtin" else "Installed Plugin"
         identity_lay.addWidget(label(f"v{manifest.version}  •  {source_name}", "Caption", False))
@@ -3198,6 +3218,12 @@ class MainWindow(QMainWindow):
         badge.setObjectName("WorkflowStatusBadge")
         header_lay.addWidget(badge, 0, Qt.AlignTop | Qt.AlignRight)
         lay.addWidget(header)
+
+        workflow_description = label(manifest.description, "Description")
+        workflow_description.setObjectName("WorkflowDescription")
+        workflow_description.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        lay.addWidget(workflow_description)
+        lay.addStretch(1)
 
         runtime_available = False
         schema_available = False
@@ -3256,12 +3282,17 @@ class MainWindow(QMainWindow):
                 lambda _=False, workflow_id=manifest.workflow_id: self._activate_workflow_from_showcase(workflow_id)
             )
 
+        # Always reserve the action row, even for the ACTIVE state where no
+        # action button is rendered. This keeps card height/content alignment
+        # identical when workflows are activated or changed.
+        action_row = QWidget()
+        action_row.setObjectName("WorkflowActionRow")
+        action_row.setFixedHeight(28)
+        action_lay = hbox(action_row, margins=(0, 0, 0, 0), spacing=CONST.action_gap)
+        action_lay.addStretch(1)
         if action is not None:
-            action_row = QWidget()
-            action_lay = hbox(action_row, margins=(0, 0, 0, 0), spacing=CONST.action_gap)
-            action_lay.addStretch(1)
             action_lay.addWidget(action)
-            lay.addWidget(action_row)
+        lay.addWidget(action_row)
         return panel
 
     def _reflow_workflow_showcase(self) -> None:
@@ -3788,9 +3819,40 @@ class MainWindow(QMainWindow):
         self.workflow_input_state_error = ""
         return schema, dict(values)
 
+    def _migrate_legacy_share_invite_send_limit(self) -> None:
+        """Move the legacy global Share Invite send limit into namespaced Workflow Settings once."""
+        state = self.workflow_settings_state_store.load_or_create()
+        existing = state.get("workflows", {}).get("share_invite", {})
+        if "max_test_send_limit" in existing:
+            return
+        legacy_limit = safe_test_send_limit(
+            self.settings.get("max_test_send_limit", DEFAULT_TEST_SEND_LIMIT)
+        )
+        values = self.workflow_settings_state_store.values_for("share_invite", state=state)
+        values["max_test_send_limit"] = legacy_limit
+        self.workflow_settings_state_store.save_workflow_values(
+            "share_invite", values, coerce=False
+        )
+
+    def workflow_test_send_limit(self, workflow_id: str | None = None) -> int:
+        """Resolve a workflow-owned Test Send limit without consulting global runtime policy."""
+        resolved_id = str(workflow_id or self.active_workflow_id or "").strip()
+        if not resolved_id:
+            return 0
+        schema = self.workflow_catalog.task_schema(resolved_id)
+        if not schema.uses_test_send_limit:
+            return 0
+        if resolved_id == self.active_workflow_id and not self.workflow_settings_state_error:
+            values = dict(self.active_workflow_settings_values)
+        else:
+            state = self.workflow_settings_state_store.load_or_create()
+            values = self.workflow_settings_state_store.values_for(resolved_id, state=state)
+        return validate_test_send_limit(values.get("max_test_send_limit", DEFAULT_TEST_SEND_LIMIT))
+
     def _initialize_workflow_settings_state(self) -> None:
         if not self.active_workflow_id:
             raise WorkflowSettingsStateError("Active workflow ID is unavailable.")
+        self._migrate_legacy_share_invite_send_limit()
         state = self.workflow_settings_state_store.load_or_create()
         self.active_workflow_settings_values = self.workflow_settings_state_store.values_for(
             self.active_workflow_id, state=state
@@ -3963,7 +4025,6 @@ class MainWindow(QMainWindow):
         inner = QWidget(); inner.setObjectName("PageInner")
         lay = vbox(inner, margins=(CONST.page_padding, CONST.page_padding, CONST.page_padding, CONST.page_padding), spacing=CONST.content_gap)
         groups = {
-            "Test Safety Settings": ["authorized_testing_only", "max_test_send_limit"],
             "Task Processing Settings": ["batch_size", "auto_save_interval", "max_concurrent_tasks", "remove_duplicate_rows"],
             "App Settings": ["theme_mode", "log_level", "auto_open_report_after_export"],
             "Storage & Output": ["export_path", "saved_logs_path", "downloads_path"],
@@ -6047,18 +6108,17 @@ class MainWindow(QMainWindow):
             except (TypeError, ValueError):
                 pass
 
-        task_limit = safe_test_send_limit(
-            self.settings.get("max_test_send_limit", DEFAULT_SETTINGS["max_test_send_limit"])
-        )
+        task_limit = self.workflow_test_send_limit(self.active_workflow_id)
         usage_used = 0
         usage_capacity = 0
-        for task in tasks:
+        limited_tasks = [task for task in tasks if task.task_schema.uses_test_send_limit]
+        for task in limited_tasks:
             worker = task.worker
             if worker is not None:
                 worker_limit = max(0, int(getattr(worker, "run_send_limit", task_limit)))
                 worker_used = max(0, int(getattr(worker, "run_send_count", 0)))
             else:
-                worker_limit = task_limit
+                worker_limit = self.workflow_test_send_limit(task.workflow_id)
                 worker_used = max(0, int(task.state.send_limit_used))
             usage_capacity += worker_limit
             usage_used += min(worker_used, worker_limit)
@@ -6076,9 +6136,9 @@ class MainWindow(QMainWindow):
             "License Status": "Active" if license_active else "Inactive",
             "License Expires": expiry_text,
             "Device Status": "Authorized" if license_active else "Not authorized",
-            "Current Usage": f"{usage_used} / {usage_capacity}",
-            "Available": str(usage_available),
-            "Task Limit": f"{task_limit} per task",
+            "Current Usage": f"{usage_used} / {usage_capacity}" if limited_tasks else "Not applicable",
+            "Available": str(usage_available) if limited_tasks else "Not applicable",
+            "Task Limit": f"{task_limit} per task" if limited_tasks else "Not applicable",
         }
 
         next_action: tuple[str, int | None] = ("tasks", None)

@@ -505,6 +505,25 @@ def coerce_legacy_input_schema(schema: Any) -> WorkflowFormSchema:
     )
 
 
+def builtin_share_invite_settings_schema() -> WorkflowFormSchema:
+    """Expose Share Invite-only safety limits through Workflow Settings."""
+    return WorkflowFormSchema(
+        workflow_id="share_invite",
+        title="Share Invite Settings",
+        fields=(
+            WorkflowFieldSchema(
+                key="max_test_send_limit",
+                label="Max Test Send Limit",
+                kind="integer",
+                default=50,
+                minimum=0,
+                maximum=500000,
+                help_text="Maximum confirmed Test Mode Send clicks allowed for each Share Invite Task run.",
+            ),
+        ),
+    )
+
+
 def builtin_share_invite_task_schema() -> WorkflowTaskSchema:
     """Expose the existing Share Invite Task controls through the new renderer."""
     return WorkflowTaskSchema(

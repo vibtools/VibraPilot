@@ -1,3 +1,7 @@
+# VibraPilot v1.0.6.35 — Workflow-Scoped Test Safety
+
+v1.0.6.35 removes legacy Razorpay/Test Mode controls from global App Settings and scopes the Share Invite send limit to its Workflow Settings. Non-Share workflows no longer depend on the global authorization toggle, while Share Invite continues to enforce the real live Test Mode banner before Send operations.
+
 # VibraPilot v1.0.6.34 — UI Compact Polish
 
 v1.0.6.34 is a presentation-only refinement of the frozen v1.0.6.33 baseline. It removes non-essential explanatory copy, compacts workflow presentation, and gives Workflow cards a subtle 2px tokenized boundary without changing application behavior.

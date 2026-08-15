@@ -53,6 +53,7 @@ V10631_CHROME_ONLY_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.3
 V10632_CHROME_INSTALL_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.32_chrome_prerequisite_install_scope.json"
 V10633_BROWSER_FORENSIC_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.33_browser_forensic_closure_scope.json"
 V10634_UI_COMPACT_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.34_ui_compact_polish_scope.json"
+V10635_WORKFLOW_SCOPED_TEST_SAFETY_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.35_workflow_scoped_test_safety_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -314,8 +315,26 @@ v10634_allowed_files = (
     | set(v10634_scope.get("authorized_nonproduction_files", []))
 )
 
-current_worker_methods = v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods
-current_allowed_files = v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files
+# v1.0.6.35 isolates Share Invite Test Mode safety from the multi-workflow host.
+if not V10635_WORKFLOW_SCOPED_TEST_SAFETY_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.35 workflow-scoped Test Safety scope contract is missing")
+try:
+    v10635_scope = json.loads(V10635_WORKFLOW_SCOPED_TEST_SAFETY_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.35 workflow-scoped Test Safety scope contract is invalid: {exc}")
+v10635_production_allowed = set(v10635_scope.get("allowed_production_source_changes", []))
+v10635_allowed_files = (
+    v10635_production_allowed
+    | set(v10635_scope.get("authorized_nonproduction_files", []))
+)
+v10635_worker_methods = set(v10635_scope.get("authorized_automationworker_method_changes", []))
+
+current_worker_methods = (
+    v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods | v10635_worker_methods
+)
+current_allowed_files = (
+    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files
+)
 if pr08_allowed_files != {
     "src/vibrapilot/workflow_inputs.py",
     "src/vibrapilot/workflow/input_state.py",
@@ -2213,6 +2232,8 @@ for key, expected in {
     if v10633_scope.get(key) != expected:
         fail(f"v1.0.6.33 forensic scope boundary mismatch: {key}")
 for relative, expected_sha in v10633_scope.get("frozen_file_sha256", {}).items():
+    if relative in v10635_production_allowed:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.33 frozen surface drift detected: {relative}")
@@ -2265,6 +2286,8 @@ for key in ("build_changes", "dependency_changes", "database_changes", "backend_
     if v10634_scope.get(key) is not False:
         fail(f"v1.0.6.34 forbidden scope boundary changed: {key}")
 for relative, expected_sha in v10634_scope.get("frozen_file_sha256", {}).items():
+    if relative in v10635_production_allowed:
+        continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
         fail(f"v1.0.6.34 frozen surface drift detected: {relative}")
@@ -2303,6 +2326,55 @@ for required_safety_marker in (
     if required_safety_marker not in qt_ui_text:
         fail(f"v1.0.6.34 safety/runtime copy was removed: {required_safety_marker}")
 
+if v10635_scope.get("plan_id") != "VP-V10635-WORKFLOW-SCOPED-TEST-SAFETY-001":
+    fail("v1.0.6.35 workflow-scoped Test Safety plan identifier mismatch")
+if v10635_scope.get("baseline_version") != "1.0.6.34":
+    fail("v1.0.6.35 baseline version mismatch")
+if v10635_scope.get("baseline_github_commit") != "a0e3621e831d402649ab55859e00b59d5f0ad634":
+    fail("v1.0.6.35 baseline GitHub commit mismatch")
+if v10635_scope.get("baseline_archive_sha256") != "91566da389aa05ea65e08a60d6ae56321d23dbf88fa26f87b22542e7cc0d3a70":
+    fail("v1.0.6.35 baseline archive mismatch")
+if v10635_scope.get("target_version") != "1.0.6.35":
+    fail("v1.0.6.35 target version mismatch")
+if v10635_scope.get("allowed_production_source_changes") != [
+    "src/vibrapilot/backend.py",
+    "src/vibrapilot/qt_app.py",
+    "src/vibrapilot/workflow/manager.py",
+    "src/vibrapilot/workflow/schemas.py",
+]:
+    fail("v1.0.6.35 production scope mismatch")
+for key in ("build_changes", "dependency_changes", "database_schema_changes", "licensing_changes", "browser_runtime_changes", "plugin_api_changes"):
+    if v10635_scope.get(key) is not False:
+        fail(f"v1.0.6.35 frozen scope boundary changed: {key}")
+for relative, expected_sha in v10635_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or sha256(path) != expected_sha:
+        fail(f"v1.0.6.35 frozen surface drift detected: {relative}")
+backend_text = (SRC / "backend.py").read_text(encoding="utf-8")
+manager_text = (SRC / "workflow" / "manager.py").read_text(encoding="utf-8")
+schemas_text = (SRC / "workflow" / "schemas.py").read_text(encoding="utf-8")
+share_runtime_text = (SRC / "workflow" / "share_invite" / "workflow.py").read_text(encoding="utf-8")
+if "Enable authorized testing mode in App Settings before running automation." in qt_ui_text:
+    fail("v1.0.6.35 global authorized-testing Task gate still exists")
+if '"Test Safety Settings": ["authorized_testing_only", "max_test_send_limit"]' in qt_ui_text:
+    fail("v1.0.6.35 global Test Safety App Settings card still exists")
+for marker in (
+    'key="max_test_send_limit"',
+    'label="Max Test Send Limit"',
+    'kind="integer"',
+):
+    if marker not in schemas_text:
+        fail(f"v1.0.6.35 Share Invite Workflow Settings marker missing: {marker}")
+if "builtin_share_invite_settings_schema()" not in manager_text:
+    fail("v1.0.6.35 Share Invite settings schema is not registered")
+if 'self.workflow_settings_values.get("max_test_send_limit"' not in backend_text:
+    fail("v1.0.6.35 worker does not resolve the send limit from workflow settings")
+if "Workflow session verified." not in backend_text:
+    fail("v1.0.6.35 workflow-neutral Core session wording missing")
+for marker in ("def assert_test_mode", "Test Mode banner is required before every Send operation."):
+    if marker not in share_runtime_text:
+        fail(f"v1.0.6.35 Share Invite live Test Mode enforcement drift: {marker}")
+
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
 app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
@@ -2312,8 +2384,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.34":
-    fail("AppConfig VERSION must be 1.0.6.34 for the UI compact polish candidate")
+if app_version != "1.0.6.35":
+    fail("AppConfig VERSION must be 1.0.6.35 for the workflow-scoped Test Safety candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -3052,6 +3124,7 @@ required = [
     "config/verification/v1.0.6.32_chrome_prerequisite_install_scope.json",
     "config/verification/v1.0.6.33_browser_forensic_closure_scope.json",
     "config/verification/v1.0.6.34_ui_compact_polish_scope.json",
+    "config/verification/v1.0.6.35_workflow_scoped_test_safety_scope.json",
     "src/vibrapilot/chrome_runtime.py",
     "src/vibrapilot/chrome_installer.py",
     "src/vibrapilot/windows_authenticode.py",
@@ -3069,8 +3142,11 @@ required = [
     "docs/verification/V1.0.6.33_SCOPE_COMPLIANCE_MATRIX.md",
     "docs/updates/v1.0.6.34-ui-compact-polish.md",
     "docs/verification/V1.0.6.34_UI_COMPACT_POLISH.md",
+    "docs/updates/v1.0.6.35-workflow-scoped-test-safety.md",
+    "docs/verification/V1.0.6.35_WORKFLOW_SCOPED_TEST_SAFETY.md",
     "scripts/diagnostics/verify_v10633_browser_forensic_closure.py",
     "scripts/diagnostics/verify_v10634_ui_compact_polish.py",
+    "scripts/diagnostics/verify_v10635_workflow_scoped_test_safety.py",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
     "docs/updates/v1.0.6.1-vibrapilot-branding.md", "docs/updates/v1.0.6.1-github-ci-repository-hygiene-fix.md",
     "docs/updates/v1.0.6.1-github-ci-deterministic-ast-contract-fix.md",
