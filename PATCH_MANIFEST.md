@@ -1,57 +1,43 @@
-# VibraPilot v1.0.6.33 — Phase-01 + Phase-02 Browser Forensic Closure Delta
+# VibraPilot v1.0.6.34 — UI-Only Compact Polish Delta
 
 ## Classification
 
-- Frozen source baseline: `VibraPilot_v1.0.6.32_BASELINE.zip`
-- Baseline SHA-256: `fdc18905084f41f9418d239f5e8f0ab632fa114c05b065835dcc126d32a1664f`
-- Baseline Git commit: `a001f67972c47832a5e59af5f9350a0409e7eab6`
-- Target version: `1.0.6.33`
-- Recommended branch: `hotfix/v1.0.6.33-browser-forensic-closure`
-- Update: Phase-01 + Phase-02 A–Z forensic confirmed-defect closure
-- Build/package: `NOT PERFORMED / DEFERRED`
+- Frozen source baseline: `VibraPilot_v1.0.6.33_BASELINE.zip`
+- Baseline Git commit: `dc149f768451383747ed02dc96607a4cfb4a3fb2`
+- Baseline ZIP SHA-256: `0cf40aac25af1422c945af23d91b0293f41396c24b24ceca9bf556db56bb3f8b`
+- Target version: `1.0.6.34`
+- Recommended branch: `feature/v1.0.6.34-ui-compact-polish`
+- Release classification: UI-Only Compact Polish
+- Backend/browser/workflow/licensing/persistence/build changes: `NONE`
 
-## Confirmed closures
+## Production UI changes
 
-- Bind Chrome preflight to Playwright 1.61.0's actual Windows Chrome-channel target order.
-- Require Windows Authenticode trust and `Google LLC` publisher identity for installed `chrome.exe`.
-- Require the exact approved Google Enterprise MSI HTTPS path.
-- Treat Windows Installer exit 1602 as user cancellation.
-- Make installer security/lifecycle stage events non-droppable while retaining droppable byte-progress updates.
-- Preserve active installer dialog/coordinator state across concurrent Open Browser/Re-check requests.
-- Require measured process executable equality with the trusted Chrome target for diagnostic compliance.
-- Synchronize current-state documentation and remove the v1.0.6.32 Chrome runtime EOF hygiene defect.
+- `src/vibrapilot/qt_app.py`
+- `vib_validation_app/widgets.py`
+- `vib_validation_app/styles.py`
 
-## Preserved/frozen
+The shared page header no longer reserves a subtitle row when no description is supplied. Workspace pages remove non-essential descriptive copy, Dashboard/Task presentation is denser, and Workflows use compact responsive 280–360 px tiles in a 1/2/3-column grid. Workflow tiles use a dedicated 2px border with the existing border token plus the shared surface/radius tokens so each compact card remains visually distinct from the page background. Functional state/actions and safety/security/runtime evidence remain visible.
 
-- Playwright `channel="chrome"`; no Chromium fallback/custom browser executable.
-- Mandatory sandbox and HTTP cache defaults.
-- Managed `BrowserProfiles/slot_N` behavior.
-- Workflows/Share Invite, licensing, TaskRuntimeStore/workspace/report schemas.
-- `config/settings.defaults.json`, `requirements.txt`, `requirements-build.txt`, `.github/workflows/ci.yml`, `build.py`.
-- No CAPTCHA bypass, stealth or fingerprint spoofing.
+## Frozen boundaries
 
-## Automated evidence
+`backend.py`, Chrome runtime/installer/trust/diagnostics, workflow implementation/state, task/workspace persistence, data I/O, settings defaults, requirements, CI, build and packaging are frozen by the v1.0.6.34 scope contract.
 
-```text
-Uploaded baseline SHA/hygiene: PASS
-Untouched baseline verifier: PASS
-Untouched baseline pytest: 431 passed, 6 skipped, 113 subtests
-Untouched baseline unittest: 200 OK, 6 skipped
-Targeted Phase-01/02 + forensic closure: PASS
-Repository verification: PASS
-Full pytest: 442 passed, 6 skipped, 113 subtests
-Full unittest: 200 OK, 6 skipped
-compileall: PASS
-v1.0.6.33 source diagnostic: PASS (Windows acceptance not run in audit environment)
-```
+## Automated verification
 
-## Owner Windows gate
-
-Before Git publication, confirm trusted installed Chrome signer/publisher evidence and normal Open → Close → Open behavior. The full missing-Chrome download/UAC/install path remains an owner Windows acceptance gate and must not be represented as live-PASS until actually exercised on a safe Windows environment.
+- Frozen v1.0.6.33 baseline verifier: PASS
+- Frozen v1.0.6.33 pytest: 442 passed, 6 skipped, 113 subtests
+- v1.0.6.34 targeted UI contract: 12 passed
+- v1.0.6.34 full pytest: 454 passed, 6 skipped, 107 subtests
+- Repository verifier: PASS
+- stdlib unittest: 200 OK, 6 skipped
+- compileall: PASS
+- frozen-surface SHA audit: PASS
+- v1.0.6.34 source diagnostic: PASS
+- Windows visual acceptance: OWNER PENDING
 
 ## Delta safety
 
-- File deletions: `0`
-- Private `project/`: absent from frozen baseline and absent from this public delta
-- Runtime AppData/Logs/Reports/FailedData: excluded
+- File deletions: 0
+- Private `project/`: excluded
+- AppData/Logs/Reports/FailedData: excluded
 - caches/pyc/.git/build artifacts: excluded

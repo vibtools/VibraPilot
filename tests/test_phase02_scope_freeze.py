@@ -63,6 +63,11 @@ class Phase02ScopeFreezeTest(unittest.TestCase):
         }
         current_scope = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
         authorized = {"qt_app.BROWSER_SETTING_GROUPS"} if current_scope.is_file() else set()
+        ui_scope = ROOT / "config/verification/v1.0.6.34_ui_compact_polish_scope.json"
+        if ui_scope.is_file():
+            ui_data = json.loads(ui_scope.read_text(encoding="utf-8"))
+            if "src/vibrapilot/qt_app.py" in ui_data.get("allowed_production_source_changes", []):
+                authorized.add("qt_app.ActivationPage")
         for key, value in actual.items():
             if key in authorized:
                 continue

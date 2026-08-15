@@ -223,6 +223,11 @@ def app_qss(theme: str = "dark") -> str:
         border: {border}px solid {c['border']};
         border-radius: {radius}px;
     }}
+    QFrame#WorkflowCard {{
+        background: {c['surface']};
+        border: 2px solid {c['border']};
+        border-radius: {radius}px;
+    }}
     QFrame#NestedCard, QWidget#NestedCard, QFrame#Box {{
         background: {c['nested_surface']};
         border: {border}px solid {nested_border};

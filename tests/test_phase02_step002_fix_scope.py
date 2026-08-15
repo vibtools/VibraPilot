@@ -25,6 +25,9 @@ class Phase02Step002FixScopeTest(unittest.TestCase):
         current_browser_scope = ROOT / "config/verification/v1.0.6.12_browser_ui_lifecycle_scope.json"
         if current_browser_scope.is_file():
             allowed.update(json.loads(current_browser_scope.read_text(encoding="utf-8")).get("allowed_runtime_source_changes", []))
+        ui_scope = ROOT / "config/verification/v1.0.6.34_ui_compact_polish_scope.json"
+        if ui_scope.is_file():
+            allowed.update(json.loads(ui_scope.read_text(encoding="utf-8")).get("allowed_production_source_changes", []))
         for relative, expected in CONTRACT["frozen_file_sha256"].items():
             if relative in allowed:
                 continue

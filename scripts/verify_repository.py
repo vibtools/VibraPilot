@@ -52,13 +52,14 @@ V10630_WORKFLOW_PLUGIN_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0
 V10631_CHROME_ONLY_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.31_chrome_only_browser_runtime_scope.json"
 V10632_CHROME_INSTALL_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.32_chrome_prerequisite_install_scope.json"
 V10633_BROWSER_FORENSIC_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.33_browser_forensic_closure_scope.json"
+V10634_UI_COMPACT_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.34_ui_compact_polish_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
 EXPECTED_BRAND_HASHES = {
     "vib_validation_app/tokens.py": "cdae402dccdb8e916f274ea5fa0b8ec1a6505fab6043462d35af8a93e1468a02",
-    "vib_validation_app/styles.py": "83729e5b0e811e6b0cc4943dc729cbcf0cad92657eacbaebaacc0e0f56e3877b",
-    "vib_validation_app/widgets.py": "5f13404bc98a053edb1ebd63760cd185632cbe84041594b7c4f5821043a3495d",
+    "vib_validation_app/styles.py": "8c11b502320d0394155f4a4e18ad31dce76e471e0f72e6d88944bb5909928add",
+    "vib_validation_app/widgets.py": "855230900a683dcf172b962148d2ada1d96030d084468312cae7179b354346c3",
     "vib_validation_app/button_contract.py": "89bd33cbbfa00497a223e6ea5493e8aa4745d556e23447e28a0001c673381ce0",
     "vib_validation_app/focus_manager.py": "a073051b05cbd2442b0bdec0a1251cf8185b54cbb71e755cc25c2ee85ce7f86e",
     "frozen_design_source/CURRENT_FOUNDATION_TOKENS.json": "cbf1636b53a85c30dae839379653b6bbe0d0065e8f37cd919acaeb0c491e7616",
@@ -300,8 +301,21 @@ v10633_allowed_files = (
     | set(v10633_scope.get("authorized_nonproduction_files", []))
 )
 v10633_worker_methods = set(v10633_scope.get("authorized_automationworker_method_changes", []))
+
+# v1.0.6.34 is a presentation-only compact UI polish.
+if not V10634_UI_COMPACT_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.34 UI compact polish scope contract is missing")
+try:
+    v10634_scope = json.loads(V10634_UI_COMPACT_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.34 UI compact polish scope contract is invalid: {exc}")
+v10634_allowed_files = (
+    set(v10634_scope.get("allowed_production_source_changes", []))
+    | set(v10634_scope.get("authorized_nonproduction_files", []))
+)
+
 current_worker_methods = v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods
-current_allowed_files = v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files
+current_allowed_files = v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files
 if pr08_allowed_files != {
     "src/vibrapilot/workflow_inputs.py",
     "src/vibrapilot/workflow/input_state.py",
@@ -2228,6 +2242,67 @@ if '_ERROR_INSTALL_USEREXIT = 1602' not in chrome_installer_text or '"installer_
 if 'google_chrome_channel_unverified' not in (SRC / "browser_diagnostics.py").read_text(encoding="utf-8"):
     fail("v1.0.6.33 diagnostics unverified-channel classification missing")
 
+if v10634_scope.get("plan_id") != "VP-V10634-UI-COMPACT-POLISH-001":
+    fail("v1.0.6.34 UI compact polish plan identifier mismatch")
+if v10634_scope.get("baseline_version") != "1.0.6.33":
+    fail("v1.0.6.34 UI baseline version mismatch")
+if v10634_scope.get("baseline_github_commit") != "dc149f768451383747ed02dc96607a4cfb4a3fb2":
+    fail("v1.0.6.34 UI baseline GitHub commit mismatch")
+if v10634_scope.get("baseline_archive_sha256") != "0cf40aac25af1422c945af23d91b0293f41396c24b24ceca9bf556db56bb3f8b":
+    fail("v1.0.6.34 UI baseline archive mismatch")
+if v10634_scope.get("target_version") != "1.0.6.34":
+    fail("v1.0.6.34 target version mismatch")
+if v10634_scope.get("allowed_production_source_changes") != [
+    "src/vibrapilot/qt_app.py",
+    "vib_validation_app/widgets.py",
+    "vib_validation_app/styles.py",
+]:
+    fail("v1.0.6.34 production UI scope mismatch")
+for key in ("ui_only",):
+    if v10634_scope.get(key) is not True:
+        fail(f"v1.0.6.34 UI scope boundary mismatch: {key}")
+for key in ("build_changes", "dependency_changes", "database_changes", "backend_changes"):
+    if v10634_scope.get(key) is not False:
+        fail(f"v1.0.6.34 forbidden scope boundary changed: {key}")
+for relative, expected_sha in v10634_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or sha256(path) != expected_sha:
+        fail(f"v1.0.6.34 frozen surface drift detected: {relative}")
+qt_ui_text = (SRC / "qt_app.py").read_text(encoding="utf-8")
+widgets_ui_text = (ROOT / "vib_validation_app" / "widgets.py").read_text(encoding="utf-8")
+styles_ui_text = (ROOT / "vib_validation_app" / "styles.py").read_text(encoding="utf-8")
+for forbidden_text in (
+    "Live overview of browser slots, automation progress, license state and next actions.",
+    "Independent authorized Test Mode browser slots with file import, controls and live counters.",
+    "Built-in and trusted local workflow plugins share the existing one-active-workflow control plane.",
+    "Advanced Playwright controls for the managed Google Chrome runtime.",
+    "Vib Tools dark contract • Test Mode safety enforced",
+):
+    if forbidden_text in qt_ui_text:
+        fail(f"v1.0.6.34 non-essential UI description remains: {forbidden_text}")
+for required_marker in (
+    'panel.setMinimumWidth(280)',
+    'panel.setMaximumWidth(360)',
+    'columns = 1 if compact else (3 if wide else 2)',
+    'status_badge("ACTIVE" if is_active else "AVAILABLE"',
+):
+    if required_marker not in qt_ui_text:
+        fail(f"v1.0.6.34 workflow compact-grid marker missing: {required_marker}")
+if 'description: str = ""' not in widgets_ui_text or 'if description:' not in widgets_ui_text:
+    fail("v1.0.6.34 optional compact page-header contract missing")
+if "QFrame#WorkflowCard {{" not in styles_ui_text:
+    fail("v1.0.6.34 WorkflowCard style selector missing")
+if "border: 2px solid {c['border']};" not in styles_ui_text or "background: {c['surface']};" not in styles_ui_text:
+    fail("v1.0.6.34 WorkflowCard tokenized 2px boundary missing")
+for required_safety_marker in (
+    "Google Chrome Required",
+    "Windows Authenticode",
+    "Google LLC",
+    "Browser automation is blocked until Google Chrome is available.",
+):
+    if required_safety_marker not in qt_ui_text:
+        fail(f"v1.0.6.34 safety/runtime copy was removed: {required_safety_marker}")
+
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
 app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
@@ -2237,8 +2312,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.33":
-    fail("AppConfig VERSION must be 1.0.6.33 for the browser forensic closure candidate")
+if app_version != "1.0.6.34":
+    fail("AppConfig VERSION must be 1.0.6.34 for the UI compact polish candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -2813,13 +2888,11 @@ activation_markers = [
     'root.setContentsMargins(40, 40, 40, 40)',
     'brand_icon = brand_icon_label(48, APP.display_name)',
     'QLabel(f"{APP.display_name} Activation")',
-    'QLabel(f"Enter your license key to unlock {APP.display_name}")',
     'QLabel("Email Address (Optional)")',
     'line_input("name@example.com"',
     'setPlaceholderText("VT-XXXX-XXXX-XXXX-XXXX")',
     'setFixedHeight(44)',
     'button("Activate License", "primary")',
-    'QLabel("🔒 Secured by Licora Activation Engine")',
 ]
 for marker in activation_markers:
     if marker not in activation_source:
@@ -2829,6 +2902,8 @@ for forbidden in [
     "Activate / Login",
     "Vib Tools official desktop UI • Dark-first frozen design contract",
     'f"{DISPLAY_APP_NAME}  •  v{APP_VERSION}"',
+    'QLabel(f"Enter your license key to unlock {APP.display_name}")',
+    'QLabel("🔒 Secured by Licora Activation Engine")',
 ]:
     if forbidden in activation_source:
         fail(f"legacy/debug activation-window marker still present: {forbidden}")
@@ -2896,7 +2971,7 @@ for marker in [
     'DISPLAY_APP_NAME = APP.display_name',
     'APP_NAME = APP.app_name',
     'QLabel(f"{APP.display_name} Activation")',
-    'page_header(ABOUT.page_title, ABOUT.page_subtitle)',
+    'page_header(ABOUT.page_title)',
     'for link_label, url in SUPPORT.about_support_links:',
     'for social_link in ENABLED_SOCIAL_LINKS:',
     'application.setWindowIcon(application_icon())',
@@ -2976,6 +3051,7 @@ required = [
     "config/verification/v1.0.6.31_chrome_only_browser_runtime_scope.json",
     "config/verification/v1.0.6.32_chrome_prerequisite_install_scope.json",
     "config/verification/v1.0.6.33_browser_forensic_closure_scope.json",
+    "config/verification/v1.0.6.34_ui_compact_polish_scope.json",
     "src/vibrapilot/chrome_runtime.py",
     "src/vibrapilot/chrome_installer.py",
     "src/vibrapilot/windows_authenticode.py",
@@ -2991,7 +3067,10 @@ required = [
     "docs/verification/V1.0.6.33_BROWSER_FORENSIC_CLOSURE.md",
     "docs/forensic/V1.0.6.33_PHASE01_PHASE02_AZ_FORENSIC_AUDIT.md",
     "docs/verification/V1.0.6.33_SCOPE_COMPLIANCE_MATRIX.md",
+    "docs/updates/v1.0.6.34-ui-compact-polish.md",
+    "docs/verification/V1.0.6.34_UI_COMPACT_POLISH.md",
     "scripts/diagnostics/verify_v10633_browser_forensic_closure.py",
+    "scripts/diagnostics/verify_v10634_ui_compact_polish.py",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
     "docs/updates/v1.0.6.1-vibrapilot-branding.md", "docs/updates/v1.0.6.1-github-ci-repository-hygiene-fix.md",
     "docs/updates/v1.0.6.1-github-ci-deterministic-ast-contract-fix.md",

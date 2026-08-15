@@ -103,6 +103,10 @@ class ProductionScopeFreezeTest(unittest.TestCase):
         current_allowed |= set(v10631.get("allowed_production_source_changes", []))
         current_allowed |= set(v10631.get("authorized_nonproduction_files", []))
         approved_worker |= set(v10631.get("authorized_automationworker_method_changes", []))
+        v10634_scope = ROOT / "config/verification/v1.0.6.34_ui_compact_polish_scope.json"
+        v10634 = json.loads(v10634_scope.read_text(encoding="utf-8")) if v10634_scope.is_file() else {}
+        current_allowed |= set(v10634.get("allowed_production_source_changes", []))
+        current_allowed |= set(v10634.get("authorized_nonproduction_files", []))
         for relative, expected in CONTRACT["frozen_file_sha256"].items():
             if current_focus_scope.is_file() and relative == "vib_validation_app/focus_manager.py":
                 continue
@@ -141,6 +145,9 @@ class ProductionScopeFreezeTest(unittest.TestCase):
         if v10630_scope.is_file():
             actual.pop("qt_app.BROWSER_SETTING_GROUPS", None)
             expected.pop("qt_app.BROWSER_SETTING_GROUPS", None)
+        if "src/vibrapilot/qt_app.py" in current_allowed:
+            actual.pop("qt_app.ActivationPage", None)
+            expected.pop("qt_app.ActivationPage", None)
         self.assertEqual(actual, expected)
 
         worker = bclasses["AutomationWorker"]

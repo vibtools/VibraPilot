@@ -143,3 +143,5 @@ No production runtime dependency, Python version, SQLite schema, WAL durability 
 The four-worker runtime-store test remains a concurrency correctness/isolation test. Its deadlock guard is 60 seconds so variable hosted Windows storage latency does not become a false throughput requirement. Production `TaskRuntimeStore` remains byte-identical to v1.0.6.12.
 
 The uploaded v1.0.6.12 development archive is not a clean public source package because it contains runtime/cache/private-development paths. Clean public source verification remains governed by `scripts/verify_source_archive.py`.
+
+Workflow cards now use a dedicated 2px tokenized border together with the shared surface and radius tokens so compact tiles remain visually distinct from the workflow page background.

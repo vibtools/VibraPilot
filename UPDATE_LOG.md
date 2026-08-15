@@ -229,3 +229,5 @@ Browser Settings production-hardening release. The advanced Browser Settings pag
 Full technical note: `docs/updates/v1.0.6.1.md`
 
 A–Z Browser Settings binding audit: `docs/updates/v1.0.6.1-browser-settings-audit.md`
+
+Workflow cards now use a dedicated 2px tokenized border together with the shared surface and radius tokens so compact tiles remain visually distinct from the workflow page background.

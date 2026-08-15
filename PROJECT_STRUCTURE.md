@@ -106,3 +106,5 @@ Dashboard, Tasks, Workflow Inputs, Reports, Live Logs, App Settings, Browser Set
 ## Public/private release boundary
 
 `project/`, runtime `AppData/`, `Logs/`, `Reports/`, `FailedData/`, caches and compiled Python files must remain excluded from clean public release-source artifacts.
+
+Workflow cards now use a dedicated 2px tokenized border together with the shared surface and radius tokens so compact tiles remain visually distinct from the workflow page background.

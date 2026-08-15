@@ -1,3 +1,7 @@
+# VibraPilot v1.0.6.34 — UI Compact Polish
+
+v1.0.6.34 is a presentation-only refinement of the frozen v1.0.6.33 baseline. It removes non-essential explanatory copy, compacts workflow presentation, and gives Workflow cards a subtle 2px tokenized boundary without changing application behavior.
+
 # VibraPilot v1.0.6.33 — Browser Forensic Closure
 
 The v1.0.6.33 hotfix closes confirmed Phase-01/Phase-02 browser trust, launch-target, installer-policy, coordinator and diagnostic-evidence defects against the frozen v1.0.6.32 baseline. Google Chrome remains the only production browser engine; Playwright, sandbox, cache defaults, managed profiles and non-browser behavior are preserved.
@@ -276,3 +280,5 @@ Public documentation belongs under `docs/`. The local `project/` tree and runtim
 GPL-3.0-only. See `LICENSE` and `NOTICE`.
 
 Maintained by **Vib Tools** — https://vib.tools/
+
+Workflow cards now use a dedicated 2px tokenized border together with the shared surface and radius tokens so compact tiles remain visually distinct from the workflow page background.

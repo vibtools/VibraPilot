@@ -656,12 +656,6 @@ class ActivationPage(QWidget):
         lay.addWidget(brand_title)
         lay.addSpacing(6)
 
-        subtitle = QLabel(f"Enter your license key to unlock {APP.display_name}")
-        subtitle.setObjectName("ActivationSubtitle")
-        subtitle.setAlignment(Qt.AlignCenter)
-        subtitle.setWordWrap(False)
-        lay.addWidget(subtitle)
-
         # Activation feedback is preserved inside the specified 32px header/form gap
         # so runtime messages never change the locked layout geometry.
         self.status = QLabel("")
@@ -705,14 +699,6 @@ class ActivationPage(QWidget):
         self.activate_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.activate_button.clicked.connect(self.activate)
         lay.addWidget(self.activate_button)
-
-        # 4. Trust footer — exactly 24px below the primary action.
-        lay.addSpacing(24)
-        trust = QLabel("🔒 Secured by Licora Activation Engine")
-        trust.setObjectName("ActivationTrust")
-        trust.setAlignment(Qt.AlignCenter)
-        trust.setAccessibleName("Secured by Licora Activation Engine")
-        lay.addWidget(trust)
 
         root.addWidget(content)
         root.addStretch(1)
@@ -1228,14 +1214,6 @@ class TaskSlotWidget(QFrame):
         text_col = QWidget()
         text_lay = vbox(text_col, spacing=2)
         text_lay.addWidget(title(f"Task {self.slot_id}", "CardTitle"))
-        workflow_catalog = getattr(self.app, "workflow_catalog", None)
-        if workflow_catalog is None:
-            workflow_name = self.workflow_id.replace("_", " ").title()
-        else:
-            workflow_name = workflow_catalog.require_workflow(self.workflow_id).name
-        self.subtitle = elide_label(f"Workflow: {workflow_name}", "Caption")
-        self.subtitle.setObjectName("TaskSubtitle")
-        text_lay.addWidget(self.subtitle)
         header_lay.addWidget(text_col, 1)
 
         control_group = QWidget()
@@ -1566,7 +1544,7 @@ class TaskSlotWidget(QFrame):
         if self.task_schema.fields:
             root.addLayout(form)
         else:
-            root.addWidget(label("This workflow has no per-Task settings.", "Description", False))
+            root.addWidget(label("No per-Task settings", "Description", False))
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         root.addWidget(buttons)
         buttons.rejected.connect(dialog.reject)
@@ -2729,8 +2707,6 @@ class MainWindow(QMainWindow):
         cl = hbox(cluster, margins=(0, 0, 0, 0), spacing=CONST.shell_header_gap)
         self.license_badge = token_chip("Licensed")
         cl.addWidget(self.license_badge)
-        self.responsive_badge = token_chip("Medium")
-        cl.addWidget(self.responsive_badge)
         logout_btn = button("Logout", "ghost")
         logout_btn.clicked.connect(self.logout)
         cl.addWidget(logout_btn)
@@ -2820,7 +2796,6 @@ class MainWindow(QMainWindow):
     def _build_status_bar(self) -> None:
         self.statusBar().setSizeGripEnabled(True)
         self.statusBar().addPermanentWidget(elide_label("● Ready", "StatusText"))
-        self.statusBar().addPermanentWidget(elide_label("Vib Tools dark contract • Test Mode safety enforced", "StatusText"))
         self.statusBar().showMessage("Ready")
 
     def navigate(self, name: str) -> None:
@@ -2837,7 +2812,6 @@ class MainWindow(QMainWindow):
         central = self.centralWidget()
         if central is not None:
             central.setToolTip("" if name == "Tasks" else central.accessibleName())
-        self.statusBar().showMessage(f"Viewing: {name}")
         if name == "Dashboard":
             self.update_dashboard()
         elif name == "Workflows":
@@ -2880,8 +2854,7 @@ class MainWindow(QMainWindow):
         root.addWidget(
             page_header(
                 "Dashboard",
-                "Live overview of browser slots, automation progress, license state and next actions.",
-                [button("Add Task", "primary", "open")],
+                actions=[button("Add Task", "primary", "open")],
             )
         )
         add_action = root.itemAt(0).widget().findChildren(QPushButton)
@@ -2907,13 +2880,13 @@ class MainWindow(QMainWindow):
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setHorizontalSpacing(CONST.content_gap)
         cards = [
-            ("Browser Slots", "0", "Independent sessions"),
-            ("Running", "0", "Active workflows"),
-            ("Complete", "0", "Confirmed invites"),
-            ("Failed", "0", "Failed records"),
+            ("Browser Slots", "0"),
+            ("Running", "0"),
+            ("Complete", "0"),
+            ("Failed", "0"),
         ]
-        for i, (name, value, note) in enumerate(cards):
-            m = metric_card(name, value, note)
+        for i, (name, value) in enumerate(cards):
+            m = metric_card(name, value)
             val = m.findChild(QLabel, "PageTitle")
             if val:
                 self.dashboard_metrics[name] = val
@@ -3043,11 +3016,7 @@ class MainWindow(QMainWindow):
         add_btn.setFixedHeight(24)
         add_btn.clicked.connect(self.add_task)
         root.addWidget(
-            page_header(
-                "Tasks",
-                "Independent authorized Test Mode browser slots with file import, controls and live counters.",
-                [open_closed_btn, add_btn],
-            )
+            page_header("Tasks", actions=[open_closed_btn, add_btn])
         )
 
         outer = QWidget()
@@ -3074,11 +3043,7 @@ class MainWindow(QMainWindow):
         load_btn.setObjectName("WorkflowLoadButton")
         load_btn.clicked.connect(self.load_workflow_plugin)
         root.addWidget(
-            page_header(
-                "Workflows",
-                "Built-in and trusted local workflow plugins share the existing one-active-workflow control plane.",
-                [load_btn],
-            )
+            page_header("Workflows", actions=[load_btn])
         )
 
         outer = QWidget()
@@ -3102,9 +3067,12 @@ class MainWindow(QMainWindow):
 
         self.workflow_showcase_host = QWidget()
         self.workflow_showcase_host.setObjectName("WorkflowShowcaseHost")
-        self.workflow_showcase_layout = vbox(
-            self.workflow_showcase_host, margins=(0, 0, 0, 0), spacing=CONST.content_gap
-        )
+        self.workflow_showcase_layout = QGridLayout(self.workflow_showcase_host)
+        self.workflow_showcase_layout.setContentsMargins(0, 0, 0, 0)
+        self.workflow_showcase_layout.setHorizontalSpacing(CONST.content_gap)
+        self.workflow_showcase_layout.setVerticalSpacing(CONST.content_gap)
+        self.workflow_showcase_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.workflow_showcase_cards: list[QWidget] = []
         outer_lay.addWidget(self.workflow_showcase_host)
         outer_lay.addStretch(1)
         root.addWidget(self._scroll_page(outer), 1)
@@ -3192,10 +3160,14 @@ class MainWindow(QMainWindow):
         panel = card()
         panel.setObjectName("WorkflowCard")
         panel.setProperty("workflowId", manifest.workflow_id)
+        panel.setMinimumWidth(280)
+        panel.setMaximumWidth(360)
+        panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
         lay = panel.layout()
+        lay.setSpacing(10)
 
         header = QWidget()
-        header_lay = hbox(header, margins=(0, 0, 0, 0), spacing=CONST.content_gap)
+        header_lay = hbox(header, margins=(0, 0, 0, 0), spacing=12)
 
         logo = QLabel()
         logo.setObjectName("WorkflowLogo")
@@ -3216,9 +3188,9 @@ class MainWindow(QMainWindow):
         identity = QWidget()
         identity_lay = vbox(identity, margins=(0, 0, 0, 0), spacing=4)
         identity_lay.addWidget(label(manifest.name, "CardTitle"))
-        description = label(manifest.description, "Description")
-        description.setWordWrap(True)
-        identity_lay.addWidget(description)
+        origin = self.workflow_catalog.workflow_origin(manifest.workflow_id)
+        source_name = "Built-in" if origin == "builtin" else "Installed Plugin"
+        identity_lay.addWidget(label(f"v{manifest.version}  •  {source_name}", "Caption", False))
         header_lay.addWidget(identity, 1)
 
         is_active = bool(state_available and active_workflow_id == manifest.workflow_id)
@@ -3226,26 +3198,6 @@ class MainWindow(QMainWindow):
         badge.setObjectName("WorkflowStatusBadge")
         header_lay.addWidget(badge, 0, Qt.AlignTop | Qt.AlignRight)
         lay.addWidget(header)
-        lay.addWidget(divider())
-
-        details = QWidget()
-        details_lay = QGridLayout(details)
-        details_lay.setContentsMargins(0, 0, 0, 0)
-        details_lay.setHorizontalSpacing(CONST.content_gap)
-        details_lay.setVerticalSpacing(4)
-        details_lay.addWidget(label("Workflow ID", "Caption"), 0, 0)
-        details_lay.addWidget(label(manifest.workflow_id, "Description"), 0, 1)
-        details_lay.addWidget(label("Version", "Caption"), 1, 0)
-        details_lay.addWidget(label(manifest.version, "Description"), 1, 1)
-        details_lay.addWidget(label("Source", "Caption"), 2, 0)
-        origin = self.workflow_catalog.workflow_origin(manifest.workflow_id)
-        details_lay.addWidget(
-            label("Built-in" if origin == "builtin" else "Installed Plugin", "Description"),
-            2,
-            1,
-        )
-        details_lay.setColumnStretch(1, 1)
-        lay.addWidget(details)
 
         runtime_available = False
         schema_available = False
@@ -3255,7 +3207,6 @@ class MainWindow(QMainWindow):
         except WorkflowError:
             runtime_available = False
         try:
-            # Preserve the historical built-in schema preflight and extend it for plugins.
             if self.workflow_catalog.workflow_origin(manifest.workflow_id) == "builtin":
                 workflow_input_schema_for(manifest.workflow_id)
             self.workflow_catalog.input_schema(manifest.workflow_id)
@@ -3273,13 +3224,9 @@ class MainWindow(QMainWindow):
             and not recovery_blocker
         )
 
-        action_row = QWidget()
-        action_lay = hbox(action_row, margins=(0, 0, 0, 0), spacing=CONST.action_gap)
-        action_lay.addStretch(1)
+        action: QPushButton | None = None
         if is_active and runtime_available:
-            action = button("Active", "secondary")
-            action.setObjectName("WorkflowActiveButton")
-            action.setEnabled(False)
+            action = None
         elif is_active and not runtime_available:
             badge.setText("UNAVAILABLE")
             action = button("Unavailable", "secondary")
@@ -3308,9 +3255,31 @@ class MainWindow(QMainWindow):
             action.clicked.connect(
                 lambda _=False, workflow_id=manifest.workflow_id: self._activate_workflow_from_showcase(workflow_id)
             )
-        action_lay.addWidget(action)
-        lay.addWidget(action_row)
+
+        if action is not None:
+            action_row = QWidget()
+            action_lay = hbox(action_row, margins=(0, 0, 0, 0), spacing=CONST.action_gap)
+            action_lay.addStretch(1)
+            action_lay.addWidget(action)
+            lay.addWidget(action_row)
         return panel
+
+    def _reflow_workflow_showcase(self) -> None:
+        if not hasattr(self, "workflow_showcase_layout"):
+            return
+        while self.workflow_showcase_layout.count():
+            self.workflow_showcase_layout.takeAt(0)
+        width = self.width()
+        compact = width < CONST.compact_breakpoint
+        wide = width >= CONST.large_breakpoint
+        columns = 1 if compact else (3 if wide else 2)
+        for index, workflow_card in enumerate(self.workflow_showcase_cards):
+            row, column = divmod(index, columns)
+            self.workflow_showcase_layout.addWidget(
+                workflow_card, row, column, Qt.AlignLeft | Qt.AlignTop
+            )
+        for column in range(3):
+            self.workflow_showcase_layout.setColumnStretch(column, 0)
 
     def refresh_workflow_showcase(self) -> None:
         """Refresh catalog metadata and persisted active state without repairing it."""
@@ -3318,10 +3287,10 @@ class MainWindow(QMainWindow):
             return
 
         while self.workflow_showcase_layout.count():
-            item = self.workflow_showcase_layout.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.deleteLater()
+            self.workflow_showcase_layout.takeAt(0)
+        for workflow_card in getattr(self, "workflow_showcase_cards", []):
+            workflow_card.deleteLater()
+        self.workflow_showcase_cards = []
 
         state_available = False
         active_workflow_id: str | None = None
@@ -3375,11 +3344,13 @@ class MainWindow(QMainWindow):
                 f"{Path(issue.path).name}: {issue.message}",
             )
             issue_card.setObjectName("WorkflowPluginIssue")
-            self.workflow_showcase_layout.addWidget(issue_card)
+            issue_card.setMinimumWidth(280)
+            issue_card.setMaximumWidth(360)
+            self.workflow_showcase_cards.append(issue_card)
 
         manifests = self.workflow_catalog.list_workflows()
         for manifest in manifests:
-            self.workflow_showcase_layout.addWidget(
+            self.workflow_showcase_cards.append(
                 self._workflow_card(
                     manifest,
                     active_workflow_id=active_workflow_id,
@@ -3387,10 +3358,12 @@ class MainWindow(QMainWindow):
                 )
             )
         if not manifests:
-            empty = card("No workflows available", "No validated workflows are registered.")
+            empty = card("No workflows available")
             empty.setObjectName("WorkflowEmptyState")
-            self.workflow_showcase_layout.addWidget(empty)
-        self.workflow_showcase_layout.addStretch(1)
+            empty.setMinimumWidth(280)
+            empty.setMaximumWidth(360)
+            self.workflow_showcase_cards.append(empty)
+        self._reflow_workflow_showcase()
 
     def _activate_workflow_from_showcase(self, workflow_id: str) -> None:
         """Delegate activation to the existing PR-06 switch service only."""
@@ -3428,11 +3401,7 @@ class MainWindow(QMainWindow):
         xls_btn = button("Export Excel", "secondary", "save")
         xls_btn.clicked.connect(self.export_report_excel)
         root.addWidget(
-            page_header(
-                "Reports",
-                "Live processing records with search, status filtering and spreadsheet-safe export.",
-                [csv_btn, xls_btn],
-            )
+            page_header("Reports", actions=[csv_btn, xls_btn])
         )
 
         content = QWidget()
@@ -3492,11 +3461,7 @@ class MainWindow(QMainWindow):
         clear_btn = button("Clear Logs", "danger")
         clear_btn.clicked.connect(self.clear_logs)
         root.addWidget(
-            page_header(
-                "Live Logs",
-                "Application, browser-worker, validation and automation events.",
-                [save_btn, clear_btn],
-            )
+            page_header("Live Logs", actions=[save_btn, clear_btn])
         )
         content = QWidget()
         content.setObjectName("PageInner")
@@ -3532,11 +3497,7 @@ class MainWindow(QMainWindow):
         reset_btn = button("Reset Browser Defaults", "danger")
         reset_btn.clicked.connect(self.reset_browser_settings)
         root.addWidget(
-            page_header(
-                "Browser Settings",
-                "Advanced Playwright controls for the managed Google Chrome runtime.",
-                [save_btn, reset_btn],
-            )
+            page_header("Browser Settings", actions=[save_btn, reset_btn])
         )
 
         inner = QWidget()
@@ -3914,9 +3875,7 @@ class MainWindow(QMainWindow):
         self.workflow_input_recover_button = recover_btn
         root.addWidget(
             page_header(
-                "Workflow Inputs",
-                "Configure isolated global inputs for any installed workflow without activating it.",
-                [recover_btn, save_btn, reset_btn],
+                "Workflow Inputs", actions=[recover_btn, save_btn, reset_btn]
             )
         )
 
@@ -3963,11 +3922,7 @@ class MainWindow(QMainWindow):
         reset_btn = button("Reset Workflow Settings", "danger")
         reset_btn.clicked.connect(self.reset_workflow_settings)
         root.addWidget(
-            page_header(
-                "Workflow Settings",
-                "Workflow-owned global configuration is isolated per installed workflow.",
-                [save_btn, reset_btn],
-            )
+            page_header("Workflow Settings", actions=[save_btn, reset_btn])
         )
         inner = QWidget()
         inner.setObjectName("PageInner")
@@ -4004,11 +3959,7 @@ class MainWindow(QMainWindow):
         save_btn.clicked.connect(self.save_settings)
         reset_btn = button("Reset App Defaults", "danger")
         reset_btn.clicked.connect(self.reset_settings)
-        root.addWidget(page_header(
-            "App Settings",
-            "Global safety, Task processing, interface and user-selected output locations.",
-            [save_btn, reset_btn],
-        ))
+        root.addWidget(page_header("App Settings", actions=[save_btn, reset_btn]))
         inner = QWidget(); inner.setObjectName("PageInner")
         lay = vbox(inner, margins=(CONST.page_padding, CONST.page_padding, CONST.page_padding, CONST.page_padding), spacing=CONST.content_gap)
         groups = {
@@ -4050,11 +4001,8 @@ class MainWindow(QMainWindow):
                 self.setting_widgets[key] = w
                 grid.addWidget(w, row, 1)
             lay.addWidget(c)
-        notice = card("Always-on data safety")
-        notice.layout().addWidget(label(
-            "Failed-data saving, unprocessed-data saving on close, and confirmation before closing while Tasks are running are enforced by the application and cannot be disabled.",
-            "Description", False,
-        ))
+        notice = card("Data Safety")
+        notice.layout().addWidget(status_badge("Enforced", "success"))
         lay.addWidget(notice)
         lay.addStretch(1)
         root.addWidget(self._scroll_page(inner), 1)
@@ -4062,7 +4010,7 @@ class MainWindow(QMainWindow):
     def make_about_page(self) -> QWidget:
         page = page_frame()
         root = vbox(page, margins=(0, 0, 0, 0), spacing=0)
-        root.addWidget(page_header(ABOUT.page_title, ABOUT.page_subtitle))
+        root.addWidget(page_header(ABOUT.page_title))
         content = QWidget()
         content.setObjectName("PageInner")
         lay = vbox(
@@ -4070,22 +4018,14 @@ class MainWindow(QMainWindow):
             margins=(CONST.page_padding, CONST.page_padding, CONST.page_padding, CONST.page_padding),
             spacing=CONST.content_gap,
         )
-        identity = card(APP.display_name, f"{ABOUT.edition_label} • backend v{APP.version}")
-        identity.layout().addWidget(label(ABOUT.app_description, "Description"))
-        identity.layout().addWidget(label(ABOUT.company_description, "Description", False))
-        identity.layout().addWidget(label(ABOUT.company_profile_description, "Description", False))
+        identity = card(APP.display_name)
+        identity.layout().addWidget(label(f"{ABOUT.edition_label} • v{APP.version}", "Caption", False))
         if ABOUT.company_legal_name:
             identity.layout().addWidget(
                 label(f"Legal name: {ABOUT.company_legal_name}", "Description", False)
             )
         identity.layout().addWidget(status_badge(ABOUT.identity_badge, "success"))
         lay.addWidget(identity)
-
-        design = card(ABOUT.design_contract_title)
-        dl = design.layout()
-        for text in ABOUT.design_contract_items:
-            dl.addWidget(label(text, "Description", False))
-        lay.addWidget(design)
 
         license_card = card(ABOUT.license_session_title)
         ll = license_card.layout()
@@ -5426,11 +5366,7 @@ class MainWindow(QMainWindow):
             self.workflow_input_recover_button.hide()
             self.workflow_input_recover_button.setEnabled(False)
 
-        state_label = "ACTIVE" if workflow_id == self.active_workflow_id else "INSTALLED / INACTIVE"
-        form_card = card(
-            schema.title,
-            f"{manifest.name} • {state_label}. Values are stored only under workflow ID {workflow_id}.",
-        )
+        form_card = card(schema.title)
         grid = QGridLayout()
         grid.setHorizontalSpacing(CONST.content_gap)
         grid.setVerticalSpacing(CONST.form_group_gap)
@@ -5444,7 +5380,7 @@ class MainWindow(QMainWindow):
             grid.addWidget(widget, row, 1)
         if not schema.fields:
             form_card.layout().addWidget(
-                label("This workflow defines no global Workflow Inputs.", "Description", False)
+                label("No global inputs", "Description", False)
             )
         layout.addWidget(form_card)
         layout.addStretch(1)
@@ -5674,11 +5610,7 @@ class MainWindow(QMainWindow):
         self.workflow_settings_state_error = ""
         if workflow_id == self.active_workflow_id:
             self.active_workflow_settings_values = dict(values)
-        state_label = "ACTIVE" if workflow_id == self.active_workflow_id else "INSTALLED / INACTIVE"
-        form_card = card(
-            schema.title,
-            f"{manifest.name} • {state_label}. Settings are isolated to workflow ID {workflow_id}.",
-        )
+        form_card = card(schema.title)
         grid = QGridLayout()
         grid.setHorizontalSpacing(CONST.content_gap)
         grid.setVerticalSpacing(CONST.form_group_gap)
@@ -5692,7 +5624,7 @@ class MainWindow(QMainWindow):
             grid.addWidget(widget, row, 1)
         if not schema.fields:
             form_card.layout().addWidget(
-                label("This workflow defines no additional global Workflow Settings.", "Description", False)
+                label("No additional settings", "Description", False)
             )
         layout.addWidget(form_card)
         layout.addStretch(1)
@@ -6331,17 +6263,14 @@ class MainWindow(QMainWindow):
     def _apply_responsive_mode(self) -> None:
         breadcrumb = self.breadcrumb
         window_title_label = self.window_title_label
-        responsive_badge = self.responsive_badge
         if breadcrumb is None or window_title_label is None:
             return
         width = self.width()
         compact = width < CONST.compact_breakpoint
-        wide = width >= CONST.large_breakpoint
         breadcrumb.setVisible(not compact)
         window_title_label.setText(APP.display_name if compact else DISPLAY_APP_NAME)
-        mode = "Compact" if compact else ("Wide" if wide else "Medium")
-        if responsive_badge is not None:
-            responsive_badge.setText(mode)
+        if hasattr(self, "workflow_showcase_cards"):
+            self._reflow_workflow_showcase()
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         if self._workspace_active or self._workspace_transitioning:

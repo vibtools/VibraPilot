@@ -29,4 +29,4 @@ def test_task_slot_preserves_lightweight_qt_host_constructor_compatibility():
     assert 'getattr(app, "active_workflow_id", "") or "share_invite"' in QT
     assert 'getattr(app, "workflow_catalog", None)' in QT
     assert 'getattr(app, "workflow_task_state_store", None)' in QT
-    assert 'workflow_name = self.workflow_id.replace("_", " ").title()' in QT
+    assert 'setObjectName("TaskSubtitle")' not in QT

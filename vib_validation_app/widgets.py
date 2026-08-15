@@ -449,34 +449,36 @@ def page_frame() -> QWidget:
     return w
 
 
-def page_header(title_text: str, description: str, actions: Iterable[QWidget] | None = None) -> QFrame:
-    """Content-driven page header with compact Step-32F divider spacing.
+def page_header(title_text: str, description: str = "", actions: Iterable[QWidget] | None = None) -> QFrame:
+    """Content-driven page header. Decorative descriptions are optional.
 
-    Step-40C preserves elision/responsive guards and restores enough page
-    header height/gap so title and description never collide with the divider.
+    v1.0.6.34 keeps the existing title/action component contract but does not
+    allocate a subtitle row when no description is supplied. Security, error
+    and state text remains owned by the page body rather than this header.
     """
     f = QFrame()
     f.setObjectName("PageHeader")
     f.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-    f.setMinimumHeight(CONST.page_header_min_height)
-    if CONST.page_header_max_height > 0:
-        f.setMaximumHeight(CONST.page_header_max_height)
-    lay = hbox(f, margins=(CONST.page_padding, CONST.page_header_padding_y, CONST.page_padding, CONST.page_header_padding_y), spacing=CONST.card_internal_gap)
+    lay = hbox(
+        f,
+        margins=(CONST.page_padding, CONST.page_header_padding_y, CONST.page_padding, CONST.page_header_padding_y),
+        spacing=CONST.card_internal_gap,
+    )
     text_col = QWidget()
     text_col.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
     text_lay = vbox(text_col, spacing=CONST.page_header_text_gap)
     page_title = elide_label(title_text, "PageTitle")
     page_title.setToolTip(title_text)
     text_lay.addWidget(page_title)
-    desc = elide_label(description, "Description")
-    desc.setMinimumHeight(CONST.page_header_description_min_height)
-    desc.setToolTip(description)
-    text_lay.addWidget(desc)
+    if description:
+        desc = elide_label(description, "Description")
+        desc.setToolTip(description)
+        text_lay.addWidget(desc)
     lay.addWidget(text_col, 1, Qt.AlignVCenter)
     if actions:
         action_host = QWidget()
         action_host.setObjectName("HeroActions")
-        action_lay = hbox(action_host, margins=(0, CONST.page_header_action_top_padding, 0, 0), spacing=CONST.action_gap)
+        action_lay = hbox(action_host, margins=(0, 0, 0, 0), spacing=CONST.action_gap)
         for w in actions:
             action_lay.addWidget(w)
         lay.addWidget(action_host, 0, Qt.AlignRight | Qt.AlignVCenter)

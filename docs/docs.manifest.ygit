@@ -3,12 +3,12 @@
   "documentation": {
     "id": "vibrapilot",
     "title": "VibraPilot Documentation",
-    "description": "Documentation for VibraPilot v1.0.6.33 Browser Forensic Closure candidate by Vib Tools.",
-    "version": "1.0.6.33",
+    "description": "Documentation for VibraPilot v1.0.6.34 UI-Only Compact Polish candidate by Vib Tools.",
+    "version": "1.0.6.34",
     "root": "docs",
     "home": "index.md"
   },
   "product": {
-    "description": "v1.0.6.33 closes confirmed Phase-01/Phase-02 browser forensic defects while preserving the Chrome-only runtime foundation, workflows, persistence, licensing, dependencies and build boundaries."
+    "description": "v1.0.6.34 applies compact presentation-only changes while preserving the frozen v1.0.6.33 backend, browser, workflow, licensing, persistence, dependency and build boundaries."
   }
 }

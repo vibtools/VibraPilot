@@ -1,3 +1,10 @@
+## v1.0.6.34 — UI-Only Compact Polish — 2026-08-14
+
+- Removes non-essential explanatory copy and compacts workspace page headers.
+- Converts the Workflows showcase to responsive 280–360 px compact tiles.
+- Adds a dedicated 2px tokenized WorkflowCard border plus shared surface/radius styling for clear card separation.
+- Preserves workflow behavior, backend, browser, licensing, persistence, dependencies, CI and build/package boundaries.
+
 ## v1.0.6.33 — Phase-01 + Phase-02 Browser Forensic Closure — 2026-08-14
 
 - Binds Chrome prerequisite validation to Playwright 1.61.0's actual Windows Chrome-channel target order.

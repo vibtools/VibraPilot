@@ -1,3 +1,9 @@
+# v1.0.6.34 UI-Only Compact Polish
+
+- Update: `docs/updates/v1.0.6.34-ui-compact-polish.md`
+- Verification: `docs/verification/V1.0.6.34_UI_COMPACT_POLISH.md`
+- Frozen baseline: v1.0.6.33 / `dc149f768451383747ed02dc96607a4cfb4a3fb2`
+
 # v1.0.6.33 Browser Forensic Closure
 
 - Update: `docs/updates/v1.0.6.33-browser-forensic-closure.md`

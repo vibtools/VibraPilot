@@ -114,17 +114,19 @@ def test_share_invite_card_metadata_is_manifest_owned():
     assert SHARE_INVITE_MANIFEST.logo == "logo.png"
 
 
-def test_card_displays_manifest_name_description_id_version_and_logo():
+def test_card_preserves_manifest_identity_version_source_and_logo_without_description_copy():
     source = _source("_workflow_card")
-    for marker in ("manifest.name", "manifest.description", "manifest.workflow_id", "manifest.version", "_workflow_logo_path(manifest)"):
+    for marker in ("manifest.name", "manifest.workflow_id", "manifest.version", "_workflow_logo_path(manifest)"):
         assert marker in source
+    assert "manifest.description" not in source
+    assert "workflow_origin" in source
 
 
-def test_active_workflow_is_rendered_as_disabled_active_action():
+def test_active_workflow_uses_status_badge_without_duplicate_disabled_active_action():
     source = _source("_workflow_card")
-    assert 'button("Active", "secondary")' in source
-    assert 'action.setObjectName("WorkflowActiveButton")' in source
-    assert "action.setEnabled(False)" in source
+    assert 'status_badge("ACTIVE" if is_active else "AVAILABLE"' in source
+    assert 'button("Active", "secondary")' not in source
+    assert 'action.setObjectName("WorkflowActiveButton")' not in source
 
 
 def test_invalid_persisted_state_disables_activation_and_does_not_migrate():
