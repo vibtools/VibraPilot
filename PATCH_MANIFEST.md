@@ -69,15 +69,17 @@ Chrome runtime/install/Authenticode, Playwright/browser profiles/diagnostics, li
 - Frozen v1.0.6.35 baseline SHA/integrity: PASS
 - Frozen baseline repository verifier: PASS
 - Frozen baseline pytest: `463 passed, 6 skipped, 106 subtests`
-- v1.0.6.36 repository verifier: PASS
-- v1.0.6.36 pytest: `462 passed, 6 skipped, 106 subtests`
-- stdlib unittest: `200 OK, 6 skipped`
+- Final Windows v1.0.6.36 repository verifier: PASS
+- Final Windows v1.0.6.36 pytest: `469 passed, 1 skipped`
+- Final Windows stdlib unittest: `200 OK, 1 skipped`
 - compileall: PASS
 - v1.0.6.36 source-policy diagnostic: PASS
 - standalone Share Invite package/schema/install + frozen-runtime parity verifier: PASS
 - pristine baseline scope comparison: unauthorized changed files `0`
-
-Windows live acceptance is still required before Git publication.
+- P0 Task Start regression: FIXED in the same v1.0.6.36 candidate; generic `ensure_workflow_session()` is used and the stale removed compatibility call is absent.
+- Windows live DMARC acceptance: PASS; Task Start proceeds into workflow item processing and the seven-item revoke-dialog path completed without the prior browser-closing `AttributeError`.
+- PR #15 pull-request CI: PASS.
+- Post-merge `main` CI run `32036034293`: PASS.
 
 ## Delta safety
 
