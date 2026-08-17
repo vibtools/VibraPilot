@@ -13,6 +13,12 @@ class BuildMetadataBindingTest(unittest.TestCase):
         self.assertIn("APP_VERSION = VERSION", build)
         self.assertIn('"config/AppConfig"', build)
 
+    def test_portable_builder_consumes_appconfig_identity(self):
+        build = (ROOT / "scripts/packaging/build_portable_nuitka.py").read_text(encoding="utf-8")
+        self.assertIn("from config.AppConfig.app import APP_NAME, VERSION", build)
+        self.assertIn('PORTABLE_NAME = f"{APP_NAME}-{VERSION}-Windows-x64-Portable"', build)
+        self.assertIn('TARGET_NUITKA = "4.1.3"', build)
+
     def test_backend_keeps_legacy_constant_interface_as_config_aliases(self):
         backend = (ROOT / "src/vibrapilot/backend.py").read_text(encoding="utf-8")
         for marker in [

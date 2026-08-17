@@ -60,6 +60,7 @@ from .browser_diagnostics import (
     sanitize_diagnostic_text,
 )
 from .workflow import WorkflowManager, WorkflowRuntime, WorkflowRuntimeResolutionError
+from .runtime_environment import application_root, is_packaged_runtime
 
 DISPLAY_APP_NAME = APP.display_name
 APP_NAME = APP.app_name
@@ -69,11 +70,7 @@ RELEASE_DATE = APP.release_date
 # Secure licensing transport is owned by config/AppConfig/licensing_public.py.
 # No API v1 shared/master key is embedded in VibraPilot Phase-02.
 
-ROOT_DIR = (
-    Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
-    if getattr(sys, "frozen", False)
-    else Path(__file__).resolve().parents[2]
-)
+ROOT_DIR = application_root()
 DATA_ROOT_DIR = (
     Path(os.environ.get("VIB_TOOLS_DATA_DIR", ROOT_DIR)).expanduser().resolve()
 )
@@ -112,10 +109,10 @@ APP_STATE_FILE = APP_DATA_DIR / "state.json"
 TASK_RUNTIME_DB = APP_DATA_DIR / "task_runtime.sqlite3"
 LOG_FILE = LOGS_DIR / f"app_{datetime.now().strftime('%Y%m%d')}.log"
 
-# Packaged Playwright browser location. The Windows builder places Chromium next
-# to the executable under ``ms-playwright``; Playwright reads this variable when
-# ``sync_playwright`` is imported lazily by AutomationWorker.launch_browser().
-if getattr(sys, "frozen", False):
+# Legacy packaged builds may place a Playwright browser under ``ms-playwright``.
+# Preserve that historical compatibility if the directory exists. The v1.0.6.37
+# Nuitka portable release intentionally does not bundle a browser.
+if is_packaged_runtime():
     bundled_browsers = ROOT_DIR / "ms-playwright"
     if bundled_browsers.exists():
         os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(bundled_browsers))
@@ -487,7 +484,7 @@ def _license_url_is_allowed(url: str) -> bool:
     parsed = urlparse(url)
     if parsed.scheme == "https" and bool(parsed.netloc):
         return True
-    if not getattr(sys, "frozen", False):
+    if not is_packaged_runtime():
         return parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1"}
     return False
 

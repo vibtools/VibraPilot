@@ -1,3 +1,11 @@
+## v1.0.6.37 — Portable Nuitka OneDir Release Packaging — 2026-08-17
+
+- Added a dedicated GitHub Actions Windows x64 portable release workflow using pinned Nuitka 4.1.3 standalone OneDir mode.
+- Removed Playwright browser installation from the new portable packaging path; system Google Chrome remains the only production browser.
+- Added portable artifact checksum/forensic verification, startup smoke, size inventory and tag-based GitHub Release publishing.
+- Added a minimal cross-packager runtime-root shim because Nuitka intentionally does not set `sys.frozen`; existing PyInstaller semantics remain supported.
+- WiX/MSI, browser policy, workflows, licensing protocol, persistence schemas and application feature behavior remain unchanged.
+
 ## v1.0.6.36 — Share Invite Workflow Externalization — 2026-08-17
 
 - Removed the source-controlled built-in Share Invite runtime from VibraPilot Core and converted it into a separately distributed trusted Plugin API 1 `.vpworkflow` package.

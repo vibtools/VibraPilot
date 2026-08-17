@@ -1,3 +1,10 @@
+## v1.0.6.37 — Portable release packaging
+
+- GitHub Actions builds Windows x64 Nuitka 4.1.3 standalone OneDir artifacts.
+- Portable ZIP uses system Google Chrome only; no Chromium browser bundle and no WiX/MSI.
+- Manual dispatch produces an RC artifact; `v*` tag builds can publish the verified ZIP + SHA-256.
+- Runtime change is limited to cross-packager packaged-root detection needed by Nuitka.
+
 # v1.0.6.36 Share Invite Workflow Externalization
 
 - Core now starts cleanly with no installed workflow and no implicit Share Invite fallback.

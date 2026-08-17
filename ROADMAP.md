@@ -1,3 +1,11 @@
+# Current — v1.0.6.37 Portable Nuitka OneDir Release
+
+- Frozen input: v1.0.6.36 FINAL / `40b9b65d3900760d919167dc6711a4fcd494f010`.
+- Scope: GitHub Actions Windows x64 Nuitka standalone OneDir portable ZIP only.
+- System Google Chrome remains the sole production browser; no bundled Chromium.
+- WiX/MSI is explicitly skipped.
+- First gate is a manually dispatched RC artifact followed by owner Windows acceptance before tag release.
+
 # Current — v1.0.6.36 Share Invite Externalization
 
 - Complete the workflow-neutral Core by shipping Share Invite as a standalone trusted workflow package.

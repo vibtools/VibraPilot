@@ -1,3 +1,12 @@
+# v1.0.6.37 Portable Release Compatibility
+
+- Target: Windows 10/11 x64.
+- Build: Python 3.12 x64 + Nuitka 4.1.3 standalone OneDir.
+- Target machines do not require Python, but do require a supported Google Chrome installation (or the existing explicit Chrome prerequisite/install flow).
+- Playwright driver runtime is packaged; Playwright Chromium/browser binaries are not.
+- Existing external `.vpworkflow` packages remain runtime-loaded and must be owner-tested in the RC before public release.
+- No MSI/WiX installer is produced.
+
 # v1.0.6.36 Workflow Compatibility
 
 - Workflow Plugin API remains version 1. Existing trusted external workflows continue to use `create_workflow`; existing `load_task_items` loaders remain valid.

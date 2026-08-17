@@ -1,3 +1,10 @@
+# v1.0.6.37 Portable Nuitka OneDir Release Packaging
+
+- Update: `docs/updates/v1.0.6.37-portable-release-packaging.md`
+- Verification: `docs/verification/V1.0.6.37_PORTABLE_RELEASE_PACKAGING.md`
+- Baseline: v1.0.6.36 FINAL / `40b9b65d3900760d919167dc6711a4fcd494f010`.
+- Output: GitHub Actions Windows x64 Nuitka standalone OneDir portable ZIP; system Google Chrome only; no bundled Chromium; no WiX/MSI.
+
 # v1.0.6.36 Share Invite Workflow Externalization
 
 - Update: `docs/updates/v1.0.6.36-share-invite-externalization.md`

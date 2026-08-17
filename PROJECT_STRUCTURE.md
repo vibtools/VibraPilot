@@ -1,3 +1,17 @@
+# Project Structure — v1.0.6.37 Portable Nuitka Release
+
+```text
+.github/workflows/portable-release.yml     Manual/tag portable Windows build
+requirements-portable.txt                 Runtime + pinned Nuitka build dependencies
+scripts/packaging/build_portable_nuitka.py
+                                           Windows x64 Nuitka OneDir builder/ZIP sealer
+scripts/packaging/verify_portable_release.py
+                                           Portable payload/ZIP/checksum policy verifier
+src/vibrapilot/runtime_environment.py     PyInstaller/Nuitka packaged-root compatibility shim
+```
+
+The historical `build.py` PyInstaller builder remains in the source tree for compatibility/history but is not used by the v1.0.6.37 GitHub portable release workflow.
+
 # v1.0.6.36 Share Invite Workflow Externalization Structure
 
 - VibraPilot Core contains zero source-controlled built-in workflows; installed trusted plugins form the runtime catalog.

@@ -1,91 +1,114 @@
-# VibraPilot v1.0.6.36 — Share Invite Workflow Externalization Delta
+# VibraPilot v1.0.6.37 — Portable Nuitka OneDir Release Packaging Delta
 
 ## Classification
 
-- Frozen source baseline: `VibraPilot_v1.0.6.35_BASELINE.zip`
-- Baseline Git commit: `c5511a82ddf164bfacdfad5aa12ebf75ad56a1da`
-- Baseline ZIP SHA-256: `c5be0d2221ee580360c32066a29462cba75eb330b8e408bb9dcea780e6d9f229`
-- Target version: `1.0.6.36`
-- Recommended branch: `feature/v1.0.6.36-share-invite-externalization`
-- Release classification: Share Invite Workflow Externalization Only
+- Frozen source baseline: `VibraPilot_v1.0.6.36_BASELINE_FINAL.zip`
+- Baseline Git commit: `40b9b65d3900760d919167dc6711a4fcd494f010`
+- Baseline ZIP SHA-256: `19f06990ae4b209da28159a25eced0b5be297579b907bcd60d79a3f3fe197ef5`
+- Target version: `1.0.6.37`
+- Recommended branch: `feature/v1.0.6.37-portable-nuitka-release`
+- Release classification: Portable Windows Release Packaging Only
 
 ## Locked outcome
 
-VibraPilot Core has zero source-controlled built-in workflows. A fresh application may remain in a valid zero-active-workflow state. Share Invite is distributed separately as `Share_Invite_v1.0.vpworkflow` with the same `share_invite` identity and frozen v1.0.6.35 automation/safety semantics.
+VibraPilot gains a dedicated GitHub Actions release path that builds a Windows x64 portable standalone OneDir application with pinned Nuitka 4.1.3. The portable archive uses the installed/verified system Google Chrome runtime and does not bundle Playwright Chromium, Google Chrome, WiX, MSI, or any installer payload.
 
-## Production changes
+The historical PyInstaller `build.py` and `requirements-build.txt` are preserved for compatibility/history but are not used by the new portable release workflow.
 
-- `src/vibrapilot/workflow/registry.py` — empty built-in manifest/runtime registry.
-- `src/vibrapilot/workflow/manager.py` — plugin-only catalog plus backward-compatible optional rich task-data hook.
-- `src/vibrapilot/workflow/state.py` — workflow-state schema v2 with valid `active_workflow_id = null` and legacy `share_invite` migration.
-- `src/vibrapilot/workflow/contracts.py` — generic optional workflow-owned processing contract support.
-- `src/vibrapilot/workflow/input_state.py` and `src/vibrapilot/workflow_inputs.py` — remove Core ownership of Share Invite schemas while retaining legacy migration mirrors.
-- `src/vibrapilot/workflow/schemas.py` — removes built-in Share Invite schema builders.
-- `src/vibrapilot/workflow/plugin_loader.py` — Plugin API remains 1; optional `load_task_data` discovery is backward-compatible with existing `load_task_items` plugins.
-- `src/vibrapilot/backend.py` — removes direct ShareInviteWorkflow runtime/type dispatch; optional runtime `process_item` owns specialized workflow orchestration while the generic path remains unchanged.
-- `src/vibrapilot/qt_app.py` — zero-workflow-safe UI/control plane, first activation from `None`, package-required recovery UX, and generic task-data loading.
+## Portable build path
 
-## Source-controlled workflow deletion
+The new packaging path is:
 
-The following v1.0.6.35 built-in files are intentionally removed:
+`GitHub Actions (Windows + Python 3.12 x64) -> source verification/tests -> Nuitka 4.1.3 standalone OneDir -> portable payload verification -> startup smoke -> ZIP + SHA-256 -> Actions artifact`
 
-- `src/vibrapilot/workflow/share_invite/__init__.py`
-- `src/vibrapilot/workflow/share_invite/logo.png`
-- `src/vibrapilot/workflow/share_invite/manifest.json`
-- `src/vibrapilot/workflow/share_invite/workflow.py`
+Manual `workflow_dispatch` creates a release candidate only. A version tag may publish a GitHub Release only when the tag exactly equals `v{AppConfig.VERSION}`.
 
-Because normal ZIP overlay cannot delete old files, `DELETE_BEFORE_APPLY.txt` is mandatory.
+## Browser boundary
 
-## Standalone Share Invite artifact
+- No `python -m playwright install chromium` command exists in the portable builder or workflow.
+- Nuitka's built-in Playwright standalone support retains the Playwright control driver (`playwright/driver/node.exe` and `playwright/driver/package/cli.js`).
+- `--playwright-include-browser=none` explicitly disables Playwright browser inclusion.
+- Portable verification rejects `chrome.exe`, `chromium.exe`, `headless_shell.exe`, `ms-playwright`, `.playwright-browsers`, private/runtime state, WiX intermediates, and MSI payloads.
+- Existing VibraPilot system Google Chrome discovery/install/Authenticode/runtime policy remains unchanged.
 
-The Share Invite package is intentionally separate from the Core Delta. It uses Workflow Plugin API 1, `workflow_id = share_invite`, and contains executable Python. It must pass the normal VibraPilot inspection/trust/install flow; it is not silently installed by migration.
+## Minimal runtime packaging compatibility
 
-Sealed standalone package SHA-256: `6fe7f95bdf8bce5f9e22cfb2d375bafb8d5af857af5b9d1460c3cb5d372e1c50`.
+Nuitka deliberately does not use the historical PyInstaller `sys.frozen` contract. A small cross-packager helper is therefore introduced:
 
-Frozen-parity verification covers the v1.0.6.35 selector map, Share runtime methods, specialized item processing, schema identity, Test Mode gate, pre-Send safety, send accounting, retry/manual-review behavior, and audited task-data loading contract.
+- `src/vibrapilot/runtime_environment.py` — detects source, PyInstaller and Nuitka packaged execution and resolves the packaged application root.
+- `src/vibrapilot/backend.py` — uses that shared application root and packaged predicate for existing packaged-resource and licensing-environment decisions.
+- `src/vibrapilot/qt_app.py` — uses the same packaged predicate for the existing workflow restart path.
 
-## Existing-user migration
+No Chrome launch selectors/policy, workflow business logic, licensing protocol, persistence schema, Task DB schema, reporting, download/upload behavior, or general UI behavior is redesigned.
 
-- Existing schema-v1 `active_workflow_id = share_invite` is upgraded without quarantine.
-- Canonical per-workflow Input/Settings values remain preserved.
-- If Share Invite is not installed, Core reports that the matching trusted package is required rather than treating the state as corrupt.
-- Installing the external package with the same `share_invite` identity resolves the existing state.
-- A fresh install with no workflows receives a valid zero-active-workflow state.
+## New release infrastructure
 
-## Compatibility
+- `.github/workflows/portable-release.yml`
+- `requirements-portable.txt`
+- `scripts/packaging/build_portable_nuitka.py`
+- `scripts/packaging/verify_portable_release.py`
+- `config/verification/v1.0.6.37_portable_release_packaging_scope.json`
+- `tests/test_v10637_portable_release_packaging.py`
+- v1.0.6.37 update/verification documentation
 
-- Workflow Plugin API remains `1`.
-- Existing API-1 workflows using `load_task_items` remain supported.
-- DMARC Digests v1.0.1 coexists with Share Invite in the plugin-only catalog.
-- Existing active-to-active transactional workflow switching remains fail-closed.
-- First activation `None -> installed workflow` uses the normal atomic workflow-state commit path.
+## Version metadata
+
+The public source metadata is synchronized to `1.0.6.37` across AppConfig, `pyproject.toml`, `CITATION.cff`, project/docs manifests, and release documentation.
 
 ## Explicitly frozen
 
-Chrome runtime/install/Authenticode, Playwright/browser profiles/diagnostics, licensing/Licora, TaskRuntime DB schema, workspace schema, reports/export, downloads/upload bridge, dependencies, CI workflow, build/Nuitka/WiX, URL workflow loading, workflow update/replace and workflow uninstall are outside this release.
+- Chrome discovery policy and launch behavior
+- Chrome installer and Authenticode validation
+- browser profiles and browser-diagnostics schema
+- workflow runtime business logic and Workflow Plugin API
+- Share Invite and DMARC external workflow packages
+- Licora licensing protocol/device identity behavior
+- Task runtime database schema
+- workspace persistence schema
+- reports/export
+- download/upload bridge
+- application feature/UI behavior
+- WiX/MSI/installer work
 
-## Verification performed before sealing
+## Source verification performed before sealing
 
-- Frozen v1.0.6.35 baseline SHA/integrity: PASS
-- Frozen baseline repository verifier: PASS
-- Frozen baseline pytest: `463 passed, 6 skipped, 106 subtests`
-- Final Windows v1.0.6.36 repository verifier: PASS
-- Final Windows v1.0.6.36 pytest: `469 passed, 1 skipped`
-- Final Windows stdlib unittest: `200 OK, 1 skipped`
+- Frozen v1.0.6.36 baseline SHA/integrity: PASS
+- Final source-tree repository verifier: PASS
+- v1.0.6.37 targeted packaging/runtime compatibility tests: `31 passed, 1 skipped`
+- Final source-tree pytest: `474 passed, 6 skipped, 106 subtests`
+- Final source-tree standard-library unittest: `201 OK, 6 skipped`
 - compileall: PASS
-- v1.0.6.36 source-policy diagnostic: PASS
-- standalone Share Invite package/schema/install + frozen-runtime parity verifier: PASS
-- pristine baseline scope comparison: unauthorized changed files `0`
-- P0 Task Start regression: FIXED in the same v1.0.6.36 candidate; generic `ensure_workflow_session()` is used and the stale removed compatibility call is absent.
-- Windows live DMARC acceptance: PASS; Task Start proceeds into workflow item processing and the seven-item revoke-dialog path completed without the prior browser-closing `AttributeError`.
-- PR #15 pull-request CI: PASS.
-- Post-merge `main` CI run `32036034293`: PASS.
+- Baseline-vs-candidate scope comparison: no unauthorized production file identified
+- No source-controlled built-in workflow reintroduced
+- No Playwright browser installation command introduced
+- No WiX/MSI packaging path introduced
+
+## Required Windows RC gate
+
+This Delta does not claim that a Windows Nuitka binary was compiled inside the source-sealing environment. The first actual portable build is intentionally performed by the new Windows GitHub Actions `workflow_dispatch` path after the source patch is committed/merged.
+
+Before a public `v1.0.6.37` tag/release, the Actions candidate must pass:
+
+- Nuitka compile and packaged artifact verifier
+- startup smoke
+- clean-folder Windows launch
+- licensing
+- external workflow install/activation
+- verified system Google Chrome launch/profile persistence
+- controlled DMARC run
+- controlled Share Invite Test Mode run
+- workflow restart/persistence
+- Logs/Reports/AppData behavior
+- clean shutdown
+- ZIP size/SHA/largest-file review
 
 ## Delta safety
 
+- Required deletions: none
 - Private `project/`: excluded
 - AppData/Logs/Reports/FailedData: excluded
 - BrowserProfiles: excluded
 - caches/pyc/.git/build artifacts: excluded
-- Standalone Share Invite package: separate artifact, not embedded in Core Delta
-- DMARC package: not embedded or modified
+- bundled Chromium/Chrome: excluded
+- WiX/MSI: excluded
+- Share Invite/DMARC workflow packages: separate and unchanged

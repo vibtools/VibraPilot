@@ -144,6 +144,7 @@ from .workflow import (
     normalize_task_values,
 )
 from .browser_capabilities import ensure_task_download_directory
+from .runtime_environment import is_packaged_runtime
 from .chrome_runtime import ChromeRuntimeInfo, discover_google_chrome
 from .chrome_installer import (
     ChromeInstallError,
@@ -4855,7 +4856,7 @@ class MainWindow(QMainWindow):
         self.update_dashboard()
 
     def _spawn_workflow_restart(self) -> None:
-        if getattr(sys, "frozen", False):
+        if is_packaged_runtime():
             command = [sys.executable]
             cwd = str(Path(sys.executable).resolve().parent)
         else:

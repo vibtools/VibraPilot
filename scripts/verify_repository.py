@@ -55,6 +55,7 @@ V10633_BROWSER_FORENSIC_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.
 V10634_UI_COMPACT_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.34_ui_compact_polish_scope.json"
 V10635_WORKFLOW_SCOPED_TEST_SAFETY_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.35_workflow_scoped_test_safety_scope.json"
 V10636_SHARE_INVITE_EXTERNALIZATION_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.36_share_invite_externalization_scope.json"
+V10637_PORTABLE_RELEASE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.37_portable_release_packaging_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -346,11 +347,24 @@ v10636_allowed_files = (
 )
 v10636_worker_methods = set(v10636_scope.get("authorized_automationworker_method_changes", []))
 
+# v1.0.6.37 adds the first Nuitka standalone OneDir portable release path.
+if not V10637_PORTABLE_RELEASE_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.37 portable release packaging scope contract is missing")
+try:
+    v10637_scope = json.loads(V10637_PORTABLE_RELEASE_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.37 portable release packaging scope contract is invalid: {exc}")
+v10637_production_allowed = set(v10637_scope.get("allowed_production_source_changes", []))
+v10637_allowed_files = (
+    v10637_production_allowed
+    | set(v10637_scope.get("authorized_nonproduction_files", []))
+)
+
 current_worker_methods = (
     v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods | v10635_worker_methods | v10636_worker_methods
 )
 current_allowed_files = (
-    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files | v10636_allowed_files
+    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files | v10636_allowed_files | v10637_allowed_files
 )
 if pr08_allowed_files != {
     "src/vibrapilot/workflow_inputs.py",
@@ -481,7 +495,10 @@ if [name for name in production_helpers if name not in allowed_helpers] != expec
         f"contract={expected_helpers} production={production_helpers}"
     )
 production_function_nodes = function_nodes(SRC / "backend.py")
+v10637_backend_helpers = set(v10637_scope.get("authorized_backend_helpers", []))
 for name, expected_sha in backend_contract.get("frozen_helper_ast_sha256", {}).items():
+    if name in v10637_backend_helpers:
+        continue
     node = production_function_nodes.get(name)
     if node is None:
         fail(f"missing frozen backend helper {name}")
@@ -2399,7 +2416,7 @@ for key in ("build_changes", "dependency_changes", "database_schema_changes", "l
     if v10635_scope.get(key) is not False:
         fail(f"v1.0.6.35 frozen scope boundary changed: {key}")
 for relative, expected_sha in v10635_scope.get("frozen_file_sha256", {}).items():
-    if relative in v10636_allowed_files:
+    if relative in v10636_allowed_files or relative in v10637_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
@@ -2460,6 +2477,56 @@ if "def load_task_data(" not in manager_text or 'getattr(module, "load_task_data
 if "builtin_share_invite" in schemas_text or "WORKFLOW_INPUT_SCHEMAS" in workflow_inputs_text_current:
     fail("v1.0.6.36 Core retains Share Invite-owned declarative schema authority")
 
+# v1.0.6.37 exact portable release packaging scope.
+if v10637_scope.get("plan_id") != "VP-V10637-PORTABLE-Nuitka-ONEDIR-001":
+    fail("v1.0.6.37 portable release plan identifier mismatch")
+if v10637_scope.get("baseline_version") != "1.0.6.36":
+    fail("v1.0.6.37 baseline version mismatch")
+if v10637_scope.get("baseline_github_commit") != "40b9b65d3900760d919167dc6711a4fcd494f010":
+    fail("v1.0.6.37 baseline GitHub commit mismatch")
+if v10637_scope.get("official_baseline_archive_sha256") != "19f06990ae4b209da28159a25eced0b5be297579b907bcd60d79a3f3fe197ef5":
+    fail("v1.0.6.37 baseline archive mismatch")
+if v10637_scope.get("target_version") != "1.0.6.37":
+    fail("v1.0.6.37 target version mismatch")
+if v10637_scope.get("nuitka_version") != "4.1.3" or v10637_scope.get("nuitka_mode") != "standalone":
+    fail("v1.0.6.37 pinned Nuitka standalone contract mismatch")
+if v10637_scope.get("system_google_chrome_only") is not True or v10637_scope.get("bundled_playwright_chromium") is not False:
+    fail("v1.0.6.37 Chrome-only portable packaging contract mismatch")
+if v10637_scope.get("wix_msi_enabled") is not False:
+    fail("v1.0.6.37 must not enable WiX/MSI")
+portable_requirements = (ROOT / "requirements-portable.txt").read_text(encoding="utf-8")
+portable_builder = (ROOT / "scripts" / "packaging" / "build_portable_nuitka.py").read_text(encoding="utf-8")
+portable_verifier = (ROOT / "scripts" / "packaging" / "verify_portable_release.py").read_text(encoding="utf-8")
+portable_workflow = (ROOT / ".github" / "workflows" / "portable-release.yml").read_text(encoding="utf-8")
+runtime_environment_text = (SRC / "runtime_environment.py").read_text(encoding="utf-8")
+if "Nuitka==4.1.3" not in portable_requirements:
+    fail("v1.0.6.37 portable requirements must pin Nuitka 4.1.3")
+for marker in (
+    '"--mode=standalone"',
+    '"--enable-plugin=pyside6"',
+    '"--include-distribution-metadata=playwright"',
+    '"--playwright-include-browser=none"',
+    'validate_compiled_runtime',
+    'FORBIDDEN_BROWSER_BINARIES',
+):
+    if marker not in portable_builder + portable_verifier:
+        fail(f"v1.0.6.37 portable packaging marker missing: {marker}")
+for forbidden in ('playwright", "install", "chromium"', 'playwright install chromium', 'WiX Toolset', 'candle.exe', 'light.exe'):
+    if forbidden in portable_builder:
+        fail(f"v1.0.6.37 forbidden portable builder behavior detected: {forbidden}")
+for marker in ("workflow_dispatch:", "tags: ['v*']", "windows-latest", "build_portable_nuitka.py", "verify_portable_release.py", "actions/upload-artifact@v4", 'expected = f"v{VERSION}"'):
+    if marker not in portable_workflow:
+        fail(f"v1.0.6.37 portable GitHub Actions marker missing: {marker}")
+for marker in ("def is_packaged_runtime", "def application_root", "__compiled__", "containing_dir"):
+    if marker not in runtime_environment_text:
+        fail(f"v1.0.6.37 packaged-runtime compatibility marker missing: {marker}")
+if "ROOT_DIR = application_root()" not in backend_text:
+    fail("v1.0.6.37 backend is not using the cross-packager application root")
+if "if not is_packaged_runtime():" not in backend_text:
+    fail("v1.0.6.37 packaged licensing policy is not using the cross-packager predicate")
+if "if is_packaged_runtime():" not in qt_text:
+    fail("v1.0.6.37 workflow restart is not using the cross-packager predicate")
+
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
 app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
@@ -2469,8 +2536,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.36":
-    fail("AppConfig VERSION must be 1.0.6.36 for the Share Invite externalization candidate")
+if app_version != "1.0.6.37":
+    fail("AppConfig VERSION must be 1.0.6.37 for the portable release packaging candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -3204,8 +3271,8 @@ if settings_defaults.get("extensions_enabled") is not False:
 
 print("[8/8] Required project files")
 required = [
-    "README.md", "CHANGELOG.md", "UPDATE_LOG.md", "VERSIONING.md", "LICENSE", "NOTICE", "pyproject.toml", "requirements.txt", "requirements-build.txt",
-    "run.py", "build.py", "config/settings.defaults.json", "config/__init__.py", "config/AppConfig/__init__.py",
+    "README.md", "CHANGELOG.md", "UPDATE_LOG.md", "VERSIONING.md", "LICENSE", "NOTICE", "pyproject.toml", "requirements.txt", "requirements-build.txt", "requirements-portable.txt",
+    "run.py", "build.py", "scripts/packaging/build_portable_nuitka.py", "scripts/packaging/verify_portable_release.py", "src/vibrapilot/runtime_environment.py", "config/settings.defaults.json", "config/__init__.py", "config/AppConfig/__init__.py",
     "config/AppConfig/app.py", "config/AppConfig/about.py", "config/AppConfig/support.py", "config/AppConfig/social.py",
     "config/AppConfig/licensing_public.py", "config/verification/phase02_step002_scope.json", "config/verification/phase02_step002_v1.0.6.4_fix_scope.json",
     "config/verification/production_mt_lr_v1.0.6.5_scope.json",
@@ -3232,6 +3299,7 @@ required = [
     "config/verification/v1.0.6.34_ui_compact_polish_scope.json",
     "config/verification/v1.0.6.35_workflow_scoped_test_safety_scope.json",
     "config/verification/v1.0.6.36_share_invite_externalization_scope.json",
+    "config/verification/v1.0.6.37_portable_release_packaging_scope.json",
     "src/vibrapilot/chrome_runtime.py",
     "src/vibrapilot/chrome_installer.py",
     "src/vibrapilot/windows_authenticode.py",
@@ -3253,6 +3321,8 @@ required = [
     "docs/verification/V1.0.6.35_WORKFLOW_SCOPED_TEST_SAFETY.md",
     "docs/updates/v1.0.6.36-share-invite-externalization.md",
     "docs/verification/V1.0.6.36_SHARE_INVITE_EXTERNALIZATION.md",
+    "docs/updates/v1.0.6.37-portable-release-packaging.md",
+    "docs/verification/V1.0.6.37_PORTABLE_RELEASE_PACKAGING.md",
     "scripts/diagnostics/verify_v10633_browser_forensic_closure.py",
     "scripts/diagnostics/verify_v10634_ui_compact_polish.py",
     "scripts/diagnostics/verify_v10635_workflow_scoped_test_safety.py",
@@ -3336,7 +3406,7 @@ required = [
     "scripts/diagnostics/verify_pr11_windows_evidence.py",
     "scripts/maintenance/Apply-v1.0.6.2-Phase01-Fix.cmd",
     "scripts/maintenance/PHASE01_V1.0.6.2_DELETE_PATHS.txt",
-    "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml",
+    "assets/icons/app.ico", "assets/icons/app.png", ".github/workflows/ci.yml", ".github/workflows/portable-release.yml",
 ]
 for rel in required:
     if not (ROOT / rel).is_file():

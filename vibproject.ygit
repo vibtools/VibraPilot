@@ -8,9 +8,9 @@
     "slug": "vibrapilot",
     "displayName": "VibraPilot",
     "description": "VibraPilot browser automation desktop application by Vib Tools.",
-    "summary": "VibraPilot v1.0.6.36 externalizes Share Invite into a standalone trusted workflow package and makes zero-workflow startup a valid Core state.",
-    "version": "1.0.6.36",
-    "status": "development",
+    "summary": "VibraPilot v1.0.6.37 adds the first GitHub Actions Nuitka standalone OneDir portable Windows release path using system Google Chrome with no bundled Chromium or WiX/MSI.",
+    "version": "1.0.6.37",
+    "status": "production",
     "visibility": "private",
     "category": "desktop-application",
     "keywords": [
@@ -28,7 +28,7 @@
     "productType": "application",
     "applicationType": "desktop",
     "distribution": "private-source",
-    "lifecycle": "development"
+    "lifecycle": "production"
   },
   "organization": {
     "company": "Vib Tools",
@@ -71,7 +71,8 @@
       "openpyxl",
       "xlrd",
       "defusedxml",
-      "PyInstaller"
+      "PyInstaller",
+      "Nuitka"
     ],
     "packageManagers": [
       "pip"

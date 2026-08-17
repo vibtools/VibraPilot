@@ -3,12 +3,12 @@
   "documentation": {
     "id": "vibrapilot",
     "title": "VibraPilot Documentation",
-    "description": "Documentation for VibraPilot v1.0.6.36 Share Invite Workflow Externalization.",
-    "version": "1.0.6.36",
+    "description": "Documentation for VibraPilot v1.0.6.37 Portable Nuitka OneDir Release Packaging.",
+    "version": "1.0.6.37",
     "root": "docs",
     "home": "index.md"
   },
   "product": {
-    "description": "v1.0.6.36 removes the built-in Share Invite runtime from Core, supports a valid zero-workflow state, and preserves Share Invite behavior in a standalone trusted package."
+    "description": "v1.0.6.37 adds a GitHub Actions Nuitka standalone OneDir portable Windows x64 release path, uses only system Google Chrome, and explicitly excludes bundled Chromium and WiX/MSI."
   }
 }

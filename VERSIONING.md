@@ -1,3 +1,7 @@
+# Current packaging candidate — v1.0.6.37
+
+`v1.0.6.37` is a packaging/release-infrastructure increment from the frozen v1.0.6.36 functional baseline. It introduces the first supported Nuitka standalone OneDir portable Windows artifact and does not reopen v1.0.6.36.
+
 # Current Version — 1.0.6.36
 
 `1.0.6.36` is the Share Invite Workflow Externalization release. The frozen source baseline contains zero built-in workflows; Share Invite is distributed separately as `Share_Invite_v1.0.vpworkflow`.

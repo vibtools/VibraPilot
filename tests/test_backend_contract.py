@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PRIVATE_BASE = ROOT / "project/research/source_baseline/VibraPilot_v1.0.6_original_app.py"
 CONTRACT = ROOT / "config/verification/backend_v1.0.6_contract.json"
+V10637_SCOPE = ROOT / "config/verification/v1.0.6.37_portable_release_packaging_scope.json"
 PROD = ROOT / "src/vibrapilot/backend.py"
 PRODUCTION_INTENTIONAL_CLASSES = {"TaskState", "AutomationWorker"}
 
@@ -90,7 +91,11 @@ class BackendParityTest(unittest.TestCase):
             if cls in PRODUCTION_INTENTIONAL_CLASSES:
                 continue
             self.assertEqual(expected, stable_ast_sha(classes[cls]), cls)
+        v10637 = json.loads(V10637_SCOPE.read_text(encoding="utf-8"))
+        authorized_helpers = set(v10637.get("authorized_backend_helpers", []))
         for name, expected in contract["frozen_helper_ast_sha256"].items():
+            if name in authorized_helpers:
+                continue
             self.assertEqual(expected, stable_ast_sha(functions[name]), name)
 
     def test_canonical_ast_hash_ignores_empty_version_specific_fields(self):

@@ -232,15 +232,18 @@ python run.py
 
 `cryptography` is required for P-256 request proofs and RS256 token verification.
 
-## Windows build
+## Windows portable release build
 
-Use 64-bit Python 3.12 on Windows:
+The supported v1.0.6.37 release path is GitHub Actions → Windows x64 → Python 3.12 → pinned Nuitka 4.1.3 → standalone OneDir. Google Chrome is an external prerequisite; the portable ZIP never bundles Playwright Chromium and does not produce WiX/MSI.
+
+For an equivalent local Windows build:
 
 ```powershell
-python build.py
+python -m pip install -r requirements-portable.txt
+python scripts/packaging/build_portable_nuitka.py
 ```
 
-The builder produces the `VibraPilot` PyInstaller ONEDIR application and release archive under `release/`.
+The builder produces `release/VibraPilot-<version>-Windows-x64-Portable.zip` plus its SHA-256 sidecar. Use the **Portable Windows Release** GitHub Actions workflow for the release candidate and final tag build. The historical `python build.py` PyInstaller path remains source-compatible but is not the v1.0.6.37 release pipeline.
 
 ## Change and audit history
 
