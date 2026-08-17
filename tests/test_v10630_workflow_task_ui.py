@@ -26,7 +26,8 @@ def test_task_slot_preserves_lightweight_qt_host_constructor_compatibility():
     # Historical BrowserLifecycleQtTest builds TaskSlotWidget with only Settings
     # and schedule_workspace_save. The plugin layer must not require MainWindow-
     # only workflow attributes merely to construct/render the baseline Task card.
-    assert 'getattr(app, "active_workflow_id", "") or "share_invite"' in QT
+    assert 'getattr(app, "active_workflow_id", "") or "compatibility_host"' in QT
+    assert 'or "share_invite"' not in QT
     assert 'getattr(app, "workflow_catalog", None)' in QT
     assert 'getattr(app, "workflow_task_state_store", None)' in QT
     assert 'setObjectName("TaskSubtitle")' not in QT

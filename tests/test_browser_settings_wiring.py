@@ -8,6 +8,16 @@ QT_PATH = ROOT / "src" / "vibrapilot" / "qt_app.py"
 BACKEND_PATH = ROOT / "src" / "vibrapilot" / "backend.py"
 DEFAULTS_PATH = ROOT / "config" / "settings.defaults.json"
 SHARE_INVITE_PATH = ROOT / "src" / "vibrapilot" / "workflow" / "share_invite" / "workflow.py"
+EXTERNAL_SHARE_INVITE_RUNTIME_KEYS = {
+    "modal_close_poll_count",
+    "modal_close_poll_interval",
+    "modal_close_probe_timeout",
+    "modal_state_probe_timeout",
+    "notification_poll_interval",
+    "notification_visibility_timeout",
+    "short_dom_probe_timeout",
+    "standard_dom_probe_timeout",
+}
 
 
 def _browser_groups() -> dict[str, list[str]]:
@@ -53,7 +63,9 @@ def test_every_browser_ui_setting_has_a_real_runtime_consumer():
     missing = {
         key
         for key in _browser_ui_keys()
-        if key != "browser_slot_default" and f'"{key}"' not in runtime_source
+        if key != "browser_slot_default"
+        and key not in EXTERNAL_SHARE_INVITE_RUNTIME_KEYS
+        and f'"{key}"' not in runtime_source
     }
     assert not missing, f"Browser Settings without backend/runtime consumer: {sorted(missing)}"
 

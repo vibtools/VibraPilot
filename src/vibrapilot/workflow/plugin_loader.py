@@ -74,7 +74,8 @@ class InstalledWorkflowPlugin:
     input_schema: WorkflowFormSchema
     settings_schema: WorkflowFormSchema
     task_schema: WorkflowTaskSchema
-    task_item_loader: Callable[[Path, Mapping[str, Any]], list[Mapping[str, Any]]] | None
+    task_item_loader: Callable[..., Any] | None
+    task_data_loader: Callable[..., Any] | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -401,6 +402,9 @@ def load_workflow_directory(root: Path) -> InstalledWorkflowPlugin:
     task_loader = getattr(module, "load_task_items", None)
     if task_loader is not None and not callable(task_loader):
         raise WorkflowPluginValidationError("Optional load_task_items must be callable.")
+    task_data_loader = getattr(module, "load_task_data", None)
+    if task_data_loader is not None and not callable(task_data_loader):
+        raise WorkflowPluginValidationError("Optional load_task_data must be callable.")
 
     def runtime_factory(*args: Any, **kwargs: Any):
         runtime = factory(*args, **kwargs)
@@ -427,6 +431,7 @@ def load_workflow_directory(root: Path) -> InstalledWorkflowPlugin:
         settings_schema=settings_schema,
         task_schema=task_schema,
         task_item_loader=task_loader,
+        task_data_loader=task_data_loader,
     )
 
 

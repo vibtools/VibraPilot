@@ -1,3 +1,9 @@
+# Current — v1.0.6.36 Share Invite Externalization
+
+- Complete the workflow-neutral Core by shipping Share Invite as a standalone trusted workflow package.
+- Preserve one-active-workflow switching, existing plugin compatibility and all browser/licensing/persistence boundaries.
+- URL workflow installation remains deferred to a later separately scoped update.
+
 # VibraPilot Roadmap — v1.0.6.35 Workflow-Scoped Test Safety
 
 - Baseline: v1.0.6.34 / `a0e3621e831d402649ab55859e00b59d5f0ad634`.

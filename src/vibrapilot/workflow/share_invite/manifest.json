@@ -1,8 +1,0 @@
-{
-  "workflow_id": "share_invite",
-  "name": "Share Invite",
-  "description": "Authenticated Test Mode Share Invite workflow.",
-  "version": "1.0",
-  "logo": "logo.png",
-  "entrypoint": "share_invite"
-}

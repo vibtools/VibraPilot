@@ -1,6 +1,6 @@
-# VibraPilot v1.0.6.35 — Workflow-Scoped Test Safety
+# VibraPilot v1.0.6.36 — Share Invite Workflow Externalization
 
-v1.0.6.35 removes legacy Razorpay/Test Mode controls from global App Settings and scopes the Share Invite send limit to its Workflow Settings. Non-Share workflows no longer depend on the global authorization toggle, while Share Invite continues to enforce the real live Test Mode banner before Send operations.
+v1.0.6.36 externalizes the formerly built-in Share Invite implementation into a standalone trusted `.vpworkflow` package. VibraPilot Core now supports a valid zero-workflow state, retains the one-active-workflow model for installed plugins, preserves existing per-workflow state/migration behavior, and keeps Share Invite Test Mode/send safety semantics in the external workflow artifact.
 
 # VibraPilot v1.0.6.34 — UI Compact Polish
 

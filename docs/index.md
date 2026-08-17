@@ -1,4 +1,9 @@
-# v1.0.6.35 Workflow-Scoped Test Safety Isolation
+# v1.0.6.36 Share Invite Workflow Externalization
+
+- Update: `docs/updates/v1.0.6.36-share-invite-externalization.md`
+- Verification: `docs/verification/V1.0.6.36_SHARE_INVITE_EXTERNALIZATION.md`
+
+## v1.0.6.35 Workflow-Scoped Test Safety Isolation
 
 - Update: `docs/updates/v1.0.6.35-workflow-scoped-test-safety.md`
 - Verification: `docs/verification/V1.0.6.35_WORKFLOW_SCOPED_TEST_SAFETY.md`

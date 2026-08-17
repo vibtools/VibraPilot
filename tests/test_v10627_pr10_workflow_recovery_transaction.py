@@ -18,7 +18,7 @@ from vibrapilot.workflow import (
     WorkflowStateError,
     WorkflowStateStore,
 )
-from vibrapilot.workflow.share_invite import SHARE_INVITE_MANIFEST
+from _v10636_manifest_fixture import SHARE_INVITE_MANIFEST
 
 
 class DummyRuntime:
@@ -74,7 +74,7 @@ def test_explicit_state_recovery_quarantines_invalid_canonical_and_uses_revision
     recovered = store.recover_active_workflow("other_workflow")
 
     assert recovered.active_workflow_id == "other_workflow"
-    assert recovered.schema_version == 1
+    assert recovered.schema_version == 2
     assert recovered.revision == 1
     assert store.load_existing() == recovered
     quarantined = list(tmp_path.glob("workflow_state.json.corrupt-*"))
@@ -191,7 +191,7 @@ def test_ambiguous_target_state_hard_fails_and_preserves_staging(tmp_path: Path)
     data = tmp_path / "AppData"
     data.mkdir()
     store = WorkflowStateStore(data / "workflow_state.json", manager=_manager())
-    store.load_or_migrate()  # share_invite is valid, but tx target is other_workflow.
+    store.load_or_migrate()  # zero-workflow canonical state is valid, but tx target is other_workflow.
     tx = WorkflowRecoveryTransaction(
         data_root=data,
         transaction_root=data / "WorkflowRecovery",

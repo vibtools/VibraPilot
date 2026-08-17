@@ -108,7 +108,10 @@ class BackendParityTest(unittest.TestCase):
         self.assertIn('DEFAULT_TEST_SEND_LIMIT = int(DEFAULT_SETTINGS["max_test_send_limit"])', text)
         self.assertNotIn("MAX_TEST_SEND_LIMIT", text)
         self.assertIn("class SendClickOutcomeUncertain", text)
-        self.assertIn("def assert_test_mode", text)
+        # v1.0.6.36 externalizes Share Invite; its Test Mode assertion belongs
+        # to the standalone trusted workflow package, not Core backend.py.
+        self.assertNotIn("def assert_test_mode", text)
+        self.assertNotIn("ShareInviteWorkflow", text)
 
 
 if __name__ == "__main__":

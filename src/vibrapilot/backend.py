@@ -34,7 +34,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from types import MappingProxyType
+from types import MappingProxyType, SimpleNamespace
 from typing import Any
 from urllib.parse import urlparse
 
@@ -60,7 +60,6 @@ from .browser_diagnostics import (
     sanitize_diagnostic_text,
 )
 from .workflow import WorkflowManager, WorkflowRuntime, WorkflowRuntimeResolutionError
-from .workflow.share_invite import ShareInviteRuntimeErrors, ShareInviteWorkflow
 
 DISPLAY_APP_NAME = APP.display_name
 APP_NAME = APP.app_name
@@ -149,83 +148,6 @@ DEFAULT_TEST_SEND_LIMIT = int(DEFAULT_SETTINGS["max_test_send_limit"])
 # explicitly configured download directory. No download history/state is stored.
 _DOWNLOAD_SAVE_LOCK = threading.Lock()
 
-
-SELECTORS = {
-    # Mandatory authenticated Test Mode marker. Automation fails closed without it.
-    "test_mode_banner": [
-        "[data-testid='test-mode-banner']",
-        ".highlight-test-mode-container [data-testid='test-mode-banner']",
-        ".highlight-test-mode-container .trapezoid",
-    ],
-    # Share entry point on the already-authenticated target page.
-    "share_button": [
-        "button.Button--small.Button--primary.Button:has(i.i-share-outline)",
-        "button:has(i.i-share-outline):has-text('Share')",
-        "button.Button--primary:has-text('Share')",
-        "button:has-text('Share')",
-    ],
-    # Share modal controls supplied by the target application's DOM.
-    "share_modal_title": [
-        "div.modal-header h3.modal-title:has-text('Share Link')",
-        "h3.modal-title:has-text('Share Link')",
-        "text=Share Link",
-    ],
-    "share_modal_close": [
-        "button[data-testid='modal-header-close-btn']",
-        "div.modal-header button.close",
-    ],
-    "share_email": [
-        "form.Form.Share-section input[name='email'][type='email'][placeholder='Email']",
-        "input[name='email'][type='email'][placeholder='Email']",
-        "input[name='email'][type='email']",
-    ],
-    "share_send": [
-        "form.Form.Share-section button[type='submit']:has-text('Send')",
-        "button.Button--Link.Button--transparent.Button[type='submit']:has-text('Send')",
-        "button[type='submit']:has(b:has-text('Send'))",
-        "button[type='submit']:has-text('Send')",
-    ],
-    "invite_success": [
-        "div.Notification.Notification--success[data-testid='Notification--success']",
-        "[data-testid='Notification--success']",
-        ".Notification--success",
-    ],
-    "invite_error": [
-        "[data-testid='Notification--error']",
-        ".Notification--error",
-        ".Notification--danger",
-        ".Notification--warning",
-        ".errorMessage",
-        ".validation-error",
-    ],
-    # Legacy selectors are preserved for backward-compatible configuration/data files.
-    "contact_name_label": ["label[for='name']", "text=Contact Name:"],
-    "phone_label": ["label[for='phone']", "text=Phone:"],
-    "fax_label": ["label[for='fax']", "text=Fax:"],
-    "email_label": ["label[for='email']", "text=Email:"],
-    "name": ["input[name='name']", "input#name", "input[id='name/']"],
-    "phone": ["input[name='phone']", "input#phone", "input[id='phone/']"],
-    "fax": ["input[name='fax']", "input#fax", "input[id='fax/']"],
-    "email": ["input[name='email']", "input#email", "input[id='email/']"],
-    "update": [
-        "input[name='confirmbutton'][value='Update']",
-        "input[type='submit'][value='Update']",
-        "#confirmbutton",
-        "input[id='confirmbutton/']",
-    ],
-    "success": [
-        "#notificationMsg",
-        "div#notificationMsg",
-        "text=The information was successfully updated",
-    ],
-    "error": [
-        "#errorMsg",
-        ".error",
-        ".errorMessage",
-        ".validation-error",
-        "text=Error",
-    ],
-}
 
 SECURITY_PATTERNS = [
     "captcha",
@@ -1796,7 +1718,10 @@ class AutomationWorker(threading.Thread):
         # the existing PR-05 Master Workflow Gate; no Share Invite fallback lives
         # inside AutomationWorker.
         if workflow_manager is not None:
-            if workflow_manager.active_workflow_id != (str(active_workflow_id).strip() or None):
+            requested_workflow_id = (
+                None if active_workflow_id is None else (str(active_workflow_id).strip() or None)
+            )
+            if workflow_manager.active_workflow_id != requested_workflow_id:
                 raise WorkflowRuntimeResolutionError(
                     "worker workflow catalog active identity does not match active_workflow_id"
                 )
@@ -2543,14 +2468,15 @@ class AutomationWorker(threading.Thread):
                     self.last_autosave_at = time.monotonic()
                     self._save_runtime_progress(force=True)
                     try:
-                        self.ensure_authenticated_test_session()
+                        self.ensure_workflow_session()
                         if self._uses_test_send_limit():
                             self.emit(
                                 "send_limit", {"used": self.run_send_count, "limit": self.run_send_limit}
                             )
                         self.process_batch()
                     except SessionVerificationError as exc:
-                        self.state.status = "Login/Test Mode Required"
+                        runtime = self._workflow_runtime()
+                        self.state.status = str(getattr(runtime, "blocked_task_status", "Login Required"))
                         self.login_verified_event.clear()
                         self.log(str(exc), "ERROR")
                         self.emit("login", {"verified": False, "message": str(exc)})
@@ -2570,31 +2496,35 @@ class AutomationWorker(threading.Thread):
         """Resolve the active validated workflow through the master workflow gate."""
         runtime = self._active_workflow_runtime_cache
         if runtime is None:
+            # Plugin API 1 compatibility: existing workflows may consume the legacy
+            # exception namespace. Core no longer imports or knows a Share Invite runtime type.
+            errors = SimpleNamespace(
+                security_challenge=SecurityChallenge,
+                session_verification_error=SessionVerificationError,
+                test_mode_required=TestModeRequired,
+                test_send_limit_reached=TestSendLimitReached,
+                invite_rejected=InviteRejected,
+            )
             runtime = self._workflow_manager.resolve_active_runtime(
                 self,
                 default_settings=DEFAULT_SETTINGS,
-                errors=ShareInviteRuntimeErrors(
-                    security_challenge=SecurityChallenge,
-                    session_verification_error=SessionVerificationError,
-                    test_mode_required=TestModeRequired,
-                    test_send_limit_reached=TestSendLimitReached,
-                    invite_rejected=InviteRejected,
-                ),
+                errors=errors,
             )
             self._active_workflow_runtime_cache = runtime
         return runtime
 
-    def _share_invite_runtime(self) -> ShareInviteWorkflow:
-        """Preserve the PR-04 compatibility surface without bypassing the master gate."""
-        runtime = self._workflow_runtime()
-        if not isinstance(runtime, ShareInviteWorkflow):
-            raise WorkflowRuntimeResolutionError(
-                "active workflow runtime is not the built-in Share Invite runtime"
-            )
-        return runtime
-
     def workflow_session_ready(self, page) -> bool:
         return self._workflow_runtime().session_ready(page)
+
+    def workflow_session_instruction(self) -> str:
+        runtime = self._workflow_runtime()
+        return str(
+            getattr(
+                runtime,
+                "session_instruction",
+                "Complete the workflow-required browser session, then wait for Login Verified and click Start.",
+            )
+        )
 
     def ensure_workflow_session(self) -> None:
         self._workflow_runtime().ensure_session()
@@ -2604,9 +2534,6 @@ class AutomationWorker(threading.Thread):
 
     def prepare_workflow_retry(self) -> None:
         self._workflow_runtime().prepare_retry()
-
-    def _is_share_invite_workflow(self) -> bool:
-        return self._workflow_manager.active_workflow_id == "share_invite"
 
     def _uses_test_send_limit(self) -> bool:
         workflow_id = self._workflow_manager.active_workflow_id
@@ -2659,12 +2586,6 @@ class AutomationWorker(threading.Thread):
             )
         return decision
 
-    def test_mode_banner_ready(self, page) -> bool:
-        return self._share_invite_runtime().test_mode_banner_ready(page)
-
-    def authenticated_test_session_ready(self, page) -> bool:
-        return self.workflow_session_ready(page)
-
     def refresh_login_verification(self, force_emit: bool = False) -> bool:
         if self.processing_event.is_set() or not self.browser_ready_event.is_set():
             return self.login_verified_event.is_set()
@@ -2683,7 +2604,7 @@ class AutomationWorker(threading.Thread):
         self.last_login_probe_at = now
         verified = False
         try:
-            verified = self.authenticated_test_session_ready(self.active_page)
+            verified = self.workflow_session_ready(self.active_page)
         except Exception:
             verified = False
         previous = self.login_verified_event.is_set()
@@ -2703,14 +2624,6 @@ class AutomationWorker(threading.Thread):
                 self.emit("status", {"status": self.state.status})
         return verified
 
-    def wait_for_authenticated_test_session(self) -> bool:
-        return self._share_invite_runtime().wait_for_authenticated_test_session()
-
-    def ensure_authenticated_test_session(self) -> None:
-        self.ensure_workflow_session()
-
-    def assert_test_mode(self, page) -> None:
-        self._share_invite_runtime().assert_test_mode(page)
 
     def process_batch(self) -> None:
         self.processing_event.set()
@@ -2726,10 +2639,9 @@ class AutomationWorker(threading.Thread):
         try:
             if self.state.current_index >= self.state.total:
                 self.state.status = "Completed"
+                runtime = self._workflow_runtime()
                 self.log(
-                    "No remaining email records to process."
-                    if self._is_share_invite_workflow()
-                    else "No remaining workflow items to process.",
+                    str(getattr(runtime, "empty_batch_message", "No remaining workflow items to process.")),
                     "WARNING",
                 )
                 self._save_runtime_progress(force=True)
@@ -2800,9 +2712,8 @@ class AutomationWorker(threading.Thread):
                 self.state.status = "Test Send Limit Reached"
                 self.save_unprocessed()
             elif session_blocked:
-                self.state.status = (
-                    "Login/Test Mode Required" if self._is_share_invite_workflow() else "Blocked"
-                )
+                runtime = self._workflow_runtime()
+                self.state.status = str(getattr(runtime, "blocked_task_status", "Blocked"))
                 self.save_unprocessed()
             elif processing_interrupted:
                 self.state.status = "Interrupted"
@@ -4224,8 +4135,8 @@ class AutomationWorker(threading.Thread):
                 self.initial_url = old_initial_url
                 self._context_transitioning = False
             # The recycle is an internal maintenance transition, not a manual
-            # Browser Close. Re-verify the authenticated Test Mode page against
-            # the relaunched managed profile before the next Send can proceed.
+            # Browser Close. Re-verify the active workflow-required session against
+            # the relaunched managed profile before processing can continue.
             self.login_verified_event.clear()
             self.refresh_login_verification(force_emit=True)
             return
@@ -4236,7 +4147,7 @@ class AutomationWorker(threading.Thread):
         )
 
     def _process_generic_workflow_item(self, index: int, item: TaskItem) -> None:
-        """Run one non-Share-Invite item with Core-owned retry/error semantics."""
+        """Run one item for a workflow that does not provide specialized orchestration."""
         max_retry_raw = self.workflow_settings_values.get(
             "max_retry",
             self.settings.get("max_retry_per_item", DEFAULT_SETTINGS["max_retry_per_item"]),
@@ -4348,160 +4259,13 @@ class AutomationWorker(threading.Thread):
                 attempt += 1
 
     def process_item(self, index: int, item: TaskItem) -> None:
-        if not self._is_share_invite_workflow():
-            self._process_generic_workflow_item(index, item)
+        """Delegate specialized item orchestration to the active workflow when supplied."""
+        runtime = self._workflow_runtime()
+        hook = getattr(runtime, "process_item", None)
+        if callable(hook):
+            hook(index, item)
             return
-        max_retry = max(0, int(self.settings.get("max_retry_per_item", DEFAULT_SETTINGS["max_retry_per_item"])))
-        item.status = "processing"
-        self.log(f"Share invite processing started: {item.email}")
-        self._save_runtime_item(index, item, "Share invite processing started")
-        attempt = 1
-        while attempt <= max_retry + 1:
-            if self.stop_event.is_set() or self.close_event.is_set():
-                item.status = "unprocessed"
-                return
-            self.wait_if_paused()
-            if self.stop_event.is_set() or self.close_event.is_set():
-                item.status = "unprocessed"
-                return
-
-            item.attempts = attempt
-            send_count_before = self.run_send_count
-            try:
-                result = self.execute_flow(item)
-                item.status = "success"
-                item.result = result
-                item.message = "Share invite confirmed"
-                self.state.manual_review_required = False
-                self.state.success_count += 1
-                self.log(f"Invite success: {item.email} -> {result}")
-                return
-            except TestSendLimitReached as exc:
-                item.status = "limit_reached"
-                item.message = str(exc)
-                self.log(str(exc), "WARNING")
-                return
-            except (TestModeRequired, SessionVerificationError) as exc:
-                item.status = "blocked"
-                item.message = str(exc)
-                self.login_verified_event.clear()
-                self.log(str(exc), "ERROR")
-                self.emit("login", {"verified": False, "message": str(exc)})
-                return
-            except SecurityChallenge as exc:
-                item.status = "interrupted"
-                if self.run_send_count > send_count_before:
-                    self.state.manual_review_required = True
-                    item.message = (
-                        "A security challenge appeared after a Send click attempt. "
-                        "Automatic retry was blocked to prevent a duplicate invite. "
-                        f"Complete the challenge and review the target manually. Detail: {exc}"
-                    )
-                    self.save_checkpoint()
-                    self.log(item.message, "ERROR")
-                    self.emit("security", {"message": item.message})
-                    return
-
-                item.message = str(exc)
-                self.pause_event.set()
-                self.save_checkpoint()
-                self.log(f"Security challenge detected; task paused: {exc}", "WARNING")
-                self.emit("security", {"message": str(exc)})
-                self.wait_if_paused()
-                if self.stop_event.is_set() or self.close_event.is_set():
-                    item.status = "unprocessed"
-                    return
-                item.status = "processing"
-                self.log(
-                    "Security challenge pause cleared; retrying the current record."
-                )
-                continue
-            except InviteRejected as exc:
-                # A visible rejection is a definitive Send outcome, so a prior
-                # pre-click crash marker can be cleared before a controlled retry.
-                self.state.manual_review_required = False
-                item.status = "processing"
-                item.message = str(exc)
-                if self.runtime_store is not None and self.state.run_id:
-                    self.runtime_store.save_item(self.state.run_id, index, item)
-                self._save_runtime_progress(force=True)
-                self.log(
-                    f"Confirmed invite rejection on attempt {attempt} for {item.email}: {exc}",
-                    "WARNING",
-                )
-            except Exception as exc:
-                item.message = str(exc)
-                if self.run_send_count > send_count_before:
-                    item.status = "interrupted"
-                    self.state.manual_review_required = True
-                    item.message = (
-                        "Send was clicked, but a definitive success or rejection was not "
-                        "confirmed. Automatic retry was blocked to prevent a duplicate invite. "
-                        f"Detail: {exc}"
-                    )
-                    self.save_checkpoint()
-                    self.log(item.message, "ERROR")
-                    return
-                self.log(
-                    f"Invite attempt {attempt} failed before Send for {item.email}: {exc}",
-                    "WARNING",
-                )
-
-            if attempt <= max_retry:
-                self.prepare_invite_retry()
-                retry_min = max(0.0, float(self.settings.get("retry_delay_min", DEFAULT_SETTINGS["retry_delay_min"])))
-                retry_max = max(
-                    retry_min, float(self.settings.get("retry_delay_max", DEFAULT_SETTINGS["retry_delay_max"]))
-                )
-                delay = min(
-                    retry_max,
-                    retry_min
-                    * (
-                        max(1.0, float(self.settings.get("backoff_multiplier", DEFAULT_SETTINGS["backoff_multiplier"])))
-                        ** (attempt - 1)
-                    ),
-                )
-                self.interruptible_sleep(delay)
-                attempt += 1
-                continue
-
-            item.status = "failed"
-            self.state.manual_review_required = False
-            self.state.failed_count += 1
-            return
-
-    def execute_flow(self, item: TaskItem) -> str:
-        return self.execute_workflow_item(item)
-
-    def ensure_share_entry(self, page) -> None:
-        self._share_invite_runtime().ensure_share_entry(page)
-
-    def share_button_ready(self, page) -> bool:
-        return self._share_invite_runtime().share_button_ready(page)
-
-    def wait_for_share_button(self, page) -> bool:
-        return self._share_invite_runtime().wait_for_share_button(page)
-
-    def share_modal_ready(self, page) -> bool:
-        return self._share_invite_runtime().share_modal_ready(page)
-
-    def close_existing_share_modal(self, page) -> None:
-        self._share_invite_runtime().close_existing_share_modal(page)
-
-    def open_share_modal(self, page) -> None:
-        self._share_invite_runtime().open_share_modal(page)
-
-    def prepare_invite_retry(self) -> None:
-        self.prepare_workflow_retry()
-
-    def fill_invite_email(self, page, email: str) -> None:
-        self._share_invite_runtime().fill_invite_email(page, email)
-
-    def input_value_first(self, page, selectors: list[str], label: str) -> str:
-        return self._share_invite_runtime().input_value_first(page, selectors, label)
-
-    def arm_invite_notification_monitor(self, page) -> dict[str, Any]:
-        return self._share_invite_runtime().arm_invite_notification_monitor(page)
+        self._process_generic_workflow_item(index, item)
 
     def _register_send_click_attempt(self) -> None:
         """Reserve a Send attempt immediately before Playwright invokes click()."""
@@ -4544,16 +4308,6 @@ class AutomationWorker(threading.Thread):
         self.emit(
             "send_limit", {"used": self.run_send_count, "limit": self.run_send_limit}
         )
-
-    def submit_share_invite(
-        self, page, email: str, notification_state: dict[str, Any]
-    ) -> None:
-        self._share_invite_runtime().submit_share_invite(
-            page, email, notification_state
-        )
-
-    def wait_invite_result(self, page, notification_state: dict[str, Any]) -> None:
-        self._share_invite_runtime().wait_invite_result(page, notification_state)
 
     def safe_goto(self, page, url: str) -> None:
         if not url.startswith(("http://", "https://")):

@@ -1,0 +1,33 @@
+VibraPilot v1.0.6.36 — MANDATORY PRE-APPLY DELETION
+
+Frozen source baseline:
+  VibraPilot v1.0.6.35
+  commit c5511a82ddf164bfacdfad5aa12ebf75ad56a1da
+
+WHY THIS STEP IS REQUIRED
+-------------------------
+v1.0.6.36 externalizes the source-controlled built-in Share Invite workflow.
+A ZIP Extract/Replace operation cannot delete files that existed in v1.0.6.35.
+The old built-in directory MUST therefore be removed before overlaying the Delta.
+
+DELETE EXACTLY THIS DIRECTORY FROM THE REPOSITORY ROOT
+------------------------------------------------------
+src\vibrapilot\workflow\share_invite
+
+Windows CMD:
+  rmdir /s /q "src\vibrapilot\workflow\share_invite"
+
+PowerShell:
+  Remove-Item -Recurse -Force "src\vibrapilot\workflow\share_invite"
+
+DO NOT DELETE
+-------------
+- %LOCALAPPDATA%\Vib Tools\VibraPilot\Workflows
+- workflow state/input/settings data
+- BrowserProfiles
+- AppData/license/device state
+- Reports/FailedData/Logs
+- user source data
+
+After deletion, extract the v1.0.6.36 Replace-Ready Delta into the repository root and choose Replace All.
+The standalone Share_Invite_v1.0.vpworkflow is a separate trusted executable workflow artifact and is NOT silently installed by the Core Delta.

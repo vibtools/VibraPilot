@@ -1,3 +1,12 @@
+## v1.0.6.36 — Share Invite Workflow Externalization — 2026-08-17
+
+- Removed the source-controlled built-in Share Invite runtime from VibraPilot Core and converted it into a separately distributed trusted Plugin API 1 `.vpworkflow` package.
+- Core workflow catalog is plugin-only and valid with zero installed/active workflows; workflow-state schema v2 represents this as `active_workflow_id: null`.
+- Existing schema-v1 `share_invite` state migrates without quarantine or loss while the matching external package is not yet installed.
+- Preserved Share Invite selectors, Test Mode enforcement, Send accounting, retry/manual-review behavior and data-import audit semantics through parity-verified workflow-owned hooks.
+- Existing Plugin API 1 `load_task_items` workflows remain compatible; the richer `load_task_data` and runtime `process_item` hooks are optional.
+- Browser, licensing, TaskRuntime/workspace schemas, reports, downloads/uploads, dependencies, CI and build/package surfaces remain unchanged.
+
 ## v1.0.6.35 — Workflow-Scoped Test Safety Isolation — 2026-08-14
 
 - Removed the legacy global `Authorized Testing Only` Task-start gate so non-Share workflows are not blocked by Razorpay-specific safety UI.

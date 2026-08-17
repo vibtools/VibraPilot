@@ -15,6 +15,7 @@ V10630_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.30_workflow_plugi
 V10631_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.31_chrome_only_browser_runtime_scope.json"
 V10632_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.32_chrome_prerequisite_install_scope.json"
 V10633_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.33_browser_forensic_closure_scope.json"
+V10636_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.36_share_invite_externalization_scope.json"
 
 
 def load_module(path: Path, name: str):
@@ -172,18 +173,21 @@ class PR11FrozenRuntimeContractTest(unittest.TestCase):
         v10631_scope = json.loads(V10631_SCOPE_PATH.read_text(encoding="utf-8")) if V10631_SCOPE_PATH.is_file() else {}
         v10632_scope = json.loads(V10632_SCOPE_PATH.read_text(encoding="utf-8")) if V10632_SCOPE_PATH.is_file() else {}
         v10633_scope = json.loads(V10633_SCOPE_PATH.read_text(encoding="utf-8")) if V10633_SCOPE_PATH.is_file() else {}
+        v10636_scope = json.loads(V10636_SCOPE_PATH.read_text(encoding="utf-8")) if V10636_SCOPE_PATH.is_file() else {}
         current_allowed = (
             set(v10630_scope.get("allowed_production_source_changes", []))
             | set(v10631_scope.get("allowed_production_source_changes", []))
             | set(v10632_scope.get("allowed_production_source_changes", []))
             | set(v10633_scope.get("allowed_production_source_changes", []))
+            | set(v10636_scope.get("allowed_production_source_changes", []))
         )
+        deleted = set(v10636_scope.get("deleted_production_paths", []))
         historical = set(hashes)
         current_set = set(current)
-        self.assertTrue(historical.issubset(current_set), sorted(historical - current_set))
+        self.assertTrue((historical - deleted).issubset(current_set), sorted((historical - deleted) - current_set))
         self.assertTrue((current_set - historical).issubset(current_allowed), sorted(current_set - historical - current_allowed))
         for rel, expected in hashes.items():
-            if rel in current_allowed:
+            if rel in current_allowed or rel in deleted:
                 continue
             actual = hashlib.sha256((ROOT / rel).read_bytes()).hexdigest()
             self.assertEqual(actual, expected, rel)

@@ -184,9 +184,12 @@ def test_same_workflow_cancel_and_blockers_precede_destructive_clear():
         assert marker in blocker
 
 
-def test_production_registry_remains_share_invite_only_and_no_pr10_work():
-    assert "return (SHARE_INVITE_MANIFEST,)" in REGISTRY_SOURCE
-    assert 'return {"share_invite": ShareInviteWorkflow}' in REGISTRY_SOURCE
+def test_historical_pr09_contract_is_preserved_but_v10636_registry_is_zero_builtin():
+    assert "return (SHARE_INVITE_MANIFEST,)" not in REGISTRY_SOURCE
+    assert 'ShareInviteWorkflow' not in REGISTRY_SOURCE
+    assert "return ()" in REGISTRY_SOURCE
+    # Historical PR-09 scope evidence is immutable; v1.0.6.36 intentionally supersedes
+    # only the production built-in-workflow assumption.
     assert SCOPE["production_workflows"] == ["share_invite"]
     assert SCOPE["pr10_not_started"] is True
     assert SCOPE["cross_workflow_live_report_history"] is False

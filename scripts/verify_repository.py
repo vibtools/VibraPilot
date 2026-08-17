@@ -54,6 +54,7 @@ V10632_CHROME_INSTALL_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.
 V10633_BROWSER_FORENSIC_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.33_browser_forensic_closure_scope.json"
 V10634_UI_COMPACT_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.34_ui_compact_polish_scope.json"
 V10635_WORKFLOW_SCOPED_TEST_SAFETY_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.35_workflow_scoped_test_safety_scope.json"
+V10636_SHARE_INVITE_EXTERNALIZATION_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.36_share_invite_externalization_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -329,11 +330,27 @@ v10635_allowed_files = (
 )
 v10635_worker_methods = set(v10635_scope.get("authorized_automationworker_method_changes", []))
 
+# v1.0.6.36 externalizes Share Invite while preserving Plugin API 1.
+if not V10636_SHARE_INVITE_EXTERNALIZATION_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.36 Share Invite externalization scope contract is missing")
+try:
+    v10636_scope = json.loads(V10636_SHARE_INVITE_EXTERNALIZATION_SCOPE_CONTRACT.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail(f"v1.0.6.36 Share Invite externalization scope contract is invalid: {exc}")
+v10636_production_allowed = set(v10636_scope.get("allowed_production_source_changes", []))
+v10636_deleted_paths = set(v10636_scope.get("deleted_production_paths", []))
+v10636_allowed_files = (
+    v10636_production_allowed
+    | v10636_deleted_paths
+    | set(v10636_scope.get("authorized_nonproduction_files", []))
+)
+v10636_worker_methods = set(v10636_scope.get("authorized_automationworker_method_changes", []))
+
 current_worker_methods = (
-    v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods | v10635_worker_methods
+    v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods | v10635_worker_methods | v10636_worker_methods
 )
 current_allowed_files = (
-    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files
+    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files | v10636_allowed_files
 )
 if pr08_allowed_files != {
     "src/vibrapilot/workflow_inputs.py",
@@ -1158,6 +1175,8 @@ checks = {
     "qt_app.BROWSER_SETTING_GROUPS": qt_ann_nodes.get("BROWSER_SETTING_GROUPS"),
 }
 for name, node in checks.items():
+    if name == "backend.SELECTORS" and "src/vibrapilot/backend.py" in v10636_production_allowed:
+        continue
     if name.startswith("qt_app.") and v10630_qt_authorized:
         continue
     if name == "backend.AutomationWorker" and current_worker_methods:
@@ -1271,6 +1290,8 @@ current_checks = {
     "qt_app.BROWSER_SETTING_GROUPS": qt_ann_nodes.get("BROWSER_SETTING_GROUPS"),
 }
 for name, node in current_checks.items():
+    if name == "backend.SELECTORS" and "src/vibrapilot/backend.py" in v10636_production_allowed:
+        continue
     if name.startswith("qt_app.") and v10630_qt_authorized:
         continue
     if name == "backend.AutomationWorker" and current_worker_methods:
@@ -1315,6 +1336,8 @@ if windows_sqlite_fix_scope.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
     fail("v1.0.6.7 Windows SQLite fix AST hash algorithm mismatch")
 followup_ast = windows_sqlite_fix_scope.get("frozen_ast_sha256", {})
 for name, node in current_checks.items():
+    if name == "backend.SELECTORS" and "src/vibrapilot/backend.py" in v10636_production_allowed:
+        continue
     if name.startswith("qt_app.") and v10630_qt_authorized:
         continue
     if name == "backend.AutomationWorker" and current_worker_methods:
@@ -1365,6 +1388,8 @@ workflow_ast_checks = {
     "qt_app.BROWSER_SETTING_GROUPS": qt_ann_nodes.get("BROWSER_SETTING_GROUPS"),
 }
 for name, node in workflow_ast_checks.items():
+    if name == "backend.SELECTORS" and "src/vibrapilot/backend.py" in v10636_production_allowed:
+        continue
     if name.startswith("qt_app.") and v10630_qt_authorized:
         continue
     if name == "backend.AutomationWorker" and current_worker_methods:
@@ -1485,6 +1510,8 @@ license_ast_checks = {
     "qt_app.BROWSER_SETTING_GROUPS": qt_ann_nodes.get("BROWSER_SETTING_GROUPS"),
 }
 for name, expected_sha in license_fix_scope.get("frozen_ast_sha256", {}).items():
+    if name == "backend.SELECTORS" and "src/vibrapilot/backend.py" in v10636_production_allowed:
+        continue
     if name.startswith("qt_app.") and v10630_qt_authorized:
         continue
     if name == "backend.AutomationWorker" and current_worker_methods:
@@ -1530,6 +1557,8 @@ current_scope_ast = {
     "qt_app.BROWSER_SETTING_GROUPS": qt_ann_nodes.get("BROWSER_SETTING_GROUPS"),
 }
 for name, expected_sha in browser_ui_scope.get("frozen_ast_sha256", {}).items():
+    if name == "backend.SELECTORS" and "src/vibrapilot/backend.py" in v10636_production_allowed:
+        continue
     if name.startswith("qt_app.") and v10630_qt_authorized:
         continue
     if name == "backend.AutomationWorker" and current_worker_methods:
@@ -1596,6 +1625,8 @@ if pr04_scope.get("ast_hash_algorithm") != AST_HASH_ALGORITHM:
 pr04_backend_ast = pr04_scope.get("frozen_backend_ast_sha256", {})
 backend_assignments_current = assignment_nodes(SRC / "backend.py")
 for name, expected_sha in pr04_backend_ast.items():
+    if name == "SELECTORS" and "src/vibrapilot/backend.py" in v10636_production_allowed:
+        continue
     if name == "SELECTORS":
         node = backend_assignments_current.get("SELECTORS")
     else:
@@ -1715,8 +1746,12 @@ for marker in (
     if marker not in qt_text:
         fail(f"v1.0.6.24 PR-07 UI integration marker missing: {marker}")
 registry_text = (SRC / "workflow" / "registry.py").read_text(encoding="utf-8")
-if "return (SHARE_INVITE_MANIFEST,)" not in registry_text or "other_workflow" in registry_text:
-    fail("v1.0.6.24 PR-07 production workflow registry drift detected")
+if v10636_scope.get("target_version") == "1.0.6.36":
+    if "return ()" not in registry_text or "SHARE_INVITE_MANIFEST" in registry_text or "ShareInviteWorkflow" in registry_text:
+        fail("v1.0.6.36 zero-built-in workflow registry drift detected")
+else:
+    if "return (SHARE_INVITE_MANIFEST,)" not in registry_text or "other_workflow" in registry_text:
+        fail("v1.0.6.24 PR-07 production workflow registry drift detected")
 
 for relative, expected_sha in pr08_scope.get("frozen_file_sha256", {}).items():
     if relative in current_allowed_files:
@@ -1741,16 +1776,29 @@ for key in (
         fail(f"v1.0.6.25 PR-08 boundary missing: {key}")
 workflow_inputs_text_current = (SRC / "workflow_inputs.py").read_text(encoding="utf-8")
 input_state_text_current = (SRC / "workflow" / "input_state.py").read_text(encoding="utf-8")
-for marker in (
-    "WORKFLOW_INPUT_SCHEMAS",
-    'workflow_id="share_invite"',
-    'WORKFLOW_INPUT_STATE_SCHEMA_VERSION = 1',
-    'APP_DATA_DIR / "workflow_inputs.json"',
-    "workflow_input_values=self.app.current_workflow_input_snapshot()",
-    "self.workflow_input_state_error",
-):
-    if marker not in (workflow_inputs_text_current + input_state_text_current + qt_text):
-        fail(f"v1.0.6.25 PR-08 integration marker missing: {marker}")
+if v10636_scope.get("target_version") == "1.0.6.36":
+    for marker in (
+        "LEGACY_SHARE_INVITE_INPUT_KEYS",
+        'WORKFLOW_INPUT_STATE_SCHEMA_VERSION = 1',
+        'APP_DATA_DIR / "workflow_inputs.json"',
+        "workflow_input_values=self.app.current_workflow_input_snapshot()",
+        "self.workflow_input_state_error",
+    ):
+        if marker not in (workflow_inputs_text_current + input_state_text_current + qt_text):
+            fail(f"v1.0.6.36 Workflow Input migration/integration marker missing: {marker}")
+    if "WORKFLOW_INPUT_SCHEMAS" in workflow_inputs_text_current:
+        fail("v1.0.6.36 Core must not retain the Share Invite input-schema registry")
+else:
+    for marker in (
+        "WORKFLOW_INPUT_SCHEMAS",
+        'workflow_id="share_invite"',
+        'WORKFLOW_INPUT_STATE_SCHEMA_VERSION = 1',
+        'APP_DATA_DIR / "workflow_inputs.json"',
+        "workflow_input_values=self.app.current_workflow_input_snapshot()",
+        "self.workflow_input_state_error",
+    ):
+        if marker not in (workflow_inputs_text_current + input_state_text_current + qt_text):
+            fail(f"v1.0.6.25 PR-08 integration marker missing: {marker}")
 for forbidden in ("importlib", "entry_points", "__import__", "eval(", "exec("):
     if forbidden in workflow_inputs_text_current + input_state_text_current:
         fail(f"v1.0.6.25 PR-08 executable/discovery surface detected: {forbidden}")
@@ -1983,7 +2031,7 @@ pr11_hashes = pr11_scope.get("frozen_production_sha256", {})
 pr11_inventory = set(pr11_hashes)
 current_inventory = set(expected_pr11_production)
 unexpected_v10630_files = current_inventory - pr11_inventory - current_allowed_files
-missing_pr11_files = pr11_inventory - current_inventory
+missing_pr11_files = pr11_inventory - current_inventory - v10636_deleted_paths
 if unexpected_v10630_files or missing_pr11_files:
     fail(
         "v1.0.6.28 PR-11 frozen production inventory mismatch: "
@@ -2051,6 +2099,8 @@ for key, expected in {
     if v10630_scope.get(key) != expected:
         fail(f"v1.0.6.30 Workflow Plugin System boundary mismatch: {key}")
 for relative in v10630_scope.get("frozen_runtime_surfaces", []):
+    if relative in v10636_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file():
         fail(f"v1.0.6.30 frozen core file missing: {relative}")
@@ -2090,6 +2140,8 @@ for key, expected in {
     if v10631_scope.get(key) != expected:
         fail(f"v1.0.6.31 scope boundary mismatch: {key}")
 for relative, expected_sha in v10631_scope.get("frozen_file_sha256", {}).items():
+    if relative in v10636_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.31 frozen surface drift detected: {relative}")
@@ -2158,7 +2210,7 @@ if v10632_scope.get("allowed_download_hosts") != ["dl.google.com"]:
 if v10632_scope.get("required_installer_publisher") != "Google LLC":
     fail("v1.0.6.32 installer publisher policy mismatch")
 for relative, expected_sha in v10632_scope.get("frozen_file_sha256", {}).items():
-    if relative in v10633_allowed_files:
+    if relative in v10633_allowed_files or relative in v10636_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
@@ -2232,7 +2284,7 @@ for key, expected in {
     if v10633_scope.get(key) != expected:
         fail(f"v1.0.6.33 forensic scope boundary mismatch: {key}")
 for relative, expected_sha in v10633_scope.get("frozen_file_sha256", {}).items():
-    if relative in v10635_production_allowed:
+    if relative in v10635_production_allowed or relative in v10636_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
@@ -2286,7 +2338,7 @@ for key in ("build_changes", "dependency_changes", "database_changes", "backend_
     if v10634_scope.get(key) is not False:
         fail(f"v1.0.6.34 forbidden scope boundary changed: {key}")
 for relative, expected_sha in v10634_scope.get("frozen_file_sha256", {}).items():
-    if relative in v10635_production_allowed:
+    if relative in v10635_production_allowed or relative in v10636_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
@@ -2347,33 +2399,66 @@ for key in ("build_changes", "dependency_changes", "database_schema_changes", "l
     if v10635_scope.get(key) is not False:
         fail(f"v1.0.6.35 frozen scope boundary changed: {key}")
 for relative, expected_sha in v10635_scope.get("frozen_file_sha256", {}).items():
+    if relative in v10636_allowed_files:
+        continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
         fail(f"v1.0.6.35 frozen surface drift detected: {relative}")
 backend_text = (SRC / "backend.py").read_text(encoding="utf-8")
 manager_text = (SRC / "workflow" / "manager.py").read_text(encoding="utf-8")
 schemas_text = (SRC / "workflow" / "schemas.py").read_text(encoding="utf-8")
-share_runtime_text = (SRC / "workflow" / "share_invite" / "workflow.py").read_text(encoding="utf-8")
 if "Enable authorized testing mode in App Settings before running automation." in qt_ui_text:
     fail("v1.0.6.35 global authorized-testing Task gate still exists")
 if '"Test Safety Settings": ["authorized_testing_only", "max_test_send_limit"]' in qt_ui_text:
     fail("v1.0.6.35 global Test Safety App Settings card still exists")
-for marker in (
-    'key="max_test_send_limit"',
-    'label="Max Test Send Limit"',
-    'kind="integer"',
-):
-    if marker not in schemas_text:
-        fail(f"v1.0.6.35 Share Invite Workflow Settings marker missing: {marker}")
-if "builtin_share_invite_settings_schema()" not in manager_text:
-    fail("v1.0.6.35 Share Invite settings schema is not registered")
 if 'self.workflow_settings_values.get("max_test_send_limit"' not in backend_text:
     fail("v1.0.6.35 worker does not resolve the send limit from workflow settings")
 if "Workflow session verified." not in backend_text:
     fail("v1.0.6.35 workflow-neutral Core session wording missing")
-for marker in ("def assert_test_mode", "Test Mode banner is required before every Send operation."):
-    if marker not in share_runtime_text:
-        fail(f"v1.0.6.35 Share Invite live Test Mode enforcement drift: {marker}")
+if v10636_scope.get("target_version") != "1.0.6.36":
+    share_runtime_text = (SRC / "workflow" / "share_invite" / "workflow.py").read_text(encoding="utf-8")
+    for marker in ('key="max_test_send_limit"', 'label="Max Test Send Limit"', 'kind="integer"'):
+        if marker not in schemas_text:
+            fail(f"v1.0.6.35 Share Invite Workflow Settings marker missing: {marker}")
+    if "builtin_share_invite_settings_schema()" not in manager_text:
+        fail("v1.0.6.35 Share Invite settings schema is not registered")
+    for marker in ("def assert_test_mode", "Test Mode banner is required before every Send operation."):
+        if marker not in share_runtime_text:
+            fail(f"v1.0.6.35 Share Invite live Test Mode enforcement drift: {marker}")
+
+# v1.0.6.36 exact externalization scope.
+if v10636_scope.get("plan_id") != "VP-V10636-SHARE-INVITE-EXTERNALIZATION-001":
+    fail("v1.0.6.36 Share Invite externalization plan identifier mismatch")
+if v10636_scope.get("baseline_version") != "1.0.6.35":
+    fail("v1.0.6.36 baseline version mismatch")
+if v10636_scope.get("baseline_github_commit") != "c5511a82ddf164bfacdfad5aa12ebf75ad56a1da":
+    fail("v1.0.6.36 baseline GitHub commit mismatch")
+if v10636_scope.get("official_baseline_archive_sha256") != "c5be0d2221ee580360c32066a29462cba75eb330b8e408bb9dcea780e6d9f229":
+    fail("v1.0.6.36 baseline archive mismatch")
+if v10636_scope.get("target_version") != "1.0.6.36":
+    fail("v1.0.6.36 target version mismatch")
+if v10636_scope.get("target_builtin_workflows") != [] or v10636_scope.get("externalized_workflow_id") != "share_invite":
+    fail("v1.0.6.36 workflow externalization identity mismatch")
+if v10636_scope.get("workflow_state_schema_version") != 2 or v10636_scope.get("zero_active_workflow_supported") is not True:
+    fail("v1.0.6.36 zero-workflow state contract mismatch")
+if v10636_scope.get("plugin_api_version") != 1:
+    fail("v1.0.6.36 must retain Workflow Plugin API 1")
+for deleted in v10636_deleted_paths:
+    if (ROOT / deleted).exists():
+        fail(f"v1.0.6.36 deleted built-in Share Invite path still exists: {deleted}")
+state_text_current = (SRC / "workflow" / "state.py").read_text(encoding="utf-8")
+plugin_loader_text_current = (SRC / "workflow" / "plugin_loader.py").read_text(encoding="utf-8")
+for marker in ("WORKFLOW_STATE_SCHEMA_VERSION = 2", "DEFAULT_ACTIVE_WORKFLOW_ID: None = None", 'LEGACY_EXTERNALIZED_WORKFLOW_IDS = frozenset({"share_invite"})'):
+    if marker not in state_text_current:
+        fail(f"v1.0.6.36 workflow-state marker missing: {marker}")
+if "ShareInviteWorkflow" in backend_text or "workflow.share_invite" in backend_text:
+    fail("v1.0.6.36 Core backend retains Share Invite runtime coupling")
+if 'hook = getattr(runtime, "process_item", None)' not in backend_text:
+    fail("v1.0.6.36 optional workflow process_item hook missing")
+if "def load_task_data(" not in manager_text or 'getattr(module, "load_task_data", None)' not in plugin_loader_text_current:
+    fail("v1.0.6.36 optional rich workflow data-loader hook missing")
+if "builtin_share_invite" in schemas_text or "WORKFLOW_INPUT_SCHEMAS" in workflow_inputs_text_current:
+    fail("v1.0.6.36 Core retains Share Invite-owned declarative schema authority")
 
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
@@ -2384,8 +2469,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.35":
-    fail("AppConfig VERSION must be 1.0.6.35 for the workflow-scoped Test Safety candidate")
+if app_version != "1.0.6.36":
+    fail("AppConfig VERSION must be 1.0.6.36 for the Share Invite externalization candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -2588,7 +2673,7 @@ if qt_text.count("@classmethod\n    @classmethod\n    def task_qss"):
 ui_correction_markers = ["TaskSlotWidget.task_qss()"]
 if v10630_qt_authorized:
     workflow_schema_text = (SRC / "workflow" / "schemas.py").read_text(encoding="utf-8")
-    if 'WorkflowMetricSchema("send_limit", "Send Attempts / Limit", "core_send_limit")' not in workflow_schema_text:
+    if v10636_scope.get("target_version") != "1.0.6.36" and 'WorkflowMetricSchema("send_limit", "Send Attempts / Limit", "core_send_limit")' not in workflow_schema_text:
         fail("v1.0.6.30 must preserve the Send Attempts / Limit metric semantics")
 else:
     ui_correction_markers.append('visible_metric_name = "Send Attempts / Limit" if name == "Send Limit" else name')
@@ -2623,7 +2708,10 @@ for marker in [
 ]:
     if marker not in active_licensing_text:
         fail(f"required Secure API v2 invariant marker missing: {marker}")
-for marker in ['assert_test_mode', 'SendClickOutcomeUncertain', 'safe_spreadsheet_cell']:
+backend_invariant_markers = ['SendClickOutcomeUncertain', 'safe_spreadsheet_cell']
+if v10636_scope.get("target_version") != "1.0.6.36":
+    backend_invariant_markers.append('assert_test_mode')
+for marker in backend_invariant_markers:
     if marker not in backend_text:
         fail(f"required frozen backend invariant marker missing: {marker}")
 requirements_text = (ROOT / "requirements.txt").read_text(encoding="utf-8")
@@ -2655,18 +2743,25 @@ workflow_inputs_text = workflow_inputs_path.read_text(encoding="utf-8")
 workflow_input_state_text = workflow_input_state_path.read_text(encoding="utf-8")
 expected_workflow_keys = ("default_full_name", "default_number", "fallback_name", "update_click_count")
 for key in expected_workflow_keys:
-    if f'key="{key}"' not in workflow_inputs_text:
+    if (f'key="{key}"' not in workflow_inputs_text) and (f'"{key}"' not in workflow_inputs_text):
         fail(f"Workflow Inputs compatibility field key is missing: {key}")
 if 'default_target_url' in workflow_inputs_text:
     fail("default_target_url must not move into Workflow Inputs")
-for marker in (
-    "class WorkflowInputSchema",
-    "WORKFLOW_INPUT_SCHEMAS",
-    'workflow_id="share_invite"',
-    'WORKFLOW_INPUT_KINDS = frozenset({"text", "integer", "boolean", "choice"})',
-):
-    if marker not in workflow_inputs_text:
-        fail(f"PR-08 Workflow Input schema marker missing: {marker}")
+if v10636_scope.get("target_version") == "1.0.6.36":
+    for marker in ("LEGACY_SHARE_INVITE_INPUT_KEYS", "LEGACY_SHARE_INVITE_INPUT_KEYS"):
+        if marker not in workflow_inputs_text:
+            fail(f"v1.0.6.36 Workflow Input migration marker missing: {marker}")
+    if "WORKFLOW_INPUT_SCHEMAS" in workflow_inputs_text:
+        fail("v1.0.6.36 Core still owns the Share Invite input schema registry")
+else:
+    for marker in (
+        "class WorkflowInputSchema",
+        "WORKFLOW_INPUT_SCHEMAS",
+        'workflow_id="share_invite"',
+        'WORKFLOW_INPUT_KINDS = frozenset({"text", "integer", "boolean", "choice"})',
+    ):
+        if marker not in workflow_inputs_text:
+            fail(f"PR-08 Workflow Input schema marker missing: {marker}")
 for marker in (
     "class WorkflowInputStateStore",
     "WORKFLOW_INPUT_STATE_SCHEMA_VERSION = 1",
@@ -2811,10 +2906,21 @@ if v10630_qt_authorized:
         fail("v1.0.6.30 Downloads Path must move from Browser Settings to App Settings")
     if '"downloads_path"' not in settings_page_source or '"downloads_path"' not in runtime_browser_source:
         fail("v1.0.6.30 Downloads Path must retain App Settings UI and browser runtime wiring")
+external_share_invite_runtime_keys = (
+    {
+        "modal_close_poll_count", "modal_close_poll_interval",
+        "modal_close_probe_timeout", "modal_state_probe_timeout",
+        "notification_poll_interval", "notification_visibility_timeout",
+        "short_dom_probe_timeout", "standard_dom_probe_timeout",
+    }
+    if v10636_scope.get("target_version") == "1.0.6.36"
+    else set()
+)
 missing_runtime_consumers = sorted(
     key
     for key in browser_keys
     if key != "browser_slot_default"
+    and key not in external_share_invite_runtime_keys
     and f'"{key}"' not in runtime_browser_source
 )
 if missing_runtime_consumers:
@@ -3125,6 +3231,7 @@ required = [
     "config/verification/v1.0.6.33_browser_forensic_closure_scope.json",
     "config/verification/v1.0.6.34_ui_compact_polish_scope.json",
     "config/verification/v1.0.6.35_workflow_scoped_test_safety_scope.json",
+    "config/verification/v1.0.6.36_share_invite_externalization_scope.json",
     "src/vibrapilot/chrome_runtime.py",
     "src/vibrapilot/chrome_installer.py",
     "src/vibrapilot/windows_authenticode.py",
@@ -3144,9 +3251,13 @@ required = [
     "docs/verification/V1.0.6.34_UI_COMPACT_POLISH.md",
     "docs/updates/v1.0.6.35-workflow-scoped-test-safety.md",
     "docs/verification/V1.0.6.35_WORKFLOW_SCOPED_TEST_SAFETY.md",
+    "docs/updates/v1.0.6.36-share-invite-externalization.md",
+    "docs/verification/V1.0.6.36_SHARE_INVITE_EXTERNALIZATION.md",
     "scripts/diagnostics/verify_v10633_browser_forensic_closure.py",
     "scripts/diagnostics/verify_v10634_ui_compact_polish.py",
     "scripts/diagnostics/verify_v10635_workflow_scoped_test_safety.py",
+    "scripts/diagnostics/verify_v10636_share_invite_externalization.py",
+    "scripts/diagnostics/verify_share_invite_workflow_v10.py",
     "docs/verification/BACKEND_CONTRACT.md", "docs/updates/v1.0.6.1.md", "docs/updates/v1.0.6.1-browser-settings-audit.md",
     "docs/updates/v1.0.6.1-vibrapilot-branding.md", "docs/updates/v1.0.6.1-github-ci-repository-hygiene-fix.md",
     "docs/updates/v1.0.6.1-github-ci-deterministic-ast-contract-fix.md",

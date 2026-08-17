@@ -1,4 +1,12 @@
-# v1.0.6.35 Workflow-Scoped Test Safety Structure
+# v1.0.6.36 Share Invite Workflow Externalization Structure
+
+- VibraPilot Core contains zero source-controlled built-in workflows; installed trusted plugins form the runtime catalog.
+- `src/vibrapilot/workflow/state.py` schema v2 represents `active_workflow_id: null` as a valid zero-workflow state and migrates the formerly built-in `share_invite` identity without quarantine.
+- `src/vibrapilot/workflow/manager.py` and `plugin_loader.py` retain Plugin API 1 and add only optional backward-compatible rich data / specialized processing integration needed by the externalized Share Invite workflow.
+- `src/vibrapilot/backend.py` resolves generic workflow runtimes and no longer imports or type-checks `ShareInviteWorkflow`.
+- The standalone `Share_Invite_v1.0.vpworkflow` artifact is distributed separately from the Core source baseline.
+
+## Historical v1.0.6.35 structure
 
 - `src/vibrapilot/workflow/manager.py` registers Share Invite's namespaced Workflow Settings schema.
 - `src/vibrapilot/workflow/schemas.py` defines the Share Invite Test Send limit field.

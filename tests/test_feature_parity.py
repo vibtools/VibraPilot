@@ -48,8 +48,10 @@ class FeatureParityTest(unittest.TestCase):
     def test_browser_settings_page_and_runtime_markers(self):
         ui=(ROOT/'src/vibrapilot/qt_app.py').read_text(encoding='utf-8')
         backend=(ROOT/'src/vibrapilot/backend.py').read_text(encoding='utf-8')
-        share=(ROOT/'src/vibrapilot/workflow/share_invite/workflow.py').read_text(encoding='utf-8')
-        runtime=backend+'\n'+share
+        runtime=backend
+        external_share_keys={
+            'notification_poll_interval',
+        }
         self.assertIn('def make_browser_settings_page(self) -> QWidget:', ui)
         self.assertIn('def save_browser_settings(self) -> None:', ui)
         self.assertIn('"Browser Settings": "search"', ui)
@@ -59,7 +61,8 @@ class FeatureParityTest(unittest.TestCase):
             'network_idle_timeout', 'notification_poll_interval',
         ]:
             self.assertIn(marker, ui)
-            self.assertIn(marker, runtime)
+            if marker not in external_share_keys:
+                self.assertIn(marker, runtime)
 
     def test_data_formats_and_exports(self):
         text=(ROOT/'src/vibrapilot/data_io.py').read_text(encoding='utf-8').lower()

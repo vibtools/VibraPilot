@@ -12,7 +12,6 @@ from ..workflow_inputs import (
     WorkflowInputSchema,
     WorkflowInputSchemaError,
     normalize_workflow_input_values,
-    workflow_input_schema_for,
 )
 from .schemas import (
     WorkflowFormSchema,
@@ -49,9 +48,13 @@ class WorkflowInputStateStore:
         schema_resolver: Callable[[str], WorkflowInputSchema | WorkflowFormSchema] | None = None,
     ):
         self.path = Path(path)
-        self.schema_resolver = schema_resolver or workflow_input_schema_for
+        self.schema_resolver = schema_resolver
 
     def _resolve_schema(self, workflow_id: str) -> WorkflowInputSchema | WorkflowFormSchema:
+        if self.schema_resolver is None:
+            raise WorkflowInputStateError(
+                f"Workflow Input schema resolver is unavailable for {workflow_id!r}."
+            )
         try:
             return self.schema_resolver(workflow_id)
         except (WorkflowInputSchemaError, WorkflowSchemaError) as exc:
@@ -160,19 +163,46 @@ class WorkflowInputStateStore:
         self,
         *,
         legacy_share_invite_values: Mapping[str, Any],
+        active_workflow_id: str | None = "share_invite",
+        preserve_legacy_share_invite: bool = True,
     ) -> WorkflowInputState:
+        """Create canonical input state without requiring Share Invite to be built in.
+
+        The historical Share Invite values are preserved only as migration data;
+        active external workflows obtain their defaults from their installed schema.
+        """
         if self.path.exists():
             return self.load_existing()
-        schema = self._resolve_schema("share_invite")
-        migrated = self._normalize(
-            schema,
-            legacy_share_invite_values,
-            coerce=True,
-            fill_defaults=True,
-        )
+        workflows: dict[str, dict[str, Any]] = {}
+        active = str(active_workflow_id or "").strip()
+        if preserve_legacy_share_invite:
+            legacy_values = {
+                str(key): value for key, value in legacy_share_invite_values.items()
+                if isinstance(key, str) and value is not None and isinstance(value, (str, int, bool, float))
+            }
+            if active == "share_invite" and self.schema_resolver is not None:
+                try:
+                    schema = self._resolve_schema("share_invite")
+                except WorkflowInputStateError:
+                    # The externalized package may not be installed yet. Preserve
+                    # migration data verbatim and validate it only after install.
+                    workflows["share_invite"] = legacy_values
+                else:
+                    workflows["share_invite"] = self._normalize(
+                        schema, legacy_values, coerce=True, fill_defaults=True
+                    )
+            else:
+                # Keep scalar legacy data inert until the external Share Invite
+                # package is installed; schema validation happens when it is used.
+                workflows["share_invite"] = legacy_values
+        if active and active != "share_invite":
+            schema = self._resolve_schema(active)
+            workflows[active] = self._normalize(
+                schema, schema.defaults(), coerce=False, fill_defaults=True, enforce_required=False
+            )
         state = WorkflowInputState(
             schema_version=WORKFLOW_INPUT_STATE_SCHEMA_VERSION,
-            workflows={"share_invite": migrated},
+            workflows=workflows,
         )
         self.save_state(state)
         return state

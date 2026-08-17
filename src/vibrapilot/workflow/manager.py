@@ -1,4 +1,4 @@
-"""Fail-closed manager for built-in and trusted installed workflow execution."""
+"""Fail-closed manager for trusted installed workflow execution."""
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -25,9 +25,6 @@ from .registry import (
 from .schemas import (
     WorkflowFormSchema,
     WorkflowTaskSchema,
-    builtin_share_invite_settings_schema,
-    builtin_share_invite_task_schema,
-    coerce_legacy_input_schema,
 )
 
 TaskItemLoader = Callable[[Path, Mapping[str, Any]], list[Mapping[str, Any]]]
@@ -48,6 +45,7 @@ class WorkflowManager:
         workflow_origins: Mapping[str, str] | None = None,
         workflow_roots: Mapping[str, Path] | None = None,
         task_item_loaders: Mapping[str, TaskItemLoader] | None = None,
+        task_data_loaders: Mapping[str, Callable[..., Any]] | None = None,
         plugin_issues: tuple[WorkflowPluginIssue, ...] = (),
     ) -> None:
         self._registry = registry if registry is not None else WorkflowRegistry()
@@ -60,6 +58,7 @@ class WorkflowManager:
         self._workflow_origins = dict(workflow_origins or {})
         self._workflow_roots = {key: Path(value) for key, value in dict(workflow_roots or {}).items()}
         self._task_item_loaders = dict(task_item_loaders or {})
+        self._task_data_loaders = dict(task_data_loaders or {})
         self._plugin_issues = tuple(plugin_issues)
 
     @property
@@ -78,22 +77,11 @@ class WorkflowManager:
     def with_builtin_workflows(
         cls, *, active_workflow_id: str | None = None
     ) -> "WorkflowManager":
-        """Create the frozen built-in catalog without filesystem plugin discovery."""
-        from ..workflow_inputs import workflow_input_schema_for
-
-        share_input = coerce_legacy_input_schema(workflow_input_schema_for("share_invite"))
-        share_settings = builtin_share_invite_settings_schema()
+        """Compatibility constructor: v1.0.6.36 intentionally has zero built-ins."""
         return cls(
             create_builtin_registry(),
             active_workflow_id=active_workflow_id,
             runtime_factories=builtin_workflow_runtime_factories(),
-            input_schemas={"share_invite": share_input},
-            settings_schemas={"share_invite": share_settings},
-            task_schemas={"share_invite": builtin_share_invite_task_schema()},
-            workflow_origins={"share_invite": "builtin"},
-            workflow_roots={
-                "share_invite": Path(__file__).resolve().parent / "share_invite"
-            },
         )
 
     @classmethod
@@ -103,7 +91,7 @@ class WorkflowManager:
         workflow_root: Path,
         active_workflow_id: str | None = None,
     ) -> "WorkflowManager":
-        """Build one catalog from frozen built-ins plus validated local plugins."""
+        """Build the catalog from validated local plugins only."""
         manager = cls.with_builtin_workflows(active_workflow_id=active_workflow_id)
         reserved = {manifest.workflow_id for manifest in builtin_workflow_manifests()}
         plugins, issues = load_installed_workflows(
@@ -118,6 +106,7 @@ class WorkflowManager:
         origins = dict(manager._workflow_origins)
         roots = dict(manager._workflow_roots)
         loaders = dict(manager._task_item_loaders)
+        data_loaders = dict(manager._task_data_loaders)
         for plugin in plugins:
             registry.register(plugin.manifest)
             workflow_id = plugin.manifest.workflow_id
@@ -129,6 +118,8 @@ class WorkflowManager:
             roots[workflow_id] = plugin.root
             if plugin.task_item_loader is not None:
                 loaders[workflow_id] = plugin.task_item_loader
+            if plugin.task_data_loader is not None:
+                data_loaders[workflow_id] = plugin.task_data_loader
         return cls(
             registry,
             active_workflow_id=active_workflow_id,
@@ -139,6 +130,7 @@ class WorkflowManager:
             workflow_origins=origins,
             workflow_roots=roots,
             task_item_loaders=loaders,
+            task_data_loaders=data_loaders,
             plugin_issues=issues,
         )
 
@@ -154,6 +146,7 @@ class WorkflowManager:
             workflow_origins=self._workflow_origins,
             workflow_roots=self._workflow_roots,
             task_item_loaders=self._task_item_loaders,
+            task_data_loaders=self._task_data_loaders,
             plugin_issues=self._plugin_issues,
         )
 
@@ -252,6 +245,57 @@ class WorkflowManager:
             )
         return rows
 
+    def load_task_data(
+        self,
+        workflow_id: str,
+        path: Path,
+        task_values: Mapping[str, Any],
+        *,
+        context: Mapping[str, Any] | None = None,
+    ) -> tuple[list[dict[str, Any]], str | None, str | None] | None:
+        """Load workflow Task rows plus optional fingerprint/summary metadata.
+
+        Existing Plugin API 1 ``load_task_items`` workflows remain supported; the
+        richer ``load_task_data`` hook is optional and used only when present.
+        """
+        self.require_workflow(workflow_id)
+        loader = self._task_data_loaders.get(workflow_id)
+        if loader is None:
+            rows = self.load_task_items(workflow_id, path, task_values)
+            if rows is None:
+                return None
+            return rows, None, None
+        raw = loader(Path(path), dict(task_values), dict(context or {}))
+        if not isinstance(raw, Mapping):
+            raise WorkflowRuntimeResolutionError(
+                f"load_task_data must return an object for workflow_id: {workflow_id}"
+            )
+        items = raw.get("items")
+        if not isinstance(items, list) or not items:
+            raise WorkflowRuntimeResolutionError(
+                f"load_task_data must return a non-empty items list for workflow_id: {workflow_id}"
+            )
+        rows: list[dict[str, Any]] = []
+        for index, item in enumerate(items):
+            if not isinstance(item, Mapping):
+                raise WorkflowRuntimeResolutionError(
+                    f"load_task_data row {index} is not an object for workflow_id: {workflow_id}"
+                )
+            row: dict[str, Any] = {}
+            for key, value in item.items():
+                key = str(key)
+                if value is not None and not isinstance(value, (str, int, bool, float)):
+                    raise WorkflowRuntimeResolutionError(
+                        f"load_task_data row {index} contains unsupported value type for key {key!r}."
+                    )
+                row[key] = value
+            rows.append(row)
+        fingerprint_raw = raw.get("source_fingerprint")
+        summary_raw = raw.get("summary")
+        fingerprint = None if fingerprint_raw in {None, ""} else str(fingerprint_raw)
+        summary = None if summary_raw in {None, ""} else str(summary_raw)
+        return rows, fingerprint, summary
+
     def require_active_workflow(self) -> WorkflowManifest:
         workflow_id = self._active_workflow_id
         if workflow_id is None:
@@ -265,7 +309,7 @@ class WorkflowManager:
         factory = self._runtime_factories.get(manifest.workflow_id)
         if factory is None:
             raise WorkflowRuntimeResolutionError(
-                f"no source-controlled runtime is registered for workflow_id: {manifest.workflow_id}"
+                f"no validated runtime is registered for workflow_id: {manifest.workflow_id}"
             )
         return factory
 
@@ -274,7 +318,7 @@ class WorkflowManager:
         factory = self._runtime_factories.get(manifest.workflow_id)
         if factory is None:
             raise WorkflowRuntimeResolutionError(
-                f"no source-controlled runtime is registered for workflow_id: {manifest.workflow_id}"
+                f"no validated runtime is registered for workflow_id: {manifest.workflow_id}"
             )
         try:
             runtime = factory(*args, **kwargs)

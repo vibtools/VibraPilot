@@ -1,12 +1,9 @@
 """Source-controlled Workflow Input schemas for VibraPilot.
 
-PR-08 makes this module the declarative schema authority for Workflow Inputs.
-Schemas are ordinary source-controlled Python data only: no manifest-driven
-imports, callbacks, filesystem discovery, or executable field actions are
-supported here.  The historical ``WORKFLOW_INPUT_FIELDS`` and
-``WORKFLOW_INPUT_KEYS`` symbols remain as Share Invite compatibility aliases so
-older verification contracts and PR-06's legacy settings clear boundary keep
-working without redefining persistence ownership.
+This module retains the generic legacy input model plus the four historical
+Share Invite compatibility keys needed for migration/cleanup. Workflow-specific
+input schemas are owned by installed workflow packages and resolved through
+``WorkflowManager``; Core intentionally registers no Share Invite schema.
 """
 from __future__ import annotations
 
@@ -202,52 +199,17 @@ def normalize_workflow_input_values(
     return normalized
 
 
-SHARE_INVITE_INPUT_SCHEMA = WorkflowInputSchema(
-    workflow_id="share_invite",
-    title="Share Invite Inputs",
-    fields=(
-        WorkflowInputField(
-            key="default_full_name",
-            label="Default Full Name",
-            help_text="Workflow-specific full-name value preserved under the existing Share Invite compatibility key.",
-        ),
-        WorkflowInputField(
-            key="default_number",
-            label="Default Number",
-            help_text="Workflow-specific number value preserved under the existing Share Invite compatibility key.",
-        ),
-        WorkflowInputField(
-            key="fallback_name",
-            label="Fallback Name",
-            help_text="Workflow-specific fallback name preserved under the existing Share Invite compatibility key.",
-        ),
-        WorkflowInputField(
-            key="update_click_count",
-            label="Update Click Count",
-            help_text="Preserved Share Invite workflow value under the existing compatibility key.",
-        ),
-    ),
+
+# Legacy v1.0.6.35 compatibility keys only. Share Invite field/schema authority
+# moved into the standalone Share_Invite .vpworkflow package in v1.0.6.36.
+LEGACY_SHARE_INVITE_INPUT_KEYS: tuple[str, ...] = (
+    "default_full_name",
+    "default_number",
+    "fallback_name",
+    "update_click_count",
 )
 
-
-WORKFLOW_INPUT_SCHEMAS: dict[str, WorkflowInputSchema] = {
-    SHARE_INVITE_INPUT_SCHEMA.workflow_id: SHARE_INVITE_INPUT_SCHEMA,
-}
-
-
-def workflow_input_schema_for(workflow_id: str) -> WorkflowInputSchema:
-    """Resolve one explicitly source-controlled schema; never discover/import it."""
-
-    key = str(workflow_id).strip()
-    try:
-        return WORKFLOW_INPUT_SCHEMAS[key]
-    except KeyError as exc:
-        raise WorkflowInputSchemaError(
-            f"No source-controlled Workflow Input schema is registered for {key!r}."
-        ) from exc
-
-
-# Historical compatibility aliases.  These remain Share Invite-specific by
-# design; PR-08's dynamic page uses ``workflow_input_schema_for`` instead.
-WORKFLOW_INPUT_FIELDS: tuple[WorkflowInputField, ...] = SHARE_INVITE_INPUT_SCHEMA.fields
-WORKFLOW_INPUT_KEYS: tuple[str, ...] = SHARE_INVITE_INPUT_SCHEMA.field_keys
+# Historical alias retained only for settings migration/cleanup boundaries. It is
+# not a workflow schema registry and does not make Share Invite a Core workflow.
+WORKFLOW_INPUT_KEYS: tuple[str, ...] = LEGACY_SHARE_INVITE_INPUT_KEYS
+WORKFLOW_INPUT_FIELDS: tuple[WorkflowInputField, ...] = ()

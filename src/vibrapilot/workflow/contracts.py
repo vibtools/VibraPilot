@@ -1,9 +1,4 @@
-"""Core contracts for VibraPilot's source-controlled built-in workflows.
-
-The contracts validate source-controlled metadata and the minimal runtime shape
-required by the verified Share Invite extraction. They do not load Python from
-manifests, scan plugin directories, or persist/switch an active workflow.
-"""
+"""Core contracts for VibraPilot workflow manifests and runtimes."""
 from __future__ import annotations
 
 import re
@@ -17,7 +12,7 @@ _ENTRYPOINT_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]*$")
 
 
 class WorkflowError(RuntimeError):
-    """Base error for the built-in workflow framework."""
+    """Base error for the workflow framework."""
 
 
 class WorkflowManifestError(WorkflowError, ValueError):
@@ -41,7 +36,7 @@ class ActiveWorkflowRequiredError(WorkflowError):
 
 
 class WorkflowRuntimeResolutionError(WorkflowError):
-    """Raised when a built-in workflow runtime cannot be resolved safely."""
+    """Raised when a workflow runtime cannot be resolved safely."""
 
 
 class WorkflowStateError(WorkflowError):
@@ -89,11 +84,7 @@ def _relative_asset_path(value: str, field_name: str) -> str:
 
 @dataclass(frozen=True, slots=True)
 class WorkflowManifest:
-    """Validated metadata for one source-controlled built-in workflow.
-
-    ``entrypoint`` is an opaque registry-owned identifier. VibraPilot never imports
-    a module, evaluates Python, or resolves a path from this value.
-    """
+    """Validated metadata for one workflow."""
 
     workflow_id: str
     name: str
@@ -132,7 +123,7 @@ class WorkflowManifest:
 
 @runtime_checkable
 class WorkflowRuntime(Protocol):
-    """Minimum generic execution contract for one built-in workflow runtime."""
+    """Minimum generic execution contract for one workflow runtime."""
 
     manifest: WorkflowManifest
 

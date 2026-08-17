@@ -16,7 +16,7 @@ from vibrapilot.workflow import (
     WorkflowSwitchError,
     WorkflowSwitchTransaction,
 )
-from vibrapilot.workflow.share_invite import SHARE_INVITE_MANIFEST
+from _v10636_manifest_fixture import SHARE_INVITE_MANIFEST
 
 ROOT = Path(__file__).resolve().parents[1]
 SCOPE_PATH = ROOT / "config/verification/v1.0.6.23_pr06_workflow_state_atomic_switch_scope.json"
@@ -115,11 +115,20 @@ def test_scope_pins_exact_pr05_green_baseline_and_target():
     assert scope["target_version"] == "1.0.6.23"
 
 
-def test_first_run_migrates_once_to_share_invite(tmp_path: Path):
+def test_v10636_fresh_state_defaults_to_no_active_workflow(tmp_path: Path):
     path = tmp_path / "workflow_state.json"
     store = WorkflowStateStore(path, manager=_manager_with_two())
     state = store.load_or_migrate()
-    assert state.schema_version == 1
+    assert state.schema_version == 2
+    assert state.active_workflow_id is None
+    assert state.revision == 1
+
+
+def test_explicit_legacy_default_migrates_once_to_share_invite(tmp_path: Path):
+    path = tmp_path / "workflow_state.json"
+    store = WorkflowStateStore(path, manager=_manager_with_two(), default_workflow_id="share_invite")
+    state = store.load_or_migrate()
+    assert state.schema_version == 2
     assert state.active_workflow_id == "share_invite"
     assert state.revision == 1
     first_bytes = path.read_bytes()
@@ -128,14 +137,14 @@ def test_first_run_migrates_once_to_share_invite(tmp_path: Path):
 
 
 def test_persisted_workflow_survives_reload_and_revision_increments(tmp_path: Path):
-    store = WorkflowStateStore(tmp_path / "workflow_state.json", manager=_manager_with_two())
+    store = WorkflowStateStore(tmp_path / "workflow_state.json", manager=_manager_with_two(), default_workflow_id="share_invite")
     first = store.load_or_migrate()
     second = store.commit_active_workflow(
         "other_workflow", expected_current_workflow_id=first.active_workflow_id
     )
     assert second.active_workflow_id == "other_workflow"
     assert second.revision == 2
-    reloaded = WorkflowStateStore(store.path, manager=_manager_with_two()).load_existing()
+    reloaded = WorkflowStateStore(store.path, manager=_manager_with_two(), default_workflow_id="share_invite").load_existing()
     assert reloaded.active_workflow_id == "other_workflow"
     assert reloaded.revision == 2
 
@@ -143,7 +152,7 @@ def test_persisted_workflow_survives_reload_and_revision_increments(tmp_path: Pa
 def test_corrupt_state_is_quarantined_and_does_not_become_first_run(tmp_path: Path):
     path = tmp_path / "workflow_state.json"
     path.write_text("{broken", encoding="utf-8")
-    store = WorkflowStateStore(path, manager=_manager_with_two())
+    store = WorkflowStateStore(path, manager=_manager_with_two(), default_workflow_id="share_invite")
     with pytest.raises(WorkflowStateCorruptError):
         store.load_or_migrate()
     assert not path.exists()
@@ -165,7 +174,7 @@ def test_unknown_persisted_workflow_is_quarantined_fail_closed(tmp_path: Path):
         ),
         encoding="utf-8",
     )
-    store = WorkflowStateStore(path, manager=_manager_with_two())
+    store = WorkflowStateStore(path, manager=_manager_with_two(), default_workflow_id="share_invite")
     with pytest.raises(WorkflowStateCorruptError, match="unknown workflow_id"):
         store.load_existing()
     assert not path.exists()
@@ -173,7 +182,7 @@ def test_unknown_persisted_workflow_is_quarantined_fail_closed(tmp_path: Path):
 
 
 def test_state_commit_detects_concurrent_current_workflow_change(tmp_path: Path):
-    store = WorkflowStateStore(tmp_path / "workflow_state.json", manager=_manager_with_two())
+    store = WorkflowStateStore(tmp_path / "workflow_state.json", manager=_manager_with_two(), default_workflow_id="share_invite")
     store.load_or_migrate()
     with pytest.raises(WorkflowSwitchError, match="changed during switch"):
         store.commit_active_workflow(
@@ -206,7 +215,7 @@ def test_transaction_rollback_restores_exact_file_existence_and_content(tmp_path
 def test_prepared_crash_recovery_rolls_back_when_old_workflow_is_authoritative(tmp_path: Path):
     data = tmp_path / "AppData"
     data.mkdir()
-    store = WorkflowStateStore(data / "workflow_state.json", manager=_manager_with_two())
+    store = WorkflowStateStore(data / "workflow_state.json", manager=_manager_with_two(), default_workflow_id="share_invite")
     store.load_or_migrate()
     settings = data / "settings.json"
     settings.write_bytes(b"old-settings")
@@ -230,7 +239,7 @@ def test_prepared_crash_recovery_rolls_back_when_old_workflow_is_authoritative(t
 def test_committed_crash_recovery_keeps_new_data_and_cleans_staging(tmp_path: Path):
     data = tmp_path / "AppData"
     data.mkdir()
-    store = WorkflowStateStore(data / "workflow_state.json", manager=_manager_with_two())
+    store = WorkflowStateStore(data / "workflow_state.json", manager=_manager_with_two(), default_workflow_id="share_invite")
     store.load_or_migrate()
     settings = data / "settings.json"
     settings.write_bytes(b"old-settings")
@@ -278,7 +287,7 @@ def test_manager_preflight_requires_explicit_source_controlled_runtime_factory()
     without_runtime = WorkflowManager(
         WorkflowRegistry([SHARE_INVITE_MANIFEST]), runtime_factories={}
     )
-    with pytest.raises(Exception, match="no source-controlled runtime"):
+    with pytest.raises(Exception, match="no validated runtime"):
         without_runtime.require_runtime_factory("share_invite")
 
 
@@ -305,7 +314,8 @@ def test_same_workflow_is_noop_before_confirmation_or_mutation():
         n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == "request_workflow_switch"
     )
     segment = ast.get_source_segment(source, method) or ""
-    assert 'if target == current:\n            return "already_active"' in segment
+    assert 'if target == current:' in segment
+    assert 'return "already_active"' in segment
     assert segment.index('return "already_active"') < segment.index("_confirm_workflow_switch")
     assert segment.index('return "already_active"') < segment.index("transaction.prepare")
 
@@ -372,10 +382,11 @@ def test_clear_policy_is_explicit_and_preserve_paths_are_not_deleted():
         assert forbidden_delete not in switch_boundary
 
 
-def test_later_pr07_ui_does_not_add_fake_production_workflow():
+def test_v10636_registry_has_no_fake_or_builtin_production_workflow():
     registry = (ROOT / "src/vibrapilot/workflow/registry.py").read_text(encoding="utf-8")
     assert "other_workflow" not in registry
-    assert "return (SHARE_INVITE_MANIFEST,)" in registry
+    assert "SHARE_INVITE_MANIFEST" not in registry
+    assert "return ()" in registry
 
 
 def test_frozen_out_of_scope_files_are_byte_identical_to_v10622_baseline():
@@ -384,12 +395,17 @@ def test_frozen_out_of_scope_files_are_byte_identical_to_v10622_baseline():
     v10630 = json.loads(v10630_path.read_text(encoding="utf-8")) if v10630_path.is_file() else {}
     v10631_path = ROOT / "config/verification/v1.0.6.31_chrome_only_browser_runtime_scope.json"
     v10631 = json.loads(v10631_path.read_text(encoding="utf-8")) if v10631_path.is_file() else {}
+    v10636_path = ROOT / "config/verification/v1.0.6.36_share_invite_externalization_scope.json"
+    v10636 = json.loads(v10636_path.read_text(encoding="utf-8")) if v10636_path.is_file() else {}
     current_authorized = (
         pr08_authorized_supersession
         | set(v10630.get("allowed_production_source_changes", []))
         | set(v10630.get("authorized_nonproduction_files", []))
         | set(v10631.get("allowed_production_source_changes", []))
         | set(v10631.get("authorized_nonproduction_files", []))
+        | set(v10636.get("allowed_production_source_changes", []))
+        | set(v10636.get("authorized_nonproduction_files", []))
+        | set(v10636.get("deleted_production_paths", []))
     )
     for relative, expected in _scope()["frozen_file_sha256"].items():
         if relative in current_authorized:

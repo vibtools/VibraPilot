@@ -1,4 +1,4 @@
-"""Deterministic registry for source-controlled built-in VibraPilot workflows."""
+"""Deterministic registry for validated VibraPilot workflows."""
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -12,7 +12,7 @@ from .contracts import (
 
 
 class WorkflowRegistry:
-    """In-memory registry with no discovery, filesystem scanning, or dynamic imports."""
+    """In-memory registry with no implicit discovery or manifest-driven imports."""
 
     def __init__(self, manifests: Iterable[WorkflowManifest] = ()) -> None:
         self._manifests: dict[str, WorkflowManifest] = {}
@@ -63,23 +63,15 @@ class WorkflowRegistry:
 
 
 def builtin_workflow_manifests() -> tuple[WorkflowManifest, ...]:
-    """Return the deterministic, source-controlled built-in workflow set."""
-    from .share_invite import SHARE_INVITE_MANIFEST
-
-    return (SHARE_INVITE_MANIFEST,)
+    """v1.0.6.36 ships a workflow-neutral Core with zero built-in workflows."""
+    return ()
 
 
 def create_builtin_registry() -> WorkflowRegistry:
-    """Build a registry containing only VibraPilot's source-controlled workflows."""
-    return WorkflowRegistry(builtin_workflow_manifests())
+    """Return the empty compatibility registry retained for callers/tests."""
+    return WorkflowRegistry()
 
 
 def builtin_workflow_runtime_factories() -> dict[str, WorkflowRuntimeFactory]:
-    """Return the explicit source-controlled built-in runtime factory map.
-
-    The map is intentionally authored in code. No manifest value, filesystem scan,
-    Python entry-point discovery, or arbitrary import participates in resolution.
-    """
-    from .share_invite import ShareInviteWorkflow
-
-    return {"share_invite": ShareInviteWorkflow}
+    """v1.0.6.36 has no source-controlled workflow runtime factories."""
+    return {}

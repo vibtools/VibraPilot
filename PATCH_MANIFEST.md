@@ -1,46 +1,89 @@
-# VibraPilot v1.0.6.35 — Workflow-Scoped Test Safety Isolation Delta
+# VibraPilot v1.0.6.36 — Share Invite Workflow Externalization Delta
 
 ## Classification
 
-- Frozen source baseline: `VibraPilot_v1.0.6.34_BASELINE.zip`
-- Baseline Git commit: `a0e3621e831d402649ab55859e00b59d5f0ad634`
-- Baseline ZIP SHA-256: `91566da389aa05ea65e08a60d6ae56321d23dbf88fa26f87b22542e7cc0d3a70`
-- Target version: `1.0.6.35`
-- Recommended branch: `fix/v1.0.6.35-workflow-scoped-test-safety`
-- Release classification: Workflow-Scoped Test Safety Isolation
+- Frozen source baseline: `VibraPilot_v1.0.6.35_BASELINE.zip`
+- Baseline Git commit: `c5511a82ddf164bfacdfad5aa12ebf75ad56a1da`
+- Baseline ZIP SHA-256: `c5be0d2221ee580360c32066a29462cba75eb330b8e408bb9dcea780e6d9f229`
+- Target version: `1.0.6.36`
+- Recommended branch: `feature/v1.0.6.36-share-invite-externalization`
+- Release classification: Share Invite Workflow Externalization Only
 
-## Confirmed root cause
+## Locked outcome
 
-The legacy single-workflow Razorpay/Test Mode safety controls remained global after VibraPilot became a multi-workflow host. `TaskSlotWidget.start()` therefore blocked unrelated workflows when the legacy `authorized_testing_only` setting was false.
+VibraPilot Core has zero source-controlled built-in workflows. A fresh application may remain in a valid zero-active-workflow state. Share Invite is distributed separately as `Share_Invite_v1.0.vpworkflow` with the same `share_invite` identity and frozen v1.0.6.35 automation/safety semantics.
 
 ## Production changes
 
-- `src/vibrapilot/qt_app.py` — removes the global authorization gate/Test Safety card, migrates the legacy send limit once, and resolves workflow-owned limits.
-  It also preserves historical/lightweight Qt host compatibility when `workflow_test_send_limit()` is not present on a test host object.
-- `src/vibrapilot/backend.py` — consumes immutable workflow settings for Test Send limits and uses workflow-neutral Core session wording.
-- `src/vibrapilot/workflow/manager.py` — registers Share Invite Workflow Settings.
-- `src/vibrapilot/workflow/schemas.py` — defines `max_test_send_limit` as a Share Invite integer setting.
+- `src/vibrapilot/workflow/registry.py` — empty built-in manifest/runtime registry.
+- `src/vibrapilot/workflow/manager.py` — plugin-only catalog plus backward-compatible optional rich task-data hook.
+- `src/vibrapilot/workflow/state.py` — workflow-state schema v2 with valid `active_workflow_id = null` and legacy `share_invite` migration.
+- `src/vibrapilot/workflow/contracts.py` — generic optional workflow-owned processing contract support.
+- `src/vibrapilot/workflow/input_state.py` and `src/vibrapilot/workflow_inputs.py` — remove Core ownership of Share Invite schemas while retaining legacy migration mirrors.
+- `src/vibrapilot/workflow/schemas.py` — removes built-in Share Invite schema builders.
+- `src/vibrapilot/workflow/plugin_loader.py` — Plugin API remains 1; optional `load_task_data` discovery is backward-compatible with existing `load_task_items` plugins.
+- `src/vibrapilot/backend.py` — removes direct ShareInviteWorkflow runtime/type dispatch; optional runtime `process_item` owns specialized workflow orchestration while the generic path remains unchanged.
+- `src/vibrapilot/qt_app.py` — zero-workflow-safe UI/control plane, first activation from `None`, package-required recovery UX, and generic task-data loading.
 
-The Share Invite runtime implementation itself is byte-frozen, including live Test Mode banner verification and the pre-Send Test Mode assertion.
+## Source-controlled workflow deletion
+
+The following v1.0.6.35 built-in files are intentionally removed:
+
+- `src/vibrapilot/workflow/share_invite/__init__.py`
+- `src/vibrapilot/workflow/share_invite/logo.png`
+- `src/vibrapilot/workflow/share_invite/manifest.json`
+- `src/vibrapilot/workflow/share_invite/workflow.py`
+
+Because normal ZIP overlay cannot delete old files, `DELETE_BEFORE_APPLY.txt` is mandatory.
+
+## Standalone Share Invite artifact
+
+The Share Invite package is intentionally separate from the Core Delta. It uses Workflow Plugin API 1, `workflow_id = share_invite`, and contains executable Python. It must pass the normal VibraPilot inspection/trust/install flow; it is not silently installed by migration.
+
+Sealed standalone package SHA-256: `6fe7f95bdf8bce5f9e22cfb2d375bafb8d5af857af5b9d1460c3cb5d372e1c50`.
+
+Frozen-parity verification covers the v1.0.6.35 selector map, Share runtime methods, specialized item processing, schema identity, Test Mode gate, pre-Send safety, send accounting, retry/manual-review behavior, and audited task-data loading contract.
+
+## Existing-user migration
+
+- Existing schema-v1 `active_workflow_id = share_invite` is upgraded without quarantine.
+- Canonical per-workflow Input/Settings values remain preserved.
+- If Share Invite is not installed, Core reports that the matching trusted package is required rather than treating the state as corrupt.
+- Installing the external package with the same `share_invite` identity resolves the existing state.
+- A fresh install with no workflows receives a valid zero-active-workflow state.
 
 ## Compatibility
 
-The legacy `authorized_testing_only` and `max_test_send_limit` App settings keys remain readable so existing settings files do not break. The authorization key is inert for Task Start; the old send-limit value is only a one-time migration source when Share Invite has no namespaced value yet.
+- Workflow Plugin API remains `1`.
+- Existing API-1 workflows using `load_task_items` remain supported.
+- DMARC Digests v1.0.1 coexists with Share Invite in the plugin-only catalog.
+- Existing active-to-active transactional workflow switching remains fail-closed.
+- First activation `None -> installed workflow` uses the normal atomic workflow-state commit path.
 
-## Automated verification
+## Explicitly frozen
 
-- Frozen v1.0.6.34 baseline verifier: PASS
-- Frozen v1.0.6.34 pytest: 454 passed, 6 skipped, 107 subtests
-- v1.0.6.35 targeted contract: 9 passed
-- v1.0.6.35 full pytest: 463 passed, 6 skipped, 106 subtests
-- Repository verifier: PASS
-- stdlib unittest: 200 OK, 6 skipped
+Chrome runtime/install/Authenticode, Playwright/browser profiles/diagnostics, licensing/Licora, TaskRuntime DB schema, workspace schema, reports/export, downloads/upload bridge, dependencies, CI workflow, build/Nuitka/WiX, URL workflow loading, workflow update/replace and workflow uninstall are outside this release.
+
+## Verification performed before sealing
+
+- Frozen v1.0.6.35 baseline SHA/integrity: PASS
+- Frozen baseline repository verifier: PASS
+- Frozen baseline pytest: `463 passed, 6 skipped, 106 subtests`
+- v1.0.6.36 repository verifier: PASS
+- v1.0.6.36 pytest: `462 passed, 6 skipped, 106 subtests`
+- stdlib unittest: `200 OK, 6 skipped`
 - compileall: PASS
-- v1.0.6.35 source-policy diagnostic: PASS
+- v1.0.6.36 source-policy diagnostic: PASS
+- standalone Share Invite package/schema/install + frozen-runtime parity verifier: PASS
+- pristine baseline scope comparison: unauthorized changed files `0`
+
+Windows live acceptance is still required before Git publication.
 
 ## Delta safety
 
-- File deletions: 0
 - Private `project/`: excluded
 - AppData/Logs/Reports/FailedData: excluded
+- BrowserProfiles: excluded
 - caches/pyc/.git/build artifacts: excluded
+- Standalone Share Invite package: separate artifact, not embedded in Core Delta
+- DMARC package: not embedded or modified

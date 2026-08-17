@@ -14,6 +14,7 @@ from vibrapilot.workflow import (
     builtin_workflow_runtime_factories,
 )
 from vibrapilot.workflow.input_state import WorkflowInputStateStore
+from vibrapilot.workflow_inputs import WorkflowInputField, WorkflowInputSchema
 
 ROOT = Path(__file__).resolve().parents[1]
 QT_PATH = ROOT / "src/vibrapilot/qt_app.py"
@@ -35,6 +36,23 @@ FROZEN = {
     "requirements-build.txt": "39d98aacb5781de72933397e6c431b83a4b62aa1177798600db1907c8def53eb",
     ".github/workflows/ci.yml": "a722955f9860315f77abdeb8b75cd1bfc269db24e8d46d437dd678917ba258a3",
 }
+
+
+SHARE_INPUT_SCHEMA = WorkflowInputSchema(
+    workflow_id="share_invite",
+    title="Share Invite Inputs",
+    fields=(
+        WorkflowInputField("default_full_name", "Default Full Name", default=""),
+        WorkflowInputField("default_number", "Default Number", default=""),
+        WorkflowInputField("fallback_name", "Fallback Name", default=""),
+        WorkflowInputField("update_click_count", "Update Click Count", default=""),
+    ),
+)
+
+def _input_store(path: Path) -> WorkflowInputStateStore:
+    return WorkflowInputStateStore(
+        path, schema_resolver=lambda workflow_id: SHARE_INPUT_SCHEMA if workflow_id == "share_invite" else None
+    )
 
 
 def _sha(path: Path) -> str:
@@ -63,23 +81,23 @@ def test_recovery_errors_are_distinct_framework_errors():
     assert "class WorkflowRecoveryBlockedError(WorkflowRecoveryError):" in contracts
 
 
-def test_production_registry_remains_share_invite_only_with_one_factory():
-    manifests = builtin_workflow_manifests()
-    factories = builtin_workflow_runtime_factories()
-    assert [manifest.workflow_id for manifest in manifests] == ["share_invite"]
-    assert set(factories) == {"share_invite"}
+def test_v10636_production_registry_has_zero_builtin_workflows_or_factories():
+    assert builtin_workflow_manifests() == ()
+    assert builtin_workflow_runtime_factories() == {}
 
 
 def test_approved_frozen_runtime_surfaces_remain_byte_identical():
     scope_paths = (
         ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json",
         ROOT / "config/verification/v1.0.6.31_chrome_only_browser_runtime_scope.json",
+        ROOT / "config/verification/v1.0.6.36_share_invite_externalization_scope.json",
     )
     current_authorized: set[str] = set()
     for scope_path in scope_paths:
         scope = json.loads(scope_path.read_text(encoding="utf-8")) if scope_path.is_file() else {}
         current_authorized.update(scope.get("allowed_production_source_changes", []))
         current_authorized.update(scope.get("authorized_nonproduction_files", []))
+        current_authorized.update(scope.get("deleted_production_paths", []))
     for rel, expected in FROZEN.items():
         if rel in current_authorized:
             continue
@@ -178,7 +196,7 @@ def test_input_recovery_quarantines_corrupt_state_and_uses_defaults_not_legacy(t
         ),
         encoding="utf-8",
     )
-    store = WorkflowInputStateStore(path)
+    store = _input_store(path)
     recovered, quarantine = store.recover_workflow_defaults("share_invite")
     assert quarantine is not None and quarantine.is_file()
     values = store.values_for("share_invite", state=recovered)
@@ -195,7 +213,7 @@ def test_input_recovery_rollback_restores_original_corrupt_bytes(tmp_path: Path)
     path = tmp_path / "workflow_inputs.json"
     original = b"{broken-input-state"
     path.write_bytes(original)
-    store = WorkflowInputStateStore(path)
+    store = _input_store(path)
     _, quarantine = store.recover_workflow_defaults("share_invite")
     assert path.is_file() and quarantine is not None
     store.rollback_recovery(quarantine)

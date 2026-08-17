@@ -1,3 +1,7 @@
+# Current Version — 1.0.6.36
+
+`1.0.6.36` is the Share Invite Workflow Externalization release. The frozen source baseline contains zero built-in workflows; Share Invite is distributed separately as `Share_Invite_v1.0.vpworkflow`.
+
 # Versioning — v1.0.6.35 Workflow-Scoped Test Safety
 
 - Frozen baseline: **v1.0.6.34**, commit `a0e3621e831d402649ab55859e00b59d5f0ad634`, ZIP SHA-256 `91566da389aa05ea65e08a60d6ae56321d23dbf88fa26f87b22542e7cc0d3a70`.

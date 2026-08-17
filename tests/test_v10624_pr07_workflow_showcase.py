@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from vibrapilot.workflow import WorkflowManager, WorkflowManifest, WorkflowRegistry
-from vibrapilot.workflow.share_invite import SHARE_INVITE_MANIFEST
+from _v10636_manifest_fixture import SHARE_INVITE_MANIFEST
 
 ROOT = Path(__file__).resolve().parents[1]
 QT_PATH = ROOT / "src/vibrapilot/qt_app.py"
@@ -99,11 +99,12 @@ def test_showcase_renders_registry_entries_instead_of_hardcoded_catalog():
     assert "Share Invite" not in source
 
 
-def test_current_production_registry_contains_only_share_invite():
+def test_v10636_production_registry_contains_zero_builtin_workflows():
     manager = WorkflowManager.with_builtin_workflows()
-    assert [m.workflow_id for m in manager.list_workflows()] == ["share_invite"]
+    assert manager.list_workflows() == ()
     registry_text = (ROOT / "src/vibrapilot/workflow/registry.py").read_text(encoding="utf-8")
-    assert "return (SHARE_INVITE_MANIFEST,)" in registry_text
+    assert "SHARE_INVITE_MANIFEST" not in registry_text
+    assert "return ()" in registry_text
     assert "other_workflow" not in registry_text
 
 
@@ -111,7 +112,7 @@ def test_share_invite_card_metadata_is_manifest_owned():
     assert SHARE_INVITE_MANIFEST.name == "Share Invite"
     assert SHARE_INVITE_MANIFEST.description == "Authenticated Test Mode Share Invite workflow."
     assert SHARE_INVITE_MANIFEST.version == "1.0"
-    assert SHARE_INVITE_MANIFEST.logo == "logo.png"
+    assert SHARE_INVITE_MANIFEST.logo == "assets/logo.png"
 
 
 def test_card_preserves_manifest_identity_version_source_logo_and_readable_description_copy():
@@ -196,7 +197,7 @@ def test_synthetic_workflow_can_exist_in_tests_without_production_registration()
     )
     registry = WorkflowRegistry([SHARE_INVITE_MANIFEST, synthetic])
     assert [m.workflow_id for m in registry.list_workflows()] == ["share_invite", "synthetic_test"]
-    assert [m.workflow_id for m in WorkflowManager.with_builtin_workflows().list_workflows()] == ["share_invite"]
+    assert WorkflowManager.with_builtin_workflows().list_workflows() == ()
 
 
 def test_frozen_runtime_config_dependency_and_ci_files_are_byte_identical():
@@ -209,9 +210,13 @@ def test_frozen_runtime_config_dependency_and_ci_files_are_byte_identical():
     )
     v10630 = json.loads(V10630_SCOPE_PATH.read_text(encoding="utf-8")) if V10630_SCOPE_PATH.is_file() else {}
     v10631 = json.loads(V10631_SCOPE_PATH.read_text(encoding="utf-8")) if V10631_SCOPE_PATH.is_file() else {}
+    v10636_path = ROOT / "config/verification/v1.0.6.36_share_invite_externalization_scope.json"
+    v10636 = json.loads(v10636_path.read_text(encoding="utf-8")) if v10636_path.is_file() else {}
     current_authorized = (pr08_authorized_supersession | pr10_authorized_supersession
         | set(v10630.get("allowed_production_source_changes", [])) | set(v10630.get("authorized_nonproduction_files", []))
-        | set(v10631.get("allowed_production_source_changes", [])) | set(v10631.get("authorized_nonproduction_files", [])))
+        | set(v10631.get("allowed_production_source_changes", [])) | set(v10631.get("authorized_nonproduction_files", []))
+        | set(v10636.get("allowed_production_source_changes", [])) | set(v10636.get("authorized_nonproduction_files", []))
+        | set(v10636.get("deleted_production_paths", [])))
     for relative, expected in _scope()["frozen_file_sha256"].items():
         if relative in current_authorized:
             continue

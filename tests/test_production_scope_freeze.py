@@ -112,6 +112,12 @@ class ProductionScopeFreezeTest(unittest.TestCase):
         current_allowed |= set(v10635.get("allowed_production_source_changes", []))
         current_allowed |= set(v10635.get("authorized_nonproduction_files", []))
         approved_worker |= set(v10635.get("authorized_automationworker_method_changes", []))
+        v10636_scope = ROOT / "config/verification/v1.0.6.36_share_invite_externalization_scope.json"
+        v10636 = json.loads(v10636_scope.read_text(encoding="utf-8")) if v10636_scope.is_file() else {}
+        current_allowed |= set(v10636.get("allowed_production_source_changes", []))
+        current_allowed |= set(v10636.get("authorized_nonproduction_files", []))
+        current_allowed |= set(v10636.get("deleted_production_paths", []))
+        approved_worker |= set(v10636.get("authorized_automationworker_method_changes", []))
         for relative, expected in CONTRACT["frozen_file_sha256"].items():
             if current_focus_scope.is_file() and relative == "vib_validation_app/focus_manager.py":
                 continue
@@ -136,10 +142,11 @@ class ProductionScopeFreezeTest(unittest.TestCase):
         }
         actual = {
             "backend.LicenseManager": _hash(bclasses["LicenseManager"]),
-            "backend.SELECTORS": _hash(assigns["SELECTORS"]),
             "qt_app.ActivationPage": _hash(qclasses["ActivationPage"]),
             "qt_app.BROWSER_SETTING_GROUPS": _hash(anns["BROWSER_SETTING_GROUPS"]),
         }
+        if "SELECTORS" in assigns:
+            actual["backend.SELECTORS"] = _hash(assigns["SELECTORS"])
         expected = dict(CONTRACT["frozen_ast_sha256"])
         current_license_scope = ROOT / "config/verification/v1.0.6.10_license_login_fix_scope.json"
         if current_license_scope.is_file():
@@ -150,6 +157,9 @@ class ProductionScopeFreezeTest(unittest.TestCase):
         if v10630_scope.is_file():
             actual.pop("qt_app.BROWSER_SETTING_GROUPS", None)
             expected.pop("qt_app.BROWSER_SETTING_GROUPS", None)
+        if v10636_scope.is_file():
+            actual.pop("backend.SELECTORS", None)
+            expected.pop("backend.SELECTORS", None)
         if "src/vibrapilot/qt_app.py" in current_allowed:
             actual.pop("qt_app.ActivationPage", None)
             expected.pop("qt_app.ActivationPage", None)

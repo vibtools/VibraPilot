@@ -1,10 +1,4 @@
-"""Persistent active-workflow state and atomic switch transaction support.
-
-PR-06 owns one durable active built-in workflow identity and the filesystem
-transaction boundary required to switch workflows safely. This module does not
-own Qt UI, browser lifecycle, task schemas, reporting schemas, licensing, or
-external workflow discovery.
-"""
+"""Persistent active-workflow state and atomic switch transaction support."""
 from __future__ import annotations
 
 import json
@@ -24,9 +18,10 @@ from .contracts import (
 )
 from .manager import WorkflowManager
 
-WORKFLOW_STATE_SCHEMA_VERSION = 1
+WORKFLOW_STATE_SCHEMA_VERSION = 2
 WORKFLOW_SWITCH_TRANSACTION_SCHEMA_VERSION = 1
-DEFAULT_ACTIVE_WORKFLOW_ID = "share_invite"
+DEFAULT_ACTIVE_WORKFLOW_ID: None = None
+LEGACY_EXTERNALIZED_WORKFLOW_IDS = frozenset({"share_invite"})
 TRANSACTION_PREPARED = "PREPARED"
 TRANSACTION_COMMITTED = "COMMITTED"
 
@@ -60,7 +55,7 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
 @dataclass(frozen=True, slots=True)
 class WorkflowState:
     schema_version: int
-    active_workflow_id: str
+    active_workflow_id: str | None
     revision: int
     updated_at: str
 
@@ -74,28 +69,36 @@ class WorkflowState:
 
 
 class WorkflowStateStore:
-    """Fail-closed atomic JSON store for one active built-in workflow."""
+    """Fail-closed atomic state with a legitimate zero-active-workflow state.
+
+    v1 state containing the formerly built-in ``share_invite`` identity is migrated
+    without quarantine even when that external package is not installed yet.
+    """
 
     def __init__(
         self,
         path: Path,
         *,
         manager: WorkflowManager | None = None,
-        default_workflow_id: str = DEFAULT_ACTIVE_WORKFLOW_ID,
+        default_workflow_id: str | None = DEFAULT_ACTIVE_WORKFLOW_ID,
     ) -> None:
         self.path = Path(path)
         self.manager = manager or WorkflowManager.with_builtin_workflows()
-        self.default_workflow_id = str(default_workflow_id).strip()
-        if not self.default_workflow_id:
-            raise ValueError("default_workflow_id must not be empty")
+        self.default_workflow_id = (
+            str(default_workflow_id).strip() if default_workflow_id is not None else None
+        )
 
-    def _validate_workflow_id(self, workflow_id: str) -> str:
+    def _validate_workflow_id(
+        self, workflow_id: str, *, allow_unresolved_legacy: bool = False
+    ) -> str:
         normalized = str(workflow_id).strip()
         if not normalized:
             raise WorkflowStateCorruptError("workflow state active_workflow_id is empty")
         try:
             self.manager.require_workflow(normalized)
         except UnknownWorkflowError as exc:
+            if allow_unresolved_legacy and normalized in LEGACY_EXTERNALIZED_WORKFLOW_IDS:
+                return normalized
             raise WorkflowStateCorruptError(
                 f"workflow state references unknown workflow_id: {normalized}"
             ) from exc
@@ -117,19 +120,25 @@ class WorkflowStateStore:
         pattern = f"{self.path.name}.corrupt-*"
         return any(self.path.parent.glob(pattern))
 
-    def _parse(self, raw: Any) -> WorkflowState:
+    def _parse(self, raw: Any) -> tuple[WorkflowState, bool]:
         if not isinstance(raw, dict):
             raise WorkflowStateCorruptError("workflow state root is not a JSON object")
         try:
             schema_version = int(raw.get("schema_version", 0))
         except (TypeError, ValueError) as exc:
             raise WorkflowStateCorruptError("workflow state schema_version is invalid") from exc
-        if schema_version != WORKFLOW_STATE_SCHEMA_VERSION:
+        if schema_version not in {1, WORKFLOW_STATE_SCHEMA_VERSION}:
             raise WorkflowStateCorruptError(
-                f"unsupported workflow state schema {schema_version}; expected "
-                f"{WORKFLOW_STATE_SCHEMA_VERSION}"
+                f"unsupported workflow state schema {schema_version}; expected 1 or {WORKFLOW_STATE_SCHEMA_VERSION}"
             )
-        workflow_id = self._validate_workflow_id(raw.get("active_workflow_id", ""))
+        migrated = schema_version == 1
+        raw_workflow_id = raw.get("active_workflow_id")
+        if schema_version == WORKFLOW_STATE_SCHEMA_VERSION and raw_workflow_id is None:
+            workflow_id: str | None = None
+        else:
+            workflow_id = self._validate_workflow_id(
+                raw_workflow_id or "", allow_unresolved_legacy=True
+            )
         try:
             revision = int(raw.get("revision", 0))
         except (TypeError, ValueError) as exc:
@@ -139,15 +148,18 @@ class WorkflowStateStore:
         updated_at = str(raw.get("updated_at", "") or "").strip()
         if not updated_at:
             raise WorkflowStateCorruptError("workflow state updated_at is missing")
-        return WorkflowState(
-            schema_version=WORKFLOW_STATE_SCHEMA_VERSION,
-            active_workflow_id=workflow_id,
-            revision=revision,
-            updated_at=updated_at,
+        return (
+            WorkflowState(
+                schema_version=WORKFLOW_STATE_SCHEMA_VERSION,
+                active_workflow_id=workflow_id,
+                revision=revision,
+                updated_at=updated_at,
+            ),
+            migrated,
         )
 
     def load_existing(self) -> WorkflowState:
-        """Load an existing state file; absence is an error, not migration."""
+        """Load state; migrate schema v1 in place without losing its workflow identity."""
         if not self.path.exists():
             raise WorkflowStateError("workflow state file is missing")
         try:
@@ -156,21 +168,27 @@ class WorkflowStateStore:
             self._quarantine(f"workflow state could not be read: {exc}")
             raise AssertionError("unreachable")
         try:
-            return self._parse(raw)
+            state, migrated = self._parse(raw)
         except WorkflowStateCorruptError as exc:
             self._quarantine(str(exc))
             raise AssertionError("unreachable")
+        if migrated:
+            _atomic_write_json(self.path, state.to_dict())
+        return state
 
     def load_or_migrate(self) -> WorkflowState:
-        """Load current state or perform the one-time missing-file migration."""
+        """Load current state or create a legitimate zero-workflow state."""
         if self.path.exists():
             return self.load_existing()
         if self._has_quarantined_state():
             raise WorkflowStateCorruptError(
-                "workflow state is absent but quarantined corrupt state exists; "
-                "automatic Share Invite migration is blocked"
+                "workflow state is absent but quarantined corrupt state exists; automatic recovery is blocked"
             )
-        workflow_id = self._validate_workflow_id(self.default_workflow_id)
+        workflow_id: str | None = None
+        if self.default_workflow_id:
+            workflow_id = self._validate_workflow_id(
+                self.default_workflow_id, allow_unresolved_legacy=True
+            )
         state = WorkflowState(
             schema_version=WORKFLOW_STATE_SCHEMA_VERSION,
             active_workflow_id=workflow_id,
@@ -181,11 +199,13 @@ class WorkflowStateStore:
         return state
 
     def recover_active_workflow(self, target_workflow_id: str) -> WorkflowState:
-        """Explicitly create a new canonical state after user-confirmed recovery.
+        """Explicitly create canonical state after user-confirmed recovery.
 
-        A valid canonical state is never overwritten. Invalid existing canonical
-        state is quarantined by the normal fail-closed loader before recovery.
-        Quarantined forensic evidence is intentionally preserved.
+        A valid zero-workflow state is still canonical and must never be overwritten
+        through the recovery path. First activation from ``None`` belongs to
+        :meth:`commit_active_workflow`; recovery is reserved for unavailable or
+        quarantined state. Invalid existing state is quarantined by ``load_existing``
+        before the explicit recovery can proceed.
         """
         if self.path.exists():
             try:
@@ -195,7 +215,7 @@ class WorkflowStateStore:
                     raise
             else:
                 raise WorkflowStateError(
-                    f"workflow state recovery refused because a valid canonical state already exists: "
+                    "workflow state recovery refused because valid canonical state already exists: "
                     f"{current.active_workflow_id}"
                 )
         target = self._validate_workflow_id(target_workflow_id)
@@ -212,11 +232,16 @@ class WorkflowStateStore:
         self,
         target_workflow_id: str,
         *,
-        expected_current_workflow_id: str,
+        expected_current_workflow_id: str | None,
     ) -> WorkflowState:
-        """Atomically commit a validated workflow change at one explicit point."""
+        """Atomically commit a validated target, including first activation from None."""
         current = self.load_existing()
-        if current.active_workflow_id != str(expected_current_workflow_id).strip():
+        expected = (
+            str(expected_current_workflow_id).strip()
+            if expected_current_workflow_id is not None
+            else None
+        )
+        if current.active_workflow_id != expected:
             raise WorkflowSwitchError(
                 "workflow state changed during switch transaction; commit aborted"
             )

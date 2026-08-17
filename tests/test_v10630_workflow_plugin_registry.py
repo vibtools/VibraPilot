@@ -6,13 +6,12 @@ from vibrapilot.workflow import WorkflowManager, inspect_workflow_package, insta
 from _v10630_plugin_fixture import write_plugin_package
 
 
-def test_unified_catalog_keeps_builtin_and_adds_valid_installed_plugin(tmp_path: Path):
+def test_unified_catalog_contains_only_valid_installed_plugins(tmp_path: Path):
     root = tmp_path / "Workflows"
     package = write_plugin_package(tmp_path / "invoice.vpworkflow")
-    install_workflow_package(inspect_workflow_package(package), root, reserved_workflow_ids={"share_invite"})
+    install_workflow_package(inspect_workflow_package(package), root, reserved_workflow_ids=set())
     manager = WorkflowManager.with_available_workflows(workflow_root=root)
-    assert [m.workflow_id for m in manager.list_workflows()] == ["invoice_fixture", "share_invite"]
-    assert manager.workflow_origin("share_invite") == "builtin"
+    assert [m.workflow_id for m in manager.list_workflows()] == ["invoice_fixture"]
     assert manager.workflow_origin("invoice_fixture") == "plugin"
     assert manager.input_schema("invoice_fixture").workflow_id == "invoice_fixture"
     assert manager.settings_schema("invoice_fixture").workflow_id == "invoice_fixture"
@@ -25,7 +24,7 @@ def test_broken_installed_plugin_is_issue_not_startup_crash(tmp_path: Path):
     broken.mkdir(parents=True)
     (broken / "manifest.json").write_text("{broken", encoding="utf-8")
     manager = WorkflowManager.with_available_workflows(workflow_root=root)
-    assert [m.workflow_id for m in manager.list_workflows()] == ["share_invite"]
+    assert manager.list_workflows() == ()
     assert manager.plugin_issues
     assert "broken" in manager.plugin_issues[0].path
 
@@ -33,7 +32,7 @@ def test_broken_installed_plugin_is_issue_not_startup_crash(tmp_path: Path):
 def test_installed_plugin_runtime_resolves_through_standard_contract(tmp_path: Path):
     root = tmp_path / "Workflows"
     package = write_plugin_package(tmp_path / "invoice-runtime.vpworkflow")
-    install_workflow_package(inspect_workflow_package(package), root, reserved_workflow_ids={"share_invite"})
+    install_workflow_package(inspect_workflow_package(package), root, reserved_workflow_ids=set())
     manager = WorkflowManager.with_available_workflows(
         workflow_root=root, active_workflow_id="invoice_fixture"
     )

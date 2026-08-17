@@ -53,7 +53,10 @@ class V1067VerificationFixTest(unittest.TestCase):
 
     def test_send_attempt_metric_wording_is_unambiguous(self):
         current_scope = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
-        if current_scope.is_file():
+        if (ROOT / "config/verification/v1.0.6.36_share_invite_externalization_scope.json").is_file():
+            text = (ROOT / "src/vibrapilot/workflow/schemas.py").read_text(encoding="utf-8")
+            self.assertNotIn('builtin_share_invite_task_schema', text)
+        elif current_scope.is_file():
             text = (ROOT / "src/vibrapilot/workflow/schemas.py").read_text(encoding="utf-8")
             self.assertIn('WorkflowMetricSchema("send_limit", "Send Attempts / Limit", "core_send_limit")', text)
         else:

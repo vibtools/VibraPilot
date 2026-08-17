@@ -1,3 +1,10 @@
+# v1.0.6.36 Workflow Compatibility
+
+- Workflow Plugin API remains version 1. Existing trusted external workflows continue to use `create_workflow`; existing `load_task_items` loaders remain valid.
+- A new optional `load_task_data` hook may return rows plus source fingerprint/summary metadata, and a runtime may optionally own specialized `process_item` orchestration.
+- Workflow-state schema v1 remains readable. Legacy `active_workflow_id = "share_invite"` is migrated to schema v2 without quarantine while the external Share Invite package is absent.
+- Fresh installations may legitimately have no active workflow. Browser, licensing, TaskRuntime/workspace schemas and external DMARC behavior are unchanged.
+
 # v1.0.6.35 Compatibility
 
 - Existing `settings.json` keys `authorized_testing_only` and `max_test_send_limit` remain readable for compatibility, but the authorization key is no longer a Task-start gate.

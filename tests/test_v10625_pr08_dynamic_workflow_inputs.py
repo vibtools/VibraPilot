@@ -11,13 +11,7 @@ import pytest
 
 from vibrapilot.backend import AutomationWorker, DEFAULT_SETTINGS, TaskState
 from vibrapilot.workflow import WorkflowManager
-from vibrapilot.workflow_inputs import (
-    SHARE_INVITE_INPUT_SCHEMA,
-    WORKFLOW_INPUT_FIELDS,
-    WORKFLOW_INPUT_KEYS,
-    WORKFLOW_INPUT_SCHEMAS,
-    workflow_input_schema_for,
-)
+from vibrapilot.workflow_inputs import WORKFLOW_INPUT_FIELDS, WORKFLOW_INPUT_KEYS
 
 ROOT = Path(__file__).resolve().parents[1]
 QT_PATH = ROOT / "src/vibrapilot/qt_app.py"
@@ -31,6 +25,7 @@ PR10_SCOPE = json.loads(
 )
 V10630_SCOPE_PATH = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
 V10631_SCOPE_PATH = ROOT / "config/verification/v1.0.6.31_chrome_only_browser_runtime_scope.json"
+V10636_SCOPE_PATH = ROOT / "config/verification/v1.0.6.36_share_invite_externalization_scope.json"
 
 
 
@@ -60,14 +55,16 @@ def test_scope_locks_pr07_release_and_exact_pr08_production_surface():
     ]
 
 
-def test_production_registry_and_input_schema_contain_only_share_invite():
-    assert [m.workflow_id for m in WorkflowManager.with_builtin_workflows().list_workflows()] == ["share_invite"]
-    assert list(WORKFLOW_INPUT_SCHEMAS) == ["share_invite"]
-    assert workflow_input_schema_for("share_invite") is SHARE_INVITE_INPUT_SCHEMA
+def test_v10636_core_registers_no_builtin_workflow_or_share_input_schema():
+    assert WorkflowManager.with_builtin_workflows().list_workflows() == ()
     assert WORKFLOW_INPUT_KEYS == (
         "default_full_name", "default_number", "fallback_name", "update_click_count"
     )
-    assert tuple(field.key for field in WORKFLOW_INPUT_FIELDS) == WORKFLOW_INPUT_KEYS
+    assert WORKFLOW_INPUT_FIELDS == ()
+    source = (ROOT / "src/vibrapilot/workflow_inputs.py").read_text(encoding="utf-8")
+    assert "SHARE_INVITE_INPUT_SCHEMA" not in source
+    assert "WORKFLOW_INPUT_SCHEMAS" not in source
+    assert "def workflow_input_schema_for" not in source
 
 
 def test_dynamic_page_renders_active_schema_not_fixed_global_tuple():
@@ -157,7 +154,7 @@ def test_automationworker_snapshot_is_detached_and_immutable():
         threading.Event(),
         threading.Event(),
         "https://example.test",
-        active_workflow_id="share_invite",
+        active_workflow_id=None,
         workflow_input_values=original,
     )
     original["default_full_name"] = "Mutated Outside"
@@ -170,9 +167,12 @@ def test_share_invite_runtime_and_pr06_workflow_engine_are_frozen():
     pr10_authorized = set(PR10_SCOPE["allowed_production_source_changes"])
     v10630 = json.loads(V10630_SCOPE_PATH.read_text(encoding="utf-8")) if V10630_SCOPE_PATH.is_file() else {}
     v10631 = json.loads(V10631_SCOPE_PATH.read_text(encoding="utf-8")) if V10631_SCOPE_PATH.is_file() else {}
+    v10636 = json.loads(V10636_SCOPE_PATH.read_text(encoding="utf-8")) if V10636_SCOPE_PATH.is_file() else {}
     current_authorized = (pr10_authorized
         | set(v10630.get("allowed_production_source_changes", [])) | set(v10630.get("authorized_nonproduction_files", []))
-        | set(v10631.get("allowed_production_source_changes", [])) | set(v10631.get("authorized_nonproduction_files", [])))
+        | set(v10631.get("allowed_production_source_changes", [])) | set(v10631.get("authorized_nonproduction_files", []))
+        | set(v10636.get("allowed_production_source_changes", [])) | set(v10636.get("authorized_nonproduction_files", []))
+        | set(v10636.get("deleted_production_paths", [])))
     for relative, expected in SCOPE["frozen_file_sha256"].items():
         if relative in current_authorized:
             continue

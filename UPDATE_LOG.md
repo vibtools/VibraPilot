@@ -1,3 +1,10 @@
+# v1.0.6.36 Share Invite Workflow Externalization
+
+- Core now starts cleanly with no installed workflow and no implicit Share Invite fallback.
+- Share Invite is a standalone trusted `.vpworkflow` with the same `share_invite` identity and v1.0.6.35 behavioral safety contract.
+- Existing workflow state/inputs/settings are preserved for migration; activation of installed workflows remains explicit.
+- URL loading, workflow update/replace/uninstall and build/installer changes remain out of scope.
+
 # v1.0.6.35 Workflow-Scoped Test Safety Isolation
 
 - Global `Authorized Testing Only` no longer gates every workflow.

@@ -25,7 +25,7 @@ class WorkflowInputsTest(unittest.TestCase):
 
     def test_exact_existing_setting_keys_are_exposed(self):
         self.assertEqual(WORKFLOW_INPUT_KEYS, self.EXPECTED_KEYS)
-        self.assertEqual(tuple(field.key for field in WORKFLOW_INPUT_FIELDS), self.EXPECTED_KEYS)
+        self.assertEqual(WORKFLOW_INPUT_FIELDS, ())
         self.assertEqual(len(set(WORKFLOW_INPUT_KEYS)), len(WORKFLOW_INPUT_KEYS))
         self.assertNotIn("default_target_url", WORKFLOW_INPUT_KEYS)
         for key in WORKFLOW_INPUT_KEYS:
@@ -52,8 +52,9 @@ class WorkflowInputsTest(unittest.TestCase):
 
     def test_workflow_metadata_remains_source_controlled_without_fake_selector(self):
         text = (SRC / "vibrapilot" / "workflow_inputs.py").read_text(encoding="utf-8")
-        self.assertIn('workflow_id="share_invite"', text)
-        self.assertIn("WORKFLOW_INPUT_SCHEMAS", text)
+        self.assertNotIn('workflow_id="share_invite"', text)
+        self.assertNotIn("WORKFLOW_INPUT_SCHEMAS", text)
+        self.assertIn("LEGACY_SHARE_INVITE_INPUT_KEYS", text)
         self.assertNotIn("workflow_selector", text)
         self.assertNotIn("default_target_url", text)
         for forbidden in ("importlib", "entry_points", "__import__", "eval(", "exec("):

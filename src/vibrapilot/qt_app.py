@@ -112,19 +112,9 @@ from .backend import (
 from .data_io import (
     export_report_csv,
     export_report_excel,
-    parse_data,
-    parse_data_with_audit,
 )
 from .task_runtime_store import TaskRuntimeStore, file_sha256
-from .workflow_inputs import (
-    WORKFLOW_INPUT_FIELDS,
-    WORKFLOW_INPUT_KEYS,
-    WorkflowInputField,
-    WorkflowInputSchema,
-    WorkflowInputSchemaError,
-    normalize_workflow_input_values,
-    workflow_input_schema_for,
-)
+from .workflow_inputs import WORKFLOW_INPUT_KEYS
 from .workflow.input_state import WorkflowInputStateError, WorkflowInputStateStore
 from .workspace_state import WorkspaceStateStore
 from .workflow import (
@@ -1027,11 +1017,9 @@ class TaskSlotWidget(QFrame):
         self.worker: AutomationWorker | None = None
         self.browser_lifecycle_state = "Closed"
         self.browser_action_button: QPushButton | None = None
-        # Preserve the baseline TaskSlotWidget constructor contract for lightweight
-        # Qt hosts/tests that provide only Settings + workspace-save callbacks.
-        # Production MainWindow always supplies the workflow catalog/state store,
-        # while compatibility hosts fall back to an inert Share Invite task schema.
-        self.workflow_id = str(getattr(app, "active_workflow_id", "") or "share_invite")
+        # Preserve lightweight Qt-host compatibility without inventing an active
+        # production workflow when the application has none.
+        self.workflow_id = str(getattr(app, "active_workflow_id", "") or "compatibility_host")
         workflow_catalog = getattr(app, "workflow_catalog", None)
         workflow_task_state_store = getattr(app, "workflow_task_state_store", None)
         if workflow_catalog is None or workflow_task_state_store is None:
@@ -1697,37 +1685,33 @@ class TaskSlotWidget(QFrame):
         path = Path(path).expanduser().resolve()
         if not path.is_file():
             raise ValueError(f"Task data file does not exist: {path}")
-        if self.workflow_id == "share_invite":
-            audit = parse_data_with_audit(
-                path,
-                remove_duplicates=bool(self.app.settings.get("remove_duplicate_rows", DEFAULT_SETTINGS["remove_duplicate_rows"])),
-            )
-            items = audit.items
-            payloads = [{"email": item.email, "name": item.name} for item in items]
-            fingerprint = audit.source_fingerprint
-            reconciliation = (
-                f"{path.name} • Source {audit.source_rows} • Valid {audit.valid_rows} • "
-                f"Invalid {audit.invalid_rows} • Duplicate rows {audit.duplicate_rows} • Accepted {audit.accepted_rows}"
-            )
-            self.import_audit = audit
-        else:
-            rows = self.app.workflow_catalog.load_task_items(
-                self.workflow_id, path, self.workflow_task_values
-            )
-            if rows is None:
-                raise ValueError(
-                    f"Workflow {self.workflow_id} defines a data file but does not provide load_task_items()."
+        loaded = self.app.workflow_catalog.load_task_data(
+            self.workflow_id,
+            path,
+            self.workflow_task_values,
+            context={
+                "remove_duplicates": bool(
+                    self.app.settings.get(
+                        "remove_duplicate_rows", DEFAULT_SETTINGS["remove_duplicate_rows"]
+                    )
                 )
-            if not rows:
-                raise ValueError("Workflow data loader returned no Task items.")
-            payloads = [dict(row) for row in rows]
-            items = [
-                TaskItem(email=str(row.get("email", "")), name=str(row.get("name", "")))
-                for row in rows
-            ]
-            fingerprint = file_sha256(path)
-            reconciliation = f"{path.name} • Loaded {len(items)} workflow item(s)"
-            self.import_audit = None
+            },
+        )
+        if loaded is None:
+            raise ValueError(
+                f"Workflow {self.workflow_id} defines a data file but does not provide load_task_items() or load_task_data()."
+            )
+        rows, workflow_fingerprint, workflow_summary = loaded
+        if not rows:
+            raise ValueError("Workflow data loader returned no Task items.")
+        payloads = [dict(row) for row in rows]
+        items = [
+            TaskItem(email=str(row.get("email", "")), name=str(row.get("name", "")))
+            for row in rows
+        ]
+        fingerprint = workflow_fingerprint or file_sha256(path)
+        reconciliation = workflow_summary or f"{path.name} • Loaded {len(items)} workflow item(s)"
+        self.import_audit = None
 
         self.state.items = items
         self.workflow_item_payloads = payloads
@@ -1863,12 +1847,9 @@ class TaskSlotWidget(QFrame):
             return
         if self.task_schema.requires_session and not self.worker.is_login_verified():
             self.worker.request_focus()
-            if self.workflow_id == "share_invite":
-                message = (
-                    "Complete login in the opened browser and open the Target URL in Test Mode. "
-                    "Wait until this task shows Login Verified, then click Start."
-                )
-            else:
+            try:
+                message = self.worker.workflow_session_instruction()
+            except Exception:
                 message = "Complete the workflow-required browser session, then wait for Login Verified and click Start."
             _message(self, "Login not verified", message, "warning")
             return
@@ -1881,7 +1862,16 @@ class TaskSlotWidget(QFrame):
                 _message(self, "Invalid send limit", str(exc), "warning")
                 return
             if max_limit == 0:
-                _message(self, "Sending disabled", "Max Test Send Limit is set to 0. Increase it in Share Invite Workflow Settings before starting automation.", "warning")
+                try:
+                    workflow_name = self.app.workflow_catalog.require_workflow(self.workflow_id).name
+                except Exception:
+                    workflow_name = "Workflow"
+                _message(
+                    self,
+                    "Sending disabled",
+                    f"Max Test Send Limit is set to 0. Increase it in {workflow_name} Workflow Settings before starting automation.",
+                    "warning",
+                )
                 self._set_metric("Send Limit", "0/0")
                 return
             self._set_metric("Send Limit", f"{self.state.send_limit_used}/{max_limit}")
@@ -2182,21 +2172,8 @@ class MainWindow(QMainWindow):
         except WorkflowStateError as exc:
             self.workflow_state_error = str(exc)
 
-        if not self.workflow_state_error and self.active_workflow_id:
-            try:
-                self._initialize_workflow_input_state()
-            except WorkflowInputStateError as exc:
-                self.workflow_input_state_error = str(exc)
-                self.active_workflow_input_values = {}
-            try:
-                self._initialize_workflow_settings_state()
-            except WorkflowSettingsStateError as exc:
-                self.workflow_settings_state_error = str(exc)
-                self.active_workflow_settings_values = {}
-            try:
-                self.workflow_task_state_store.load_or_create()
-            except WorkflowTaskStateError as exc:
-                self.workflow_task_state_error = str(exc)
+        if not self.workflow_state_error:
+            self._initialize_active_workflow_state_if_available()
             self._refresh_workflow_runtime_error()
 
         self.license_manager = LicenseManager(self.settings)
@@ -3107,6 +3084,7 @@ class MainWindow(QMainWindow):
         )
         self.workflow_catalog = catalog
         self.workflow_state_store.manager = catalog
+        self._initialize_active_workflow_state_if_available()
         if self.workflow_input_selector is not None:
             self._populate_workflow_selector(
                 self.workflow_input_selector,
@@ -3233,13 +3211,11 @@ class MainWindow(QMainWindow):
         except WorkflowError:
             runtime_available = False
         try:
-            if self.workflow_catalog.workflow_origin(manifest.workflow_id) == "builtin":
-                workflow_input_schema_for(manifest.workflow_id)
             self.workflow_catalog.input_schema(manifest.workflow_id)
             self.workflow_catalog.settings_schema(manifest.workflow_id)
             self.workflow_catalog.task_schema(manifest.workflow_id)
             schema_available = True
-        except (WorkflowInputSchemaError, WorkflowError):
+        except WorkflowError:
             schema_available = False
 
         recovery_blocker = self._workflow_recovery_block_reason()
@@ -3389,7 +3365,7 @@ class MainWindow(QMainWindow):
                 )
             )
         if not manifests:
-            empty = card("No workflows available")
+            empty = card("No workflows installed")
             empty.setObjectName("WorkflowEmptyState")
             empty.setMinimumWidth(280)
             empty.setMaximumWidth(360)
@@ -3750,6 +3726,42 @@ class MainWindow(QMainWindow):
         root.addWidget(self._scroll_page(inner), 1)
         return page
 
+    def _initialize_active_workflow_state_if_available(self) -> bool:
+        """Initialize workflow-scoped stores only when the active package is installed.
+
+        A migrated v1 ``share_invite`` identity may legitimately remain active while
+        its now-external package is absent. That is a package-required condition,
+        not corrupt workflow state and not a reason to quarantine user data.
+        """
+        workflow_id = self.active_workflow_id
+        if not workflow_id or self.workflow_catalog.get_workflow(workflow_id) is None:
+            self.active_workflow_input_values = {}
+            self.active_workflow_settings_values = {}
+            self.workflow_input_state_error = ""
+            self.workflow_settings_state_error = ""
+            self.workflow_task_state_error = ""
+            return False
+        try:
+            self._initialize_workflow_input_state()
+        except WorkflowInputStateError as exc:
+            self.workflow_input_state_error = str(exc)
+            self.active_workflow_input_values = {}
+        try:
+            self._initialize_workflow_settings_state()
+        except WorkflowSettingsStateError as exc:
+            self.workflow_settings_state_error = str(exc)
+            self.active_workflow_settings_values = {}
+        try:
+            self.workflow_task_state_store.load_or_create()
+            self.workflow_task_state_error = ""
+        except WorkflowTaskStateError as exc:
+            self.workflow_task_state_error = str(exc)
+        return not (
+            self.workflow_input_state_error
+            or self.workflow_settings_state_error
+            or self.workflow_task_state_error
+        )
+
     def _legacy_share_invite_input_values(self) -> dict[str, Any]:
         """Return the exact historical Share Invite compatibility values."""
         return {
@@ -3787,7 +3799,9 @@ class MainWindow(QMainWindow):
         if not self.active_workflow_id:
             raise WorkflowInputStateError("Active workflow ID is unavailable.")
         state = self.workflow_input_state_store.load_or_migrate(
-            legacy_share_invite_values=self._legacy_share_invite_input_values()
+            legacy_share_invite_values=self._legacy_share_invite_input_values(),
+            active_workflow_id=self.active_workflow_id,
+            preserve_legacy_share_invite=True,
         )
         values = self.workflow_input_state_store.values_for(
             self.active_workflow_id, state=state
@@ -3820,7 +3834,9 @@ class MainWindow(QMainWindow):
         return schema, dict(values)
 
     def _migrate_legacy_share_invite_send_limit(self) -> None:
-        """Move the legacy global Share Invite send limit into namespaced Workflow Settings once."""
+        """Migrate the legacy limit once the external Share Invite schema is available."""
+        if self.workflow_catalog.get_workflow("share_invite") is None:
+            return
         state = self.workflow_settings_state_store.load_or_create()
         existing = state.get("workflows", {}).get("share_invite", {})
         if "max_test_send_limit" in existing:
@@ -3871,8 +3887,13 @@ class MainWindow(QMainWindow):
         if self.workflow_state_error or not self.active_workflow_id:
             self.workflow_runtime_error = ""
             return ""
+        if self.workflow_catalog.get_workflow(self.active_workflow_id) is None:
+            self.workflow_runtime_error = (
+                f"Workflow package required for active workflow_id: {self.active_workflow_id}. "
+                "Install the matching trusted .vpworkflow package from the Workflows page."
+            )
+            return self.workflow_runtime_error
         try:
-            self.workflow_catalog.require_workflow(self.active_workflow_id)
             self.workflow_catalog.require_runtime_factory(self.active_workflow_id)
             self.workflow_catalog.input_schema(self.active_workflow_id)
             self.workflow_catalog.settings_schema(self.active_workflow_id)
@@ -4121,6 +4142,21 @@ class MainWindow(QMainWindow):
         return slot
 
     def add_task(self) -> None:
+        if self.workflow_state_error:
+            _message(self, "Workflow unavailable", self.workflow_state_error, "warning")
+            return
+        if not self.active_workflow_id:
+            _message(
+                self,
+                "No active workflow",
+                "Install and activate a workflow before creating a Task.",
+                "warning",
+            )
+            return
+        runtime_error = self._refresh_workflow_runtime_error()
+        if runtime_error:
+            _message(self, "Workflow unavailable", runtime_error, "warning")
+            return
         closed_slots = set(self.runtime_store.closed_slot_ids())
         candidate = max(1, int(self.next_slot_id))
         while candidate in self.tasks or candidate in closed_slots:
@@ -4477,8 +4513,10 @@ class MainWindow(QMainWindow):
                 "Workflow recovery state is unresolved. Automation is hard-blocked until manual repair. "
                 + self.workflow_recovery_error
             )
-        if self.workflow_state_error or not self.active_workflow_id:
+        if self.workflow_state_error:
             return False, "Active workflow state is unavailable. Automation is fail-closed until the workflow state is repaired."
+        if not self.active_workflow_id:
+            return False, "No workflow is active. Install and activate a workflow before opening automation browsers."
         if self.workflow_input_state_error:
             return False, "Active Workflow Inputs are unavailable. Automation is fail-closed until repaired. " + self.workflow_input_state_error
         if self.workflow_settings_state_error:
@@ -4582,12 +4620,10 @@ class MainWindow(QMainWindow):
         self.workflow_catalog.require_workflow(target)
         self.workflow_catalog.require_runtime_factory(target)
         try:
-            if self.workflow_catalog.workflow_origin(target) == "builtin":
-                workflow_input_schema_for(target)
             self.workflow_catalog.input_schema(target)
             self.workflow_catalog.settings_schema(target)
             self.workflow_catalog.task_schema(target)
-        except (WorkflowInputSchemaError, WorkflowError) as exc:
+        except WorkflowError as exc:
             raise WorkflowRecoveryBlockedError(
                 f"Recovery target workflow schema is unavailable: {exc}"
             ) from exc
@@ -4696,7 +4732,7 @@ class MainWindow(QMainWindow):
             )
         if self._workflow_switch_in_progress or self._workflow_recovery_in_progress:
             return "Another workflow control-plane transaction is already in progress."
-        if self.workflow_state_error or not self.active_workflow_id:
+        if self.workflow_state_error:
             return "Active workflow state is invalid or unavailable."
         if self.workflow_input_state_error:
             return (
@@ -4729,6 +4765,15 @@ class MainWindow(QMainWindow):
                 + ", ".join(str(value) for value in manual)
             )
         return ""
+
+    def _confirm_first_workflow_activation(self, target: str) -> bool:
+        return _confirm(
+            self,
+            "Activate workflow",
+            f"Activate {target} as the first workflow?\n\n"
+            "No previous active workflow exists, so no workflow-scoped Task data will be cleared. "
+            "VibraPilot will restart after activation is committed.",
+        )
 
     def _confirm_workflow_switch(self, current: str, target: str) -> bool:
         return _confirm(
@@ -4839,23 +4884,50 @@ class MainWindow(QMainWindow):
                 f"Active workflow state is unavailable: {exc}"
             ) from exc
         current = persisted.active_workflow_id
-        if target == current:
-            return "already_active"
 
-        # Validate both manifest registration and an explicit source-controlled
-        # runtime factory before asking the user to confirm any destructive action.
+        # Validate the installed target before either first activation or a switch.
         self.workflow_catalog.require_workflow(target)
         self.workflow_catalog.require_runtime_factory(target)
         try:
-            if self.workflow_catalog.workflow_origin(target) == "builtin":
-                workflow_input_schema_for(target)
             self.workflow_catalog.input_schema(target)
             self.workflow_catalog.settings_schema(target)
             self.workflow_catalog.task_schema(target)
-        except (WorkflowInputSchemaError, WorkflowError) as exc:
+        except WorkflowError as exc:
             raise WorkflowSwitchBlockedError(
                 f"Target workflow schema is unavailable: {exc}"
             ) from exc
+
+        if target == current:
+            self._initialize_active_workflow_state_if_available()
+            self._refresh_workflow_runtime_error()
+            return "already_active"
+
+        if current is None:
+            blocker = self._workflow_recovery_block_reason()
+            if blocker:
+                raise WorkflowSwitchBlockedError(blocker)
+            if not self._confirm_first_workflow_activation(target):
+                return "cancelled"
+            new_state = self.workflow_state_store.commit_active_workflow(
+                target, expected_current_workflow_id=None
+            )
+            self._finalize_committed_workflow_switch(new_state.active_workflow_id)
+            self._workflow_restart_required = True
+            try:
+                self._spawn_workflow_restart()
+            except Exception as exc:
+                logging.exception("First workflow activation restart spawn failed")
+                _message(
+                    self,
+                    "Manual restart required",
+                    "Workflow activation was committed successfully, but VibraPilot could not "
+                    f"start the replacement process. Restart VibraPilot manually.\n\n{exc}",
+                    "error",
+                )
+                return "committed_restart_required"
+            QTimer.singleShot(0, self.close)
+            return "switched"
+
         blocker = self._workflow_switch_block_reason()
         if blocker:
             raise WorkflowSwitchBlockedError(blocker)
@@ -6145,9 +6217,14 @@ class MainWindow(QMainWindow):
         next_message = "Review your tasks to continue."
         next_button = "View Tasks"
         if not tasks:
-            next_action = ("add", None)
-            next_message = "No tasks yet. Create a task to get started."
-            next_button = "Add Task"
+            if not self.active_workflow_id:
+                next_action = ("workflows", None)
+                next_message = "No workflow is active. Install and activate a workflow to get started."
+                next_button = "View Workflows"
+            else:
+                next_action = ("add", None)
+                next_message = "No tasks yet. Create a task to get started."
+                next_button = "Add Task"
         else:
             selected = next((task for task in tasks if not task.is_browser_open()), None)
             if selected is not None:
@@ -6203,7 +6280,7 @@ class MainWindow(QMainWindow):
                 active_manifest = self.workflow_catalog.require_workflow(self.active_workflow_id or "")
                 workflow_name = active_manifest.name
             except Exception:
-                workflow_name = self.active_workflow_id or "Unavailable"
+                workflow_name = self.active_workflow_id or "No active workflow"
             if self.dashboard_workflow_name is not None:
                 self.dashboard_workflow_name.setText(workflow_name)
             if self.dashboard_workflow_activity is not None:

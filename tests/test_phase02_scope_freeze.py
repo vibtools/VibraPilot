@@ -57,12 +57,16 @@ class Phase02ScopeFreezeTest(unittest.TestCase):
         }
         actual = {
             "backend.TaskItem": _hash(backend_classes["TaskItem"]),
-            "backend.SELECTORS": _hash(backend_assignments["SELECTORS"]),
             "qt_app.ActivationPage": _hash(qt_classes["ActivationPage"]),
             "qt_app.BROWSER_SETTING_GROUPS": _hash(qt_ann["BROWSER_SETTING_GROUPS"]),
         }
+        if "SELECTORS" in backend_assignments:
+            actual["backend.SELECTORS"] = _hash(backend_assignments["SELECTORS"])
         current_scope = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
         authorized = {"qt_app.BROWSER_SETTING_GROUPS"} if current_scope.is_file() else set()
+        v10636_scope = ROOT / "config/verification/v1.0.6.36_share_invite_externalization_scope.json"
+        if v10636_scope.is_file():
+            authorized.add("backend.SELECTORS")
         ui_scope = ROOT / "config/verification/v1.0.6.34_ui_compact_polish_scope.json"
         if ui_scope.is_file():
             ui_data = json.loads(ui_scope.read_text(encoding="utf-8"))
