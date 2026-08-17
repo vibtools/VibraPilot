@@ -54,6 +54,9 @@ def test_nuitka_builder_is_standalone_onedir_and_never_installs_browser():
         '"--include-package=playwright"',
         '"--include-distribution-metadata=playwright"',
         '"--playwright-include-browser=none"',
+        '"--force-stdout-spec={PROGRAM_BASE}.stdout.log"',
+        '"--force-stderr-spec={PROGRAM_BASE}.stderr.log"',
+        "diagnostic_build_enabled",
         "validate_compiled_runtime",
         'browser_binaries = {"chrome.exe", "chromium.exe", "headless_shell.exe"}',
     ):
@@ -88,6 +91,12 @@ def test_github_action_builds_candidate_and_only_tag_path_publishes_release():
         "build_portable_nuitka.py",
         "verify_portable_release.py",
         "actions/upload-artifact@v4",
+        "VIBRAPILOT_PORTABLE_DIAGNOSTICS",
+        "Remove-Item Env:PYTHONPATH",
+        "Remove-Item Env:PYTHONHOME",
+        'PYTHONNOUSERSITE = "1"',
+        "VibraPilot-Windows-x64-Portable-Startup-Diagnostics",
+        "if: failure()",
         "if: startsWith(github.ref, 'refs/tags/v')",
         "gh release create",
         "expected = f\"v{VERSION}\"",
@@ -184,3 +193,36 @@ def test_ci_stability_fix_keeps_production_store_frozen_and_widens_only_test_gua
 
     stress = (ROOT / "tests/test_task_runtime_store.py").read_text(encoding="utf-8")
     assert "CONCURRENT_STORE_TEST_TIMEOUT_SECONDS = 300.0" in stress
+
+
+def test_rc_startup_diagnostic_correction_is_nonproduction_and_fail_closed():
+    scope = json.loads(
+        (ROOT / "config/verification/v1.0.6.37_portable_release_packaging_scope.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    correction = scope["portable_startup_diagnostic_correction"]
+    assert correction["failed_run_id"] == 32048312168
+    assert correction["failed_job_id"] == 95441285784
+    assert correction["nuitka_compile_passed"] is True
+    assert correction["artifact_forensic_verifier_passed"] is True
+    assert correction["startup_exit_code"] == 1
+    assert correction["production_source_changed"] is False
+    assert correction["tag_release_behavior_changed"] is False
+    assert correction["diagnostic_capture_only_on_workflow_dispatch"] is True
+    assert correction["clean_smoke_environment"] is True
+
+    workflow = (ROOT / ".github/workflows/portable-release.yml").read_text(encoding="utf-8")
+    assert 'if ("${{ github.event_name }}" -eq "workflow_dispatch")' in workflow
+    assert '$env:VIBRAPILOT_PORTABLE_DIAGNOSTICS = "1"' in workflow
+    assert 'Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue' in workflow
+    assert 'Remove-Item Env:PYTHONHOME -ErrorAction SilentlyContinue' in workflow
+    assert 'name: VibraPilot-Windows-x64-Portable-Startup-Diagnostics' in workflow
+    assert 'if: failure()' in workflow
+    assert 'VibraPilot.stderr.log' in workflow
+    assert 'VibraPilot.stdout.log' in workflow
+
+    builder = (ROOT / "scripts/packaging/build_portable_nuitka.py").read_text(encoding="utf-8")
+    assert 'VIBRAPILOT_PORTABLE_DIAGNOSTICS' in builder
+    assert '--force-stdout-spec={PROGRAM_BASE}.stdout.log' in builder
+    assert '--force-stderr-spec={PROGRAM_BASE}.stderr.log' in builder

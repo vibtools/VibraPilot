@@ -90,6 +90,11 @@ def validate_source() -> None:
     run(sys.executable, "scripts/verify_repository.py")
 
 
+def diagnostic_build_enabled() -> bool:
+    """Return True only for explicitly requested RC startup diagnostics."""
+    return os.environ.get("VIBRAPILOT_PORTABLE_DIAGNOSTICS", "").strip() == "1"
+
+
 def build_nuitka() -> Path:
     icon_path = ROOT / "assets" / "icons" / "app.ico"
     env = {
@@ -124,6 +129,15 @@ def build_nuitka() -> Path:
         f"--include-data-files={ROOT / 'frozen_design_source' / 'CURRENT_FOUNDATION_TOKENS.json'}=frozen_design_source/CURRENT_FOUNDATION_TOKENS.json",
         str(ROOT / "run.py"),
     ]
+    if diagnostic_build_enabled():
+        # The final GUI build intentionally has no console. During manual RC builds,
+        # force Python output to files beside the executable so a startup exception
+        # cannot be lost by the hosted runner smoke test. Tag/release builds omit
+        # these diagnostic redirections.
+        args[-1:-1] = [
+            "--force-stdout-spec={PROGRAM_BASE}.stdout.log",
+            "--force-stderr-spec={PROGRAM_BASE}.stderr.log",
+        ]
     run(*args, env=env)
 
     candidates = [
@@ -215,6 +229,7 @@ def build_info(dist_dir: Path) -> dict[str, object]:
         "bundled_browser": False,
         "system_google_chrome_required": True,
         "wix_msi": False,
+        "startup_diagnostics_embedded": diagnostic_build_enabled(),
         "file_count_before_manifests": len(files),
         "uncompressed_bytes_before_manifests": total_bytes,
         "largest_files": [

@@ -122,3 +122,15 @@ Before a public `v1.0.6.37` tag/release, the Actions candidate must pass:
 - The test-only deadlock guard is widened to 300 seconds. Successful runs do not wait for the guard.
 - The new portable release workflow is pinned to `windows-2022` so the compiler host does not drift with the `windows-latest` label; the historical general CI workflow itself is unchanged.
 - No application business logic, database schema, browser, workflow, licensing, persistence, reporting, Chromium, WiX, or MSI behavior changes are authorized by this correction.
+
+## Portable RC startup diagnostic correction — run 32048312168
+
+- Failed Actions run/job: `32048312168` / `95441285784` on pinned `windows-2022`.
+- Source verification, full pytest/unittest, Nuitka 4.1.3 standalone compilation, OneDir creation, ZIP creation, SHA-256 generation, and the portable forensic verifier all passed before the startup gate.
+- Candidate evidence before smoke: 827 files, 324,244,118 uncompressed bytes, 116,446,695 ZIP bytes, ZIP SHA-256 `90f95746a381d089d4ad3fe399f0087cabcba28ea9d26abc680cc95d3c0ad65c`, `bundled_chromium=false`, `wix_msi=false`.
+- The packaged executable exited with code `1` before the 12-second smoke checkpoint.
+- The failed workflow had `--windows-console-mode=disable`, no forced stdout/stderr capture, no application-log dump, and skipped artifact upload after the smoke failure. Therefore the failed run does not contain the underlying Python traceback; no production runtime root cause is asserted without that evidence.
+- Manual `workflow_dispatch` RC builds now embed Nuitka forced stdout/stderr files only for diagnostic acceptance. Version-tag builds keep the normal console-disabled release behavior without forced diagnostic files.
+- The packaged smoke clears inherited `PYTHONPATH` and `PYTHONHOME`, sets `PYTHONNOUSERSITE=1`, and uses only the disposable `VIB_TOOLS_DATA_DIR` so the acceptance run cannot accidentally consume the live checkout.
+- Failed startup diagnostics are uploaded separately with `if: failure()`; a failed smoke still blocks the normal candidate artifact and all release publication.
+- Production `src/`, workflow/browser/licensing/task persistence behavior, Chromium policy, WiX/MSI scope, and version identity are unchanged by this correction.

@@ -60,7 +60,13 @@ jobs:
 
       - name: Build Nuitka standalone OneDir portable archive
         shell: pwsh
-        run: python scripts/packaging/build_portable_nuitka.py
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $env:VIBRAPILOT_PORTABLE_DIAGNOSTICS = "1"
+          } else {
+            $env:VIBRAPILOT_PORTABLE_DIAGNOSTICS = "0"
+          }
+          python scripts/packaging/build_portable_nuitka.py
 
       - name: Forensic portable artifact verification
         shell: pwsh
@@ -78,16 +84,73 @@ jobs:
         run: |
           $version = python -c "from config.AppConfig.app import VERSION; print(VERSION)"
           $name = "VibraPilot-$version-Windows-x64-Portable"
-          $exe = Join-Path $PWD "release/$name/VibraPilot.exe"
+          $releaseDir = Join-Path $PWD "release/$name"
+          $exe = Join-Path $releaseDir "VibraPilot.exe"
+          $stdoutLog = Join-Path $releaseDir "VibraPilot.stdout.log"
+          $stderrLog = Join-Path $releaseDir "VibraPilot.stderr.log"
           $env:VIB_TOOLS_DATA_DIR = Join-Path $env:RUNNER_TEMP "VibraPilotPortableSmoke"
           New-Item -ItemType Directory -Force -Path $env:VIB_TOOLS_DATA_DIR | Out-Null
-          $process = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
+
+          # A standalone portable acceptance test must not inherit the live source
+          # checkout from the build runner. Keep only the explicit disposable data root.
+          Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
+          Remove-Item Env:PYTHONHOME -ErrorAction SilentlyContinue
+          $env:PYTHONNOUSERSITE = "1"
+          $env:QT_DEBUG_PLUGINS = "1"
+
+          $startedAt = Get-Date
+          $process = Start-Process -FilePath $exe -WorkingDirectory $releaseDir -PassThru
           Start-Sleep -Seconds 12
           $process.Refresh()
           if ($process.HasExited) {
+            Write-Host "::group::VibraPilot packaged startup diagnostics"
+            Write-Host "ExitCode=$($process.ExitCode)"
+            Write-Host "RuntimeSeconds=$([math]::Round(((Get-Date) - $startedAt).TotalSeconds, 3))"
+            Write-Host "PYTHONPATH=$env:PYTHONPATH"
+            Write-Host "PYTHONHOME=$env:PYTHONHOME"
+            Write-Host "VIB_TOOLS_DATA_DIR=$env:VIB_TOOLS_DATA_DIR"
+            if (Test-Path $stderrLog) {
+              Write-Host "--- Nuitka forced stderr ---"
+              Get-Content $stderrLog -ErrorAction Continue
+            } else {
+              Write-Host "Nuitka forced stderr file was not created."
+            }
+            if (Test-Path $stdoutLog) {
+              Write-Host "--- Nuitka forced stdout ---"
+              Get-Content $stdoutLog -ErrorAction Continue
+            } else {
+              Write-Host "Nuitka forced stdout file was not created."
+            }
+            $appLogDir = Join-Path $env:VIB_TOOLS_DATA_DIR "Logs"
+            if (Test-Path $appLogDir) {
+              Write-Host "--- VibraPilot application logs ---"
+              Get-ChildItem $appLogDir -File -ErrorAction Continue | ForEach-Object {
+                Write-Host "### $($_.FullName)"
+                Get-Content $_.FullName -ErrorAction Continue
+              }
+            }
+            Write-Host "--- Qt platform payload ---"
+            Get-ChildItem (Join-Path $releaseDir "PySide6\qt-plugins\platforms") -File -ErrorAction Continue |
+              Select-Object FullName,Length | Format-Table -AutoSize | Out-String | Write-Host
+            Write-Host "::endgroup::"
             throw "VibraPilot.exe exited during startup smoke with code $($process.ExitCode)."
           }
           Stop-Process -Id $process.Id -Force
+
+      - name: Upload portable startup diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VibraPilot-Windows-x64-Portable-Startup-Diagnostics
+          path: |
+            release/*-Windows-x64-Portable/*.stdout.log
+            release/*-Windows-x64-Portable/*.stderr.log
+            release/*-Windows-x64-Portable-BUILD-INFO.json
+            release/*-Windows-x64-Portable-VERIFY.json
+            .build/portable-nuitka/nuitka-compilation-report.xml
+            ${{ runner.temp }}/VibraPilotPortableSmoke/Logs/*.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Show portable size inventory
         shell: pwsh

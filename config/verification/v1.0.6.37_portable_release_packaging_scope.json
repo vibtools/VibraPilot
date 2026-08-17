@@ -93,5 +93,19 @@
     "production_task_runtime_store_changed": false,
     "application_business_logic_changed": false
   },
-  "frozen_task_runtime_store_sha256": "b4b581c936479a6a3f334170c033bae53f1d216e562cc1aff8b3e54e728dcf26"
+  "frozen_task_runtime_store_sha256": "b4b581c936479a6a3f334170c033bae53f1d216e562cc1aff8b3e54e728dcf26",
+  "portable_startup_diagnostic_correction": {
+    "classification": "RC startup observability and clean-environment smoke only; no production runtime change",
+    "failed_run_id": 32048312168,
+    "failed_job_id": 95441285784,
+    "nuitka_compile_passed": true,
+    "artifact_forensic_verifier_passed": true,
+    "startup_exit_code": 1,
+    "evidence_gap": "The GUI executable was built with windows-console-mode=disable and the smoke step captured neither forced stdout/stderr nor application logs; the failed run therefore cannot identify the underlying Python exception.",
+    "diagnostic_capture_only_on_workflow_dispatch": true,
+    "clean_smoke_environment": true,
+    "production_source_changed": false,
+    "tag_release_behavior_changed": false,
+    "public_release_still_blocked": true
+  }
 }
