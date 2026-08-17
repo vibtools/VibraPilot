@@ -1,3 +1,7 @@
+# VibraPilot v1.0.6.38 — Portable OneDir Runtime Root Fix
+
+v1.0.6.38 is a defect-only continuation of the portable release track. GitHub Actions run `32056816056` proved that the Nuitka OneDir payload was built and verified correctly but startup resolved packaged data one directory above `VibraPilot.exe`. The correction changes only the Nuitka application-root calculation to use the launched executable directory; the Windows 2022 / Python 3.12 / Nuitka 4.1.3 standalone OneDir architecture, system Google Chrome-only policy, external workflows, licensing, persistence, UI behavior, and no-WiX/MSI boundary remain unchanged.
+
 # VibraPilot v1.0.6.36 — Share Invite Workflow Externalization
 
 v1.0.6.36 externalizes the formerly built-in Share Invite implementation into a standalone trusted `.vpworkflow` package. VibraPilot Core now supports a valid zero-workflow state, retains the one-active-workflow model for installed plugins, preserves existing per-workflow state/migration behavior, and keeps Share Invite Test Mode/send safety semantics in the external workflow artifact.
@@ -224,7 +228,7 @@ Requires Python 3.12.
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python -m playwright install chromium
+# Install/verify system Google Chrome; Playwright Chromium is not required by VibraPilot.
 python scripts/verify_repository.py
 python -m pytest -q
 python run.py
@@ -234,7 +238,7 @@ python run.py
 
 ## Windows portable release build
 
-The supported v1.0.6.37 release path is GitHub Actions → Windows x64 → Python 3.12 → pinned Nuitka 4.1.3 → standalone OneDir. Google Chrome is an external prerequisite; the portable ZIP never bundles Playwright Chromium and does not produce WiX/MSI.
+The supported v1.0.6.38 release path is GitHub Actions → Windows x64 → Python 3.12 → pinned Nuitka 4.1.3 → standalone OneDir. Google Chrome is an external prerequisite; the portable ZIP never bundles Playwright Chromium and does not produce WiX/MSI.
 
 For an equivalent local Windows build:
 
@@ -243,7 +247,10 @@ python -m pip install -r requirements-portable.txt
 python scripts/packaging/build_portable_nuitka.py
 ```
 
-The builder produces `release/VibraPilot-<version>-Windows-x64-Portable.zip` plus its SHA-256 sidecar. Use the **Portable Windows Release** GitHub Actions workflow for the release candidate and final tag build. The historical `python build.py` PyInstaller path remains source-compatible but is not the v1.0.6.37 release pipeline.
+The builder produces `release/VibraPilot-<version>-Windows-x64-Portable.zip` plus its SHA-256 sidecar. Use the **Portable Windows Release** GitHub Actions workflow for the release candidate and final tag build. The historical `python build.py` PyInstaller path remains source-compatible but is not the v1.0.6.38 release pipeline.
+
+v1.0.6.38 corrects the RC startup defect proven by GitHub Actions run `32056816056`: Nuitka packaged data must resolve from the directory containing the launched `VibraPilot.exe`, not from the parent directory containing the portable folder. This is a packaged-location correction only; browser/workflow/licensing/UI behavior is unchanged.
+
 
 ## Change and audit history
 

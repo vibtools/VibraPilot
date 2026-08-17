@@ -1,3 +1,12 @@
+## v1.0.6.38 — Portable runtime-root fix
+
+- Baseline source: v1.0.6.37 / `299e93a89db3d30505350f474f79eefc330ee923`.
+- Failed RC evidence: Portable Windows Release `32056816056`, job `95468779983`, diagnostics artifact `9297920798`.
+- Root cause: Nuitka OneDir data files were packaged correctly, but `application_root()` resolved to the directory containing the copied portable folder instead of the folder containing `VibraPilot.exe`.
+- Runtime fix: Nuitka compiled execution now uses the launched executable directory; PyInstaller/source behavior is unchanged.
+- Packaging architecture remains Nuitka 4.1.3 standalone OneDir, Windows 2022, Python 3.12 x64, system Google Chrome only, no bundled Chromium and no WiX/MSI.
+- Final freeze requires a green new GitHub portable RC, packaged startup smoke and owner Windows acceptance.
+
 ## v1.0.6.37 — Portable release packaging
 
 - GitHub Actions builds Windows x64 Nuitka 4.1.3 standalone OneDir artifacts.

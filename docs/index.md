@@ -1,3 +1,11 @@
+# v1.0.6.38 Portable Runtime Root Fix
+
+- Update: `docs/updates/v1.0.6.38-portable-runtime-root-fix.md`
+- Verification: `docs/verification/V1.0.6.38_PORTABLE_RUNTIME_ROOT_FIX.md`
+- Baseline source: v1.0.6.37 / `299e93a89db3d30505350f474f79eefc330ee923`.
+- Exact fix: Nuitka OneDir packaged resources resolve from the launched executable directory.
+- Architecture preserved: Windows 2022 + Python 3.12 x64 + Nuitka 4.1.3 standalone OneDir; system Google Chrome; no bundled Chromium; no WiX/MSI.
+
 # v1.0.6.37 Portable Nuitka OneDir Release Packaging
 
 - Update: `docs/updates/v1.0.6.37-portable-release-packaging.md`

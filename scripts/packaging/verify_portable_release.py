@@ -162,7 +162,7 @@ def main() -> int:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(result, indent=2, sort_keys=True))
-    print("V1.0.6.37 PORTABLE RELEASE VERIFY: PASS")
+    print(f"V{VERSION} PORTABLE RELEASE VERIFY: PASS")
     return 0
 
 
@@ -170,5 +170,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except VerificationError as exc:
-        print(f"V1.0.6.37 PORTABLE RELEASE VERIFY: FAIL — {exc}")
+        print(f"V{VERSION} PORTABLE RELEASE VERIFY: FAIL — {exc}")
         raise SystemExit(1)

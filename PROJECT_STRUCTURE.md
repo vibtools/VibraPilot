@@ -1,3 +1,18 @@
+# Project Structure — v1.0.6.38 Portable Runtime Root Fix
+
+```text
+src/vibrapilot/runtime_environment.py
+    Single approved production correction: Nuitka OneDir data root follows the launched executable directory.
+
+config/verification/v1.0.6.38_portable_runtime_root_fix_scope.json
+tests/test_v10638_portable_runtime_root_fix.py
+docs/updates/v1.0.6.38-portable-runtime-root-fix.md
+docs/verification/V1.0.6.38_PORTABLE_RUNTIME_ROOT_FIX.md
+    Scope, regression and forensic evidence for the v1.0.6.38 correction.
+```
+
+The v1.0.6.37 `portable-release.yml`, Nuitka builder, system-Chrome-only policy and no-WiX/MSI boundary remain structurally unchanged.
+
 # Project Structure — v1.0.6.37 Portable Nuitka Release
 
 ```text

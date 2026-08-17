@@ -1,3 +1,9 @@
+# Current portable fix candidate — v1.0.6.38
+
+`v1.0.6.38` is a defect-only packaging/runtime-location increment from the v1.0.6.37 portable release candidate. It fixes the exact packaged data-root failure proven by GitHub Actions run `32056816056`; it does not redesign the portable architecture or reopen application business logic.
+
+Freeze rule: v1.0.6.38 becomes the official next baseline only after PR CI, post-merge main CI, a fresh `workflow_dispatch` Nuitka OneDir build, packaged startup smoke, owner Windows portable acceptance, and a clean source baseline ZIP + SHA-256 all pass.
+
 # Current packaging candidate — v1.0.6.37
 
 `v1.0.6.37` is a packaging/release-infrastructure increment from the frozen v1.0.6.36 functional baseline. It introduces the first supported Nuitka standalone OneDir portable Windows artifact and does not reopen v1.0.6.36.

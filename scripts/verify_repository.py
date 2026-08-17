@@ -56,6 +56,7 @@ V10634_UI_COMPACT_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.34
 V10635_WORKFLOW_SCOPED_TEST_SAFETY_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.35_workflow_scoped_test_safety_scope.json"
 V10636_SHARE_INVITE_EXTERNALIZATION_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.36_share_invite_externalization_scope.json"
 V10637_PORTABLE_RELEASE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.37_portable_release_packaging_scope.json"
+V10638_PORTABLE_RUNTIME_ROOT_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.38_portable_runtime_root_fix_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -360,11 +361,26 @@ v10637_allowed_files = (
     | set(v10637_scope.get("authorized_nonproduction_files", []))
 )
 
+# v1.0.6.38 corrects the proven Nuitka OneDir packaged data-root defect only.
+if not V10638_PORTABLE_RUNTIME_ROOT_FIX_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.38 portable runtime-root fix scope contract is missing")
+try:
+    v10638_scope = json.loads(
+        V10638_PORTABLE_RUNTIME_ROOT_FIX_SCOPE_CONTRACT.read_text(encoding="utf-8")
+    )
+except Exception as exc:
+    fail(f"v1.0.6.38 portable runtime-root fix scope contract is invalid: {exc}")
+v10638_production_allowed = set(v10638_scope.get("allowed_production_source_changes", []))
+v10638_allowed_files = (
+    v10638_production_allowed
+    | set(v10638_scope.get("authorized_nonproduction_files", []))
+)
+
 current_worker_methods = (
     v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods | v10635_worker_methods | v10636_worker_methods
 )
 current_allowed_files = (
-    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files | v10636_allowed_files | v10637_allowed_files
+    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files | v10636_allowed_files | v10637_allowed_files | v10638_allowed_files
 )
 if pr08_allowed_files != {
     "src/vibrapilot/workflow_inputs.py",
@@ -2530,7 +2546,7 @@ for forbidden in ('playwright", "install", "chromium"', 'playwright install chro
 for marker in ("workflow_dispatch:", "tags: ['v*']", "windows-2022", "build_portable_nuitka.py", "verify_portable_release.py", "actions/upload-artifact@v4", 'expected = f"v{VERSION}"'):
     if marker not in portable_workflow:
         fail(f"v1.0.6.37 portable GitHub Actions marker missing: {marker}")
-for marker in ("def is_packaged_runtime", "def application_root", "__compiled__", "containing_dir"):
+for marker in ("def is_packaged_runtime", "def application_root", "__compiled__"):
     if marker not in runtime_environment_text:
         fail(f"v1.0.6.37 packaged-runtime compatibility marker missing: {marker}")
 if "ROOT_DIR = application_root()" not in backend_text:
@@ -2539,6 +2555,50 @@ if "if not is_packaged_runtime():" not in backend_text:
     fail("v1.0.6.37 packaged licensing policy is not using the cross-packager predicate")
 if "if is_packaged_runtime():" not in qt_text:
     fail("v1.0.6.37 workflow restart is not using the cross-packager predicate")
+
+# v1.0.6.38 exact portable runtime-root correction scope.
+if v10638_scope.get("plan_id") != "VP-V10638-PORTABLE-RUNTIME-ROOT-FIX-001":
+    fail("v1.0.6.38 portable runtime-root fix plan identifier mismatch")
+if v10638_scope.get("baseline_version") != "1.0.6.37":
+    fail("v1.0.6.38 baseline version mismatch")
+if v10638_scope.get("baseline_source_commit") != "299e93a89db3d30505350f474f79eefc330ee923":
+    fail("v1.0.6.38 baseline source commit mismatch")
+if v10638_scope.get("user_supplied_baseline_archive_sha256") != "007d339193e7f02bc316514e82512174034d611c889a327580f59a32a24bfddb":
+    fail("v1.0.6.38 user-supplied baseline archive mismatch")
+if v10638_scope.get("target_version") != "1.0.6.38":
+    fail("v1.0.6.38 target version mismatch")
+if v10638_scope.get("failed_portable_run_id") != 32056816056:
+    fail("v1.0.6.38 failed portable RC run identity mismatch")
+if v10638_scope.get("failed_portable_job_id") != 95468779983:
+    fail("v1.0.6.38 failed portable RC job identity mismatch")
+if v10638_scope.get("diagnostics_artifact_id") != 9297920798:
+    fail("v1.0.6.38 startup diagnostics artifact identity mismatch")
+if v10638_scope.get("diagnostics_artifact_sha256") != "4e26c5b3f9683cd3422e178d1cd7472ac8057286f6bf683880aca3b772fe9ec0":
+    fail("v1.0.6.38 startup diagnostics artifact digest mismatch")
+if v10638_scope.get("allowed_production_source_changes") != ["src/vibrapilot/runtime_environment.py"]:
+    fail("v1.0.6.38 must change exactly one production source file")
+v10638_invariants = v10638_scope.get("portable_invariants", {})
+if v10638_invariants != {
+    "build_host": "windows-2022",
+    "python": "3.12 x64",
+    "nuitka": "4.1.3",
+    "mode": "standalone OneDir",
+    "system_google_chrome_only": True,
+    "bundled_playwright_chromium": False,
+    "wix_msi": False,
+}:
+    fail("v1.0.6.38 portable architecture invariant mismatch")
+for relative, expected in v10638_scope.get("frozen_file_sha256", {}).items():
+    if sha256(ROOT / relative) != expected:
+        fail(f"v1.0.6.38 frozen file changed outside runtime-root scope: {relative}")
+if "return Path(sys.argv[0]).resolve().parent" not in runtime_environment_text:
+    fail("v1.0.6.38 Nuitka OneDir root must resolve from the launched executable directory")
+if "return Path(containing_dir).resolve()" in runtime_environment_text:
+    fail("v1.0.6.38 must not use containing_dir as the in-OneDir data root")
+if 'print(f"V{VERSION} PORTABLE RELEASE VERIFY: PASS")' not in portable_verifier:
+    fail("v1.0.6.38 portable verifier PASS identity is not AppConfig-driven")
+if 'print(f"V{VERSION} PORTABLE RELEASE VERIFY: FAIL — {exc}")' not in portable_verifier:
+    fail("v1.0.6.38 portable verifier FAIL identity is not AppConfig-driven")
 
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
@@ -2549,8 +2609,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.37":
-    fail("AppConfig VERSION must be 1.0.6.37 for the portable release packaging candidate")
+if app_version != "1.0.6.38":
+    fail("AppConfig VERSION must be 1.0.6.38 for the portable runtime-root fix candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -3313,6 +3373,7 @@ required = [
     "config/verification/v1.0.6.35_workflow_scoped_test_safety_scope.json",
     "config/verification/v1.0.6.36_share_invite_externalization_scope.json",
     "config/verification/v1.0.6.37_portable_release_packaging_scope.json",
+    "config/verification/v1.0.6.38_portable_runtime_root_fix_scope.json",
     "src/vibrapilot/chrome_runtime.py",
     "src/vibrapilot/chrome_installer.py",
     "src/vibrapilot/windows_authenticode.py",
@@ -3336,6 +3397,8 @@ required = [
     "docs/verification/V1.0.6.36_SHARE_INVITE_EXTERNALIZATION.md",
     "docs/updates/v1.0.6.37-portable-release-packaging.md",
     "docs/verification/V1.0.6.37_PORTABLE_RELEASE_PACKAGING.md",
+    "docs/updates/v1.0.6.38-portable-runtime-root-fix.md",
+    "docs/verification/V1.0.6.38_PORTABLE_RUNTIME_ROOT_FIX.md",
     "scripts/diagnostics/verify_v10633_browser_forensic_closure.py",
     "scripts/diagnostics/verify_v10634_ui_compact_polish.py",
     "scripts/diagnostics/verify_v10635_workflow_scoped_test_safety.py",

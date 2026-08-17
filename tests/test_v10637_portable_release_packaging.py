@@ -123,14 +123,20 @@ def test_source_runtime_root_remains_repository_root():
             setattr(sys, "frozen", old_frozen)
 
 
-def test_nuitka_runtime_uses_compiled_containing_dir(tmp_path):
+def test_nuitka_runtime_uses_launched_executable_directory_for_adjacent_payloads(tmp_path):
     old = runtime_environment.__dict__.get("__compiled__")
     had = "__compiled__" in runtime_environment.__dict__
-    runtime_environment.__dict__["__compiled__"] = SimpleNamespace(containing_dir=str(tmp_path))
+    old_argv0 = sys.argv[0]
+    executable = tmp_path / "VibraPilot.exe"
+    runtime_environment.__dict__["__compiled__"] = SimpleNamespace(
+        containing_dir=str(tmp_path.parent)
+    )
+    sys.argv[0] = str(executable)
     try:
         assert runtime_environment.is_packaged_runtime() is True
         assert runtime_environment.application_root() == tmp_path.resolve()
     finally:
+        sys.argv[0] = old_argv0
         if had:
             runtime_environment.__dict__["__compiled__"] = old
         else:

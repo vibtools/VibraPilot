@@ -1,3 +1,9 @@
+# v1.0.6.38 Portable Runtime Root Compatibility
+
+The only production source change is `src/vibrapilot/runtime_environment.py`. In Nuitka standalone execution, packaged data now resolves from the directory containing the launched `VibraPilot.exe`. Historical PyInstaller `_MEIPASS` handling and source-checkout root handling remain unchanged.
+
+No browser engine/policy, managed profile, Chrome installer, Authenticode, workflow API/business logic, licensing protocol, TaskRuntimeStore/schema, workspace, report/export, download/upload, dependency, general CI or UI/UX behavior change is introduced.
+
 # v1.0.6.37 Portable Release Compatibility
 
 - Target: Windows 10/11 x64.

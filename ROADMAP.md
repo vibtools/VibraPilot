@@ -1,3 +1,10 @@
+# Current — v1.0.6.38 Portable Runtime Root Fix
+
+- Input source baseline: v1.0.6.37 / `299e93a89db3d30505350f474f79eefc330ee923`.
+- Scope: correct the proven Nuitka OneDir packaged data root only; all application business behavior remains frozen.
+- Portable architecture remains GitHub Actions Windows 2022 → Python 3.12 x64 → Nuitka 4.1.3 standalone OneDir → system Google Chrome; no bundled Chromium; no WiX/MSI.
+- Next gate: source/PR CI → main CI → fresh RC build → startup smoke → owner Windows portable acceptance → clean v1.0.6.38 baseline freeze.
+
 # Current — v1.0.6.37 Portable Nuitka OneDir Release
 
 - Frozen input: v1.0.6.36 FINAL / `40b9b65d3900760d919167dc6711a4fcd494f010`.

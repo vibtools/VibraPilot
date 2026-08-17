@@ -1,9 +1,12 @@
 """Cross-packager runtime location helpers for VibraPilot portable builds.
 
-The historical Windows builder used PyInstaller, while v1.0.6.37 introduces a
-Nuitka standalone/OneDir release path.  Nuitka deliberately does not set
-``sys.frozen``; its ``__compiled__.containing_dir`` attribute is the supported
-way to locate the standalone distribution directory.
+The historical Windows builder used PyInstaller, while v1.0.6.37 introduced a
+Nuitka standalone/OneDir release path. Nuitka deliberately does not set
+``sys.frozen``. For data files shipped *inside* the standalone distribution,
+Nuitka documents the directory of ``sys.argv[0]`` as the program-adjacent
+runtime location; ``__compiled__.containing_dir`` instead describes the
+directory containing the compiled artifact/dist container and can therefore be
+one level above the copied OneDir payload.
 
 This module centralizes that packaging distinction without changing application
 business logic.
@@ -30,18 +33,15 @@ def is_packaged_runtime() -> bool:
 def application_root() -> Path:
     """Return the directory that owns packaged runtime data files.
 
-    Source mode keeps the historical repository-root contract.  PyInstaller
-    keeps the existing ``_MEIPASS`` behavior.  Nuitka standalone resolves to
-    the generated ``.dist`` directory via ``__compiled__.containing_dir``.
+    Source mode keeps the historical repository-root contract. PyInstaller
+    keeps the existing ``_MEIPASS`` behavior. Nuitka standalone resolves to
+    the directory containing the launched executable so adjacent ``config/``,
+    ``assets/`` and other packaged data remain inside the copied OneDir folder.
     """
     if getattr(sys, "frozen", False):
         return Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent)).resolve()
 
-    marker = _nuitka_compiled_marker()
-    if marker is not None:
-        containing_dir = getattr(marker, "containing_dir", None)
-        if containing_dir:
-            return Path(containing_dir).resolve()
+    if _nuitka_compiled_marker() is not None:
         return Path(sys.argv[0]).resolve().parent
 
     return Path(__file__).resolve().parents[2]

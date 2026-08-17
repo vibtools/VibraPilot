@@ -1,3 +1,11 @@
+## v1.0.6.38 — Portable OneDir Runtime Root Fix — 2026-08-17
+
+- Forensically traced GitHub Actions Portable Windows Release run `32056816056` / job `95468779983` to a single packaged-runtime root defect after Nuitka compilation, OneDir packaging, ZIP/checksum verification, no-Chromium enforcement and no-WiX/MSI enforcement had already passed.
+- Fixed `src/vibrapilot/runtime_environment.py` so Nuitka standalone resolves packaged data from the launched executable directory (`Path(sys.argv[0]).resolve().parent`) instead of `__compiled__.containing_dir`, which resolved one level above the copied portable folder in the failed RC.
+- Preserved PyInstaller `_MEIPASS` behavior, source-mode repository-root behavior, backend/UI/browser/workflow/licensing/persistence logic, pinned Nuitka 4.1.3, Windows 2022 build host, Python 3.12 x64, system Google Chrome-only policy and WiX/MSI exclusion.
+- Made portable verifier status output AppConfig-version-driven so the v1.0.6.38 build does not emit stale v1.0.6.37 verification identity.
+- Added v1.0.6.38 regression/scope verification and recorded the captured startup diagnostics artifact `9297920798` (SHA-256 `4e26c5b3f9683cd3422e178d1cd7472ac8057286f6bf683880aca3b772fe9ec0`).
+
 ## v1.0.6.37 — Portable Nuitka OneDir Release Packaging — 2026-08-17
 
 - Added a dedicated GitHub Actions Windows x64 portable release workflow using pinned Nuitka 4.1.3 standalone OneDir mode.

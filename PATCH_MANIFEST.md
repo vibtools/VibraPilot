@@ -1,136 +1,161 @@
-# VibraPilot v1.0.6.37 — Portable Nuitka OneDir Release Packaging Delta
+# VibraPilot v1.0.6.38 — Portable OneDir Runtime Root Fix Delta
 
 ## Classification
 
-- Frozen source baseline: `VibraPilot_v1.0.6.36_BASELINE_FINAL.zip`
-- Baseline Git commit: `40b9b65d3900760d919167dc6711a4fcd494f010`
-- Baseline ZIP SHA-256: `19f06990ae4b209da28159a25eced0b5be297579b907bcd60d79a3f3fe197ef5`
-- Target version: `1.0.6.37`
-- Recommended branch: `feature/v1.0.6.37-portable-nuitka-release`
-- Release classification: Portable Windows Release Packaging Only
+- Authoritative user input snapshot: `Updated_Baseline.zip`
+- Input snapshot SHA-256: `007d339193e7f02bc316514e82512174034d611c889a327580f59a32a24bfddb`
+- Embedded tracked source branch: `main`
+- Embedded/GitHub source commit: `299e93a89db3d30505350f474f79eefc330ee923`
+- Embedded Git tree: `d946c22d40bf4e919989b7473cacf0c3926f10ee`
+- Baseline source version: `1.0.6.37`
+- Target version: `1.0.6.38`
+- Recommended branch: `fix/v1.0.6.38-portable-runtime-root`
+- Classification: defect-only portable runtime-location correction
 
-## Locked outcome
+## Exact failure evidence
 
-VibraPilot gains a dedicated GitHub Actions release path that builds a Windows x64 portable standalone OneDir application with pinned Nuitka 4.1.3. The portable archive uses the installed/verified system Google Chrome runtime and does not bundle Playwright Chromium, Google Chrome, WiX, MSI, or any installer payload.
+Second GitHub Actions portable RC:
 
-The historical PyInstaller `build.py` and `requirements-build.txt` are preserved for compatibility/history but are not used by the new portable release workflow.
+- Workflow run: `32056816056`
+- Job: `95468779983`
+- Source SHA: `299e93a89db3d30505350f474f79eefc330ee923`
+- Startup diagnostics artifact: `9297920798`
+- Diagnostics artifact SHA-256: `4e26c5b3f9683cd3422e178d1cd7472ac8057286f6bf683880aca3b772fe9ec0`
+- Built RC ZIP SHA-256: `d2afb06bacb807987ef3f5e010b801f644a4127997ee0b9ca9331ab9e41e0f5a`
+- Built RC ZIP bytes: `116450399`
+- Built RC files: `827`
 
-## Portable build path
+Before startup, source verification, full tests, Nuitka compilation, OneDir creation, ZIP/checksum verification, no-Chromium enforcement and no-WiX/MSI enforcement all passed.
 
-The new packaging path is:
+Captured stderr then proved:
 
-`GitHub Actions (Windows + Python 3.12 x64) -> source verification/tests -> Nuitka 4.1.3 standalone OneDir -> portable payload verification -> startup smoke -> ZIP + SHA-256 -> Actions artifact`
+`RuntimeError: Settings defaults could not be loaded: ...\release\config\settings.defaults.json`
 
-Manual `workflow_dispatch` creates a release candidate only. A version tag may publish a GitHub Release only when the tag exactly equals `v{AppConfig.VERSION}`.
+The verified payload contained the file at:
 
-## Browser boundary
+`...\release\VibraPilot-1.0.6.37-Windows-x64-Portable\config\settings.defaults.json`
 
-- No `python -m playwright install chromium` command exists in the portable builder or workflow.
-- Nuitka's built-in Playwright standalone support retains the Playwright control driver (`playwright/driver/node.exe` and `playwright/driver/package/cli.js`).
-- `--playwright-include-browser=none` explicitly disables Playwright browser inclusion.
-- Portable verification rejects `chrome.exe`, `chromium.exe`, `headless_shell.exe`, `ms-playwright`, `.playwright-browsers`, private/runtime state, WiX intermediates, and MSI payloads.
-- Existing VibraPilot system Google Chrome discovery/install/Authenticode/runtime policy remains unchanged.
+Therefore the packaged application root was exactly one directory too high.
 
-## Minimal runtime packaging compatibility
+## Root cause
 
-Nuitka deliberately does not use the historical PyInstaller `sys.frozen` contract. A small cross-packager helper is therefore introduced:
+`src/vibrapilot/runtime_environment.py` used `__compiled__.containing_dir` as the data root for Nuitka standalone execution. For this copied OneDir layout that value described the directory containing the portable/dist folder, not the directory containing `VibraPilot.exe` and its adjacent packaged resources.
 
-- `src/vibrapilot/runtime_environment.py` — detects source, PyInstaller and Nuitka packaged execution and resolves the packaged application root.
-- `src/vibrapilot/backend.py` — uses that shared application root and packaged predicate for existing packaged-resource and licensing-environment decisions.
-- `src/vibrapilot/qt_app.py` — uses the same packaged predicate for the existing workflow restart path.
+The v1.0.6.38 correction is exactly:
 
-No Chrome launch selectors/policy, workflow business logic, licensing protocol, persistence schema, Task DB schema, reporting, download/upload behavior, or general UI behavior is redesigned.
+```python
+if _nuitka_compiled_marker() is not None:
+    return Path(sys.argv[0]).resolve().parent
+```
 
-## New release infrastructure
+PyInstaller `_MEIPASS` behavior and source-mode repository-root behavior are preserved.
 
-- `.github/workflows/portable-release.yml`
-- `requirements-portable.txt`
-- `scripts/packaging/build_portable_nuitka.py`
-- `scripts/packaging/verify_portable_release.py`
-- `config/verification/v1.0.6.37_portable_release_packaging_scope.json`
-- `tests/test_v10637_portable_release_packaging.py`
-- v1.0.6.37 update/verification documentation
+## Scope lock
 
-## Version metadata
+Only one production runtime file is modified:
 
-The public source metadata is synchronized to `1.0.6.37` across AppConfig, `pyproject.toml`, `CITATION.cff`, project/docs manifests, and release documentation.
+- `src/vibrapilot/runtime_environment.py`
 
-## Explicitly frozen
+The following domains remain byte/behavior frozen from the tracked v1.0.6.37 source baseline:
 
-- Chrome discovery policy and launch behavior
-- Chrome installer and Authenticode validation
-- browser profiles and browser-diagnostics schema
-- workflow runtime business logic and Workflow Plugin API
-- Share Invite and DMARC external workflow packages
-- Licora licensing protocol/device identity behavior
-- Task runtime database schema
-- workspace persistence schema
-- reports/export
+- backend business logic
+- Qt UI/UX behavior
+- Chrome discovery/launch policy
+- secure Chrome installer and Authenticode validation
+- browser profiles and diagnostics schema
+- workflow business logic and Plugin API
+- Share Invite and DMARC external packages
+- Licora licensing protocol/device identity
+- TaskRuntimeStore/database schema
+- workspace schema
+- reports/exports
 - download/upload bridge
-- application feature/UI behavior
-- WiX/MSI/installer work
+- runtime dependencies
+- general CI workflow
+- portable workflow architecture/build host
+- Nuitka and Playwright versions
 
-## Source verification performed before sealing
+## Portable architecture preserved
 
-- Frozen v1.0.6.36 baseline SHA/integrity: PASS
-- Final source-tree repository verifier: PASS
-- v1.0.6.37 targeted packaging/runtime compatibility tests: `31 passed, 1 skipped`
-- Final source-tree pytest: `474 passed, 6 skipped, 106 subtests`
-- Final source-tree standard-library unittest: `201 OK, 6 skipped`
+- GitHub Actions host: `windows-2022`
+- Python: `3.12 x64`
+- Nuitka: `4.1.3`
+- Mode: standalone OneDir
+- Playwright browser inclusion: `none`
+- Browser: verified system Google Chrome only
+- Playwright control driver: packaged
+- Bundled Chromium/Chrome: forbidden
+- WiX/MSI: not produced
+- Manual `workflow_dispatch`: RC build
+- exact version tag: release publication path after all build/smoke gates pass
+
+The v1.0.6.37 diagnostic startup-smoke hardening is retained unchanged: source `PYTHONPATH/PYTHONHOME` is removed from the packaged smoke and RC-only forced stdout/stderr is available on failure.
+
+## Version/documentation changes
+
+Version identity is synchronized to `1.0.6.38` across AppConfig, package metadata, citation/project/docs manifests and release documentation. Portable verifier status text now derives from `AppConfig.VERSION` rather than carrying a stale literal v1.0.6.37 identity.
+
+Historical v1.0.6.37 update/verification documents record the failed second RC and its superseding v1.0.6.38 root fix.
+
+## Authoritative input snapshot hygiene
+
+`Updated_Baseline.zip` is accepted as the user's authoritative input snapshot and its embedded tracked source is exact commit `299e93a...`; however, the ZIP is a workspace snapshot and must not itself be published as a clean source baseline.
+
+Observed ZIP content includes:
+
+- 778 total entries
+- 91 `.git/` entries
+- 25 private `project/` entries
+- 11 `AppData/` entries
+- 27 `Logs/` entries
+- 1 `Reports/` entry
+- 1 `FailedData/` entry
+- 212 `__pycache__/` entries
+- 8 `.pytest_cache/` entries
+- stray command-output placeholders: `-D`, `-n`, `RUN_ID`, `VibraPilot-Windows-x64-Portable-Startup-Diagnostics`
+
+None of those private/runtime/cache/workspace-only paths are part of this Delta.
+
+## Forensic verification performed
+
+Against a clean `git archive` of embedded HEAD `299e93a...`:
+
+- targeted v1.0.6.38/v1.0.6.37/AppConfig/build-metadata tests: `24 passed`
+- repository verifier: PASS
+- full pytest: `482 passed, 6 skipped, 106 subtests passed`
+- standard-library unittest: `201 OK, 6 skipped`
 - compileall: PASS
-- Baseline-vs-candidate scope comparison: no unauthorized production file identified
-- No source-controlled built-in workflow reintroduced
-- No Playwright browser installation command introduced
-- No WiX/MSI packaging path introduced
+- only one production `src/vibrapilot/**` file changed: `runtime_environment.py`
+- frozen backend/Qt/TaskRuntime/Chrome/CI/workflow/dependency hashes: PASS via v1.0.6.38 regression contract
+- no fake/demo/placeholder implementation marker in current portable runtime/build surfaces
+- no dependency change
+- no portable GitHub workflow change
+- no WiX/MSI addition
+- no Chromium/Chrome bundle addition
+- no deletion required
 
-## Required Windows RC gate
+Synthetic licensing/network/corrupt-store/browser warnings emitted by negative-path tests are expected test fixtures; authoritative suites passed.
 
-This Delta does not claim that a Windows Nuitka binary was compiled inside the source-sealing environment. The first actual portable build is intentionally performed by the new Windows GitHub Actions `workflow_dispatch` path after the source patch is committed/merged.
+## Remaining real Windows release gate
 
-Before a public `v1.0.6.37` tag/release, the Actions candidate must pass:
+Source-level correction is verified, but v1.0.6.38 must **not** be called FINAL/FROZEN solely from this non-Windows sealing environment. Final freeze requires:
 
-- Nuitka compile and packaged artifact verifier
-- startup smoke
-- clean-folder Windows launch
-- licensing
-- external workflow install/activation
-- verified system Google Chrome launch/profile persistence
-- controlled DMARC run
-- controlled Share Invite Test Mode run
-- workflow restart/persistence
-- Logs/Reports/AppData behavior
-- clean shutdown
-- ZIP size/SHA/largest-file review
+1. Windows owner local acceptance of this Delta.
+2. PR CI green.
+3. fast-forward promotion to `main` and post-merge CI green.
+4. a fresh `Portable Windows Release` `workflow_dispatch` from v1.0.6.38 `main`.
+5. Nuitka OneDir compile + forensic verifier + packaged startup smoke green.
+6. downloaded RC live Windows acceptance, including system Chrome and representative external workflow behavior.
+7. only then: clean source-only v1.0.6.38 baseline ZIP + SHA-256 and official freeze.
+8. public version tag/release only after owner acceptance.
 
 ## Delta safety
 
 - Required deletions: none
-- Private `project/`: excluded
+- `project/`: excluded
+- `.git/`: excluded
 - AppData/Logs/Reports/FailedData: excluded
-- BrowserProfiles: excluded
-- caches/pyc/.git/build artifacts: excluded
-- bundled Chromium/Chrome: excluded
-- WiX/MSI: excluded
-- Share Invite/DMARC workflow packages: separate and unchanged
-
-## PR #17 attempt-1 CI stability correction
-
-- Failed Actions run/job: `32044012728` / `95428147713`.
-- Classification: verification timing false-negative, not a production task-runtime regression.
-- The concurrent SQLite correctness test inherited a fixed 60-second total-completion watchdog from the v1.0.6.13 CI fix. The 2026 hosted Windows runner exceeded that bound while the finite writer threads were still completing.
-- `src/vibrapilot/task_runtime_store.py` remains byte-frozen at SHA-256 `b4b581c936479a6a3f334170c033bae53f1d216e562cc1aff8b3e54e728dcf26`.
-- The test-only deadlock guard is widened to 300 seconds. Successful runs do not wait for the guard.
-- The new portable release workflow is pinned to `windows-2022` so the compiler host does not drift with the `windows-latest` label; the historical general CI workflow itself is unchanged.
-- No application business logic, database schema, browser, workflow, licensing, persistence, reporting, Chromium, WiX, or MSI behavior changes are authorized by this correction.
-
-## Portable RC startup diagnostic correction — run 32048312168
-
-- Failed Actions run/job: `32048312168` / `95441285784` on pinned `windows-2022`.
-- Source verification, full pytest/unittest, Nuitka 4.1.3 standalone compilation, OneDir creation, ZIP creation, SHA-256 generation, and the portable forensic verifier all passed before the startup gate.
-- Candidate evidence before smoke: 827 files, 324,244,118 uncompressed bytes, 116,446,695 ZIP bytes, ZIP SHA-256 `90f95746a381d089d4ad3fe399f0087cabcba28ea9d26abc680cc95d3c0ad65c`, `bundled_chromium=false`, `wix_msi=false`.
-- The packaged executable exited with code `1` before the 12-second smoke checkpoint.
-- The failed workflow had `--windows-console-mode=disable`, no forced stdout/stderr capture, no application-log dump, and skipped artifact upload after the smoke failure. Therefore the failed run does not contain the underlying Python traceback; no production runtime root cause is asserted without that evidence.
-- Manual `workflow_dispatch` RC builds now embed Nuitka forced stdout/stderr files only for diagnostic acceptance. Version-tag builds keep the normal console-disabled release behavior without forced diagnostic files.
-- The packaged smoke clears inherited `PYTHONPATH` and `PYTHONHOME`, sets `PYTHONNOUSERSITE=1`, and uses only the disposable `VIB_TOOLS_DATA_DIR` so the acceptance run cannot accidentally consume the live checkout.
-- Failed startup diagnostics are uploaded separately with `if: failure()`; a failed smoke still blocks the normal candidate artifact and all release publication.
-- Production `src/`, workflow/browser/licensing/task persistence behavior, Chromium policy, WiX/MSI scope, and version identity are unchanged by this correction.
+- caches/pyc: excluded
+- browser profile/runtime data: excluded
+- built EXE/OneDir/ZIP output: excluded
+- external workflow packages: excluded and unchanged
