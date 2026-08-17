@@ -54,7 +54,8 @@ class V10613Phase01VerificationFixTest(unittest.TestCase):
                 for target in node.targets:
                     if isinstance(target, ast.Name) and target.id == "CONCURRENT_STORE_TEST_TIMEOUT_SECONDS":
                         timeout_value = ast.literal_eval(node.value)
-        self.assertEqual(float(timeout_value), 60.0)
+        self.assertEqual(float(self.scope["concurrency_test_timeout_seconds"]), 60.0)
+        self.assertGreaterEqual(float(timeout_value), 60.0)
         self.assertIn("time.monotonic()", source)
         self.assertIn("ignore_cleanup_errors=True", source)
         self.assertNotIn("thread.join(timeout=15)", source)

@@ -16,7 +16,7 @@ if str(SRC) not in sys.path:
 from vibrapilot.task_runtime_store import TaskRuntimeStore
 
 
-CONCURRENT_STORE_TEST_TIMEOUT_SECONDS = 60.0
+CONCURRENT_STORE_TEST_TIMEOUT_SECONDS = 300.0
 
 
 @dataclass
@@ -100,12 +100,11 @@ class TaskRuntimeStoreTest(unittest.TestCase):
 
 
     def test_four_worker_threads_persist_independent_results_without_cross_run_leak(self):
-        # This is a correctness/isolation stress test, not a 15-second storage
-        # throughput SLA. Windows hosted runners can occasionally spend longer
-        # flushing FULL-synchronous WAL transactions even though the same test
-        # is making forward progress. Keep a bounded deadlock guard, but give
-        # durable writes enough time to finish and keep any timeout failure
-        # focused on the primary assertion instead of TempDirectory WinError 32.
+        # This is a correctness/isolation stress test, not a storage-throughput
+        # SLA. Hosted Windows runner I/O can spend well over one minute flushing
+        # FULL-synchronous WAL transactions while the finite writer workload is
+        # still making forward progress. Keep a bounded five-minute deadlock guard
+        # without turning normal durable-I/O variance into a CI product failure.
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp:
             store = TaskRuntimeStore(Path(temp) / "store.sqlite3")
             run_ids = []

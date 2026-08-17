@@ -27,6 +27,8 @@ src/vibrapilot/runtime_environment.py
 tests/test_app_config.py
 tests/test_backend_contract.py
 tests/test_build_metadata_binding.py
+tests/test_task_runtime_store.py
+tests/test_v10613_phase01_verification_fix.py
 tests/test_v10628_pr11_windows_multitask_regression.py
 tests/test_v10637_portable_release_packaging.py
 vibproject.ygit

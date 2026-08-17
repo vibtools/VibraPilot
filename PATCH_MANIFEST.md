@@ -112,3 +112,13 @@ Before a public `v1.0.6.37` tag/release, the Actions candidate must pass:
 - bundled Chromium/Chrome: excluded
 - WiX/MSI: excluded
 - Share Invite/DMARC workflow packages: separate and unchanged
+
+## PR #17 attempt-1 CI stability correction
+
+- Failed Actions run/job: `32044012728` / `95428147713`.
+- Classification: verification timing false-negative, not a production task-runtime regression.
+- The concurrent SQLite correctness test inherited a fixed 60-second total-completion watchdog from the v1.0.6.13 CI fix. The 2026 hosted Windows runner exceeded that bound while the finite writer threads were still completing.
+- `src/vibrapilot/task_runtime_store.py` remains byte-frozen at SHA-256 `b4b581c936479a6a3f334170c033bae53f1d216e562cc1aff8b3e54e728dcf26`.
+- The test-only deadlock guard is widened to 300 seconds. Successful runs do not wait for the guard.
+- The new portable release workflow is pinned to `windows-2022` so the compiler host does not drift with the `windows-latest` label; the historical general CI workflow itself is unchanged.
+- No application business logic, database schema, browser, workflow, licensing, persistence, reporting, Chromium, WiX, or MSI behavior changes are authorized by this correction.

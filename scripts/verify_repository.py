@@ -2494,6 +2494,19 @@ if v10637_scope.get("system_google_chrome_only") is not True or v10637_scope.get
     fail("v1.0.6.37 Chrome-only portable packaging contract mismatch")
 if v10637_scope.get("wix_msi_enabled") is not False:
     fail("v1.0.6.37 must not enable WiX/MSI")
+if v10637_scope.get("build_host") != "windows-2022":
+    fail("v1.0.6.37 portable build host must be pinned to windows-2022")
+ci_stability = v10637_scope.get("ci_stability_correction", {})
+if ci_stability.get("classification") != "verification-only; no production runtime change":
+    fail("v1.0.6.37 CI stability correction scope mismatch")
+if float(ci_stability.get("concurrent_store_test_timeout_seconds", 0.0)) != 300.0:
+    fail("v1.0.6.37 concurrent-store verification guard must be 300 seconds")
+if ci_stability.get("general_ci_workflow_changed") is not False:
+    fail("v1.0.6.37 general CI workflow must remain byte-frozen")
+if ci_stability.get("production_task_runtime_store_changed") is not False:
+    fail("v1.0.6.37 CI stability correction must not change TaskRuntimeStore production code")
+if sha256(SRC / "task_runtime_store.py") != v10637_scope.get("frozen_task_runtime_store_sha256"):
+    fail("v1.0.6.37 TaskRuntimeStore production source changed during CI stability correction")
 portable_requirements = (ROOT / "requirements-portable.txt").read_text(encoding="utf-8")
 portable_builder = (ROOT / "scripts" / "packaging" / "build_portable_nuitka.py").read_text(encoding="utf-8")
 portable_verifier = (ROOT / "scripts" / "packaging" / "verify_portable_release.py").read_text(encoding="utf-8")
@@ -2514,7 +2527,7 @@ for marker in (
 for forbidden in ('playwright", "install", "chromium"', 'playwright install chromium', 'WiX Toolset', 'candle.exe', 'light.exe'):
     if forbidden in portable_builder:
         fail(f"v1.0.6.37 forbidden portable builder behavior detected: {forbidden}")
-for marker in ("workflow_dispatch:", "tags: ['v*']", "windows-latest", "build_portable_nuitka.py", "verify_portable_release.py", "actions/upload-artifact@v4", 'expected = f"v{VERSION}"'):
+for marker in ("workflow_dispatch:", "tags: ['v*']", "windows-2022", "build_portable_nuitka.py", "verify_portable_release.py", "actions/upload-artifact@v4", 'expected = f"v{VERSION}"'):
     if marker not in portable_workflow:
         fail(f"v1.0.6.37 portable GitHub Actions marker missing: {marker}")
 for marker in ("def is_packaged_runtime", "def application_root", "__compiled__", "containing_dir"):

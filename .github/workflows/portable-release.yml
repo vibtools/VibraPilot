@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-portable:
-    runs-on: windows-latest
+    runs-on: windows-2022
     env:
       PYTHONPATH: ${{ github.workspace }}\src;${{ github.workspace }}
     steps:

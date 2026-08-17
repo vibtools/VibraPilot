@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -81,7 +82,7 @@ def test_github_action_builds_candidate_and_only_tag_path_publishes_release():
     for marker in (
         "workflow_dispatch:",
         "tags: ['v*']",
-        "runs-on: windows-latest",
+        "runs-on: windows-2022",
         "python-version: '3.12'",
         "architecture: 'x64'",
         "build_portable_nuitka.py",
@@ -156,3 +157,30 @@ def test_backend_and_restart_use_cross_packager_predicate():
     assert "if is_packaged_runtime():" in backend
     assert "if is_packaged_runtime():" in qt
     assert 'getattr(sys, "frozen", False)' not in qt
+
+
+def test_ci_stability_fix_keeps_production_store_frozen_and_widens_only_test_guard():
+    scope = json.loads(
+        (ROOT / "config/verification/v1.0.6.37_portable_release_packaging_scope.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    correction = scope["ci_stability_correction"]
+    assert correction["classification"] == "verification-only; no production runtime change"
+    assert correction["concurrent_store_test_timeout_seconds"] == 300.0
+    assert correction["general_ci_workflow_changed"] is False
+    assert correction["portable_build_runner"] == "windows-2022"
+    assert correction["production_task_runtime_store_changed"] is False
+    assert correction["application_business_logic_changed"] is False
+
+    runtime_store = ROOT / "src/vibrapilot/task_runtime_store.py"
+    assert hashlib.sha256(runtime_store.read_bytes()).hexdigest() == scope["frozen_task_runtime_store_sha256"]
+
+    ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    portable = (ROOT / ".github/workflows/portable-release.yml").read_text(encoding="utf-8")
+    assert "runs-on: windows-latest" in ci  # historical general CI intentionally untouched
+    assert "runs-on: windows-2022" in portable
+    assert "windows-latest" not in portable
+
+    stress = (ROOT / "tests/test_task_runtime_store.py").read_text(encoding="utf-8")
+    assert "CONCURRENT_STORE_TEST_TIMEOUT_SECONDS = 300.0" in stress
