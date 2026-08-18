@@ -1,3 +1,18 @@
+# Project Structure — v1.0.6.43 Phase 2 Forensic Closure
+
+```text
+src/vibrapilot/qt_app.py
+    Restart-free compatibility switch; live lifecycle blocking; legacy-run reference safety; Default Workflow UI wording.
+src/vibrapilot/workflow/plugin_loader.py
+    Lifecycle-root/type/identity fail-closed validation; duplicate staging setup removed.
+src/vibrapilot/workspace_state.py
+    Schema-v2 unresolved workflow Task-shell preservation and autosave blocking.
+```
+
+All other v1.0.6.42 production architecture remains frozen.
+
+---
+
 # Project Structure — v1.0.6.42 Phase 2
 
 ```text

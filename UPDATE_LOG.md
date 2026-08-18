@@ -1,3 +1,13 @@
+# v1.0.6.43 — Phase 2 Forensic Closure Update Log — 2026-08-18
+
+- Official baseline: v1.0.6.42 / `8c3e9a137ecf852aa152dba0590414e7f8f6209d` / tree `c61a9864e99659bf0a3d3cb229e1ad6e5e85cb69`.
+- Baseline ZIP SHA-256: `0713798e061b0eef15c1a1d4cb52e1347687f7498419b9ab1a79b3017f31dae1`.
+- Tests-first forensic reproduction: 8 concrete contract failures reproduced before correction.
+- Corrective production scope: `qt_app.py`, `workflow/plugin_loader.py`, `workspace_state.py` only.
+- Chrome, power, settings defaults, licensing, dependencies, CI and portable-release files remain byte-frozen from v1.0.6.42.
+
+---
+
 # v1.0.6.42 — Phase 2 Update Log — 2026-08-18
 
 - Workflow lifecycle transaction/update/remove implementation added and tested fail-closed.

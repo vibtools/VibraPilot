@@ -2573,8 +2573,19 @@ class MainWindow(QMainWindow):
             run_id = str(entry.get("run_id", "") or "")
             target_url = str(entry.get("target_url", "") or "")
             if not workflow_id or self.workflow_catalog.get_workflow(workflow_id) is None:
+                self.workspace_store.migration_blocked = True
+                identity = workflow_id or "<missing>"
+                preservation_warning = (
+                    f"Workspace Task workflow identity {identity!r} is unavailable for slot {slot_id}. "
+                    "The original workspace file is preserved and autosave is blocked so the Task shell is not erased."
+                )
+                self.workspace_store.warning = (
+                    (self.workspace_store.warning + " " + preservation_warning).strip()
+                    if self.workspace_store.warning
+                    else preservation_warning
+                )
                 self.log_ui(
-                    f"Task {slot_id}: workspace restore blocked because workflow {workflow_id or '<missing>'!r} is unavailable.",
+                    f"Task {slot_id}: workspace restore blocked because workflow {identity!r} is unavailable.",
                     "WARNING",
                 )
                 continue
@@ -2727,7 +2738,7 @@ class MainWindow(QMainWindow):
                 )
             if self.workflow_runtime_error:
                 self.log_ui(
-                    f"Active workflow runtime is unavailable; browser automation is blocked: {self.workflow_runtime_error}",
+                    f"Default workflow runtime is unavailable for new Tasks; existing Tasks retain independent workflow checks: {self.workflow_runtime_error}",
                     "ERROR",
                 )
             if self.workflow_input_state_error:
@@ -3219,14 +3230,12 @@ class MainWindow(QMainWindow):
         self._refresh_workflow_runtime_error()
 
     def load_workflow_plugin(self) -> None:
-        if self.workflow_lifecycle_error or self._transaction_root_has_directories(
-            self.workflow_plugin_root / ".transactions"
-        ):
+        lifecycle_blocker = self._workflow_lifecycle_block_reason()
+        if lifecycle_blocker:
             _message(
                 self,
                 "Workflow lifecycle blocked",
-                "A workflow lifecycle transaction requires recovery/manual repair before loading or updating packages. "
-                + (self.workflow_lifecycle_error or ""),
+                lifecycle_blocker,
                 "warning",
             )
             return
@@ -3287,13 +3296,22 @@ class MainWindow(QMainWindow):
             for item in WorkflowManager.with_builtin_workflows().list_workflows()
         }
 
-    def _workflow_reference_block_reason(self, workflow_id: str) -> str:
-        resolved = str(workflow_id or "").strip()
+    def _workflow_lifecycle_block_reason(self) -> str:
+        """Return a live fail-closed package-lifecycle blocker for this process."""
         if self.workflow_lifecycle_error:
             return "Workflow lifecycle recovery is unresolved: " + self.workflow_lifecycle_error
         lifecycle_root = self.workflow_plugin_root / ".transactions"
-        if self._transaction_root_has_directories(lifecycle_root):
+        if lifecycle_root.exists() and not lifecycle_root.is_dir():
+            return "Workflow lifecycle transaction root is malformed; manual repair is required."
+        if lifecycle_root.is_dir() and any(lifecycle_root.iterdir()):
             return "A workflow lifecycle transaction is still present; restart or manual repair is required."
+        return ""
+
+    def _workflow_reference_block_reason(self, workflow_id: str) -> str:
+        resolved = str(workflow_id or "").strip()
+        lifecycle_blocker = self._workflow_lifecycle_block_reason()
+        if lifecycle_blocker:
+            return lifecycle_blocker
         open_slots = sorted(
             task.slot_id for task in self.tasks.values() if task.workflow_id == resolved
         )
@@ -3306,11 +3324,28 @@ class MainWindow(QMainWindow):
             for row in self.runtime_store.closed_runs()
             if row.get("completed_at") is None
         )
+        unresolved_legacy_runs: list[str] = []
         for row in rows:
-            if str(row.get("workflow_id", "") or "").strip() == resolved:
-                run_id = str(row.get("run_id", "") or "")
-                if run_id:
-                    referenced_runs.append(run_id[:12])
+            run_id = str(row.get("run_id", "") or "")
+            row_workflow_id = str(row.get("workflow_id", "") or "").strip()
+            if not row_workflow_id:
+                try:
+                    slot_id = int(row.get("slot_id", 0))
+                except (TypeError, ValueError):
+                    slot_id = 0
+                row_workflow_id = str(
+                    self._resolve_legacy_workspace_workflow_identity(slot_id, run_id) or ""
+                ).strip()
+                if not row_workflow_id:
+                    unresolved_legacy_runs.append(run_id[:12] or f"slot-{slot_id}")
+                    continue
+            if row_workflow_id == resolved and run_id:
+                referenced_runs.append(run_id[:12])
+        if unresolved_legacy_runs:
+            return (
+                "Workflow package mutation is blocked by unresolved legacy recoverable Task workflow identity: "
+                + ", ".join(sorted(set(unresolved_legacy_runs)))
+            )
         if referenced_runs:
             return "Workflow is referenced by recoverable/unfinished closed Task runtime(s): " + ", ".join(sorted(set(referenced_runs)))
         return ""
@@ -3439,10 +3474,11 @@ class MainWindow(QMainWindow):
                 "Workflow default change is blocked by unresolved recovery state: "
                 + self.workflow_recovery_error
             )
-        if self.workflow_lifecycle_error:
+        lifecycle_blocker = self._workflow_lifecycle_block_reason()
+        if lifecycle_blocker:
             raise WorkflowSwitchBlockedError(
                 "Workflow default change is blocked by unresolved lifecycle state: "
-                + self.workflow_lifecycle_error
+                + lifecycle_blocker
             )
         if self.workflow_state_error:
             raise WorkflowSwitchBlockedError(
@@ -3538,7 +3574,7 @@ class MainWindow(QMainWindow):
         header_lay.addWidget(identity, 1)
 
         is_active = bool(state_available and active_workflow_id == manifest.workflow_id)
-        badge = status_badge("ACTIVE" if is_active else "AVAILABLE", "success" if is_active else "info")
+        badge = status_badge("DEFAULT" if is_active else "AVAILABLE", "success" if is_active else "info")
         badge.setObjectName("WorkflowStatusBadge")
         header_lay.addWidget(badge, 0, Qt.AlignTop | Qt.AlignRight)
         lay.addWidget(header)
@@ -3697,9 +3733,10 @@ class MainWindow(QMainWindow):
                 )
                 self.workflow_showcase_notice.show()
             elif self.workflow_runtime_error:
-                self.workflow_showcase_notice_title.setText("Active workflow runtime unavailable")
+                self.workflow_showcase_notice_title.setText("Default workflow runtime unavailable")
                 self.workflow_showcase_notice_text.setText(
-                    "Browser automation is blocked, but switching to another valid registered workflow remains allowed. "
+                    "The default workflow for new Tasks is unavailable. Existing Tasks bound to other valid workflows remain independent; "
+                    "select another default or repair this workflow. "
                     + self.workflow_runtime_error
                 )
                 self.workflow_showcase_notice.show()
@@ -4621,8 +4658,9 @@ class MainWindow(QMainWindow):
         return ""
 
     def add_task(self) -> None:
-        if self.workflow_lifecycle_error:
-            _message(self, "Workflow lifecycle blocked", self.workflow_lifecycle_error, "warning")
+        lifecycle_blocker = self._workflow_lifecycle_block_reason()
+        if lifecycle_blocker:
+            _message(self, "Workflow lifecycle blocked", lifecycle_blocker, "warning")
             return
         if self.workflow_state_error:
             _message(self, "Workflow unavailable", self.workflow_state_error, "warning")
@@ -4995,10 +5033,11 @@ class MainWindow(QMainWindow):
             )
         if self._workflow_restart_required:
             return False, "Workflow change is committed. Restart VibraPilot before opening automation browsers."
-        if self.workflow_lifecycle_error:
+        lifecycle_blocker = self._workflow_lifecycle_block_reason()
+        if lifecycle_blocker:
             return False, (
                 "Workflow lifecycle recovery is unresolved. Automation is fail-closed until manual repair. "
-                + self.workflow_lifecycle_error
+                + lifecycle_blocker
             )
         if self.workflow_recovery_error:
             return False, (
@@ -5364,153 +5403,24 @@ class MainWindow(QMainWindow):
         subprocess.Popen(command, cwd=cwd)
 
     def request_workflow_switch(self, target_workflow_id: str) -> str:
-        """Execute the PR-06 fail-closed atomic switch transaction.
+        """Compatibility service for historical callers using restart-free Phase-2 semantics.
 
-        PR-07 may call this service from future Workflow UI. PR-06 itself adds no
-        workflow-selection page or activation button.
+        v1.0.6.42 changed the persisted global workflow identity into the default
+        for newly created Tasks. Existing Tasks own immutable workflow identities,
+        so this compatibility path must never clear Tasks or restart VibraPilot.
         """
-        target = str(target_workflow_id).strip()
+        target = str(target_workflow_id or "").strip()
         if not target:
             raise WorkflowSwitchBlockedError("Target workflow ID is empty.")
-        if self._workflow_switch_in_progress:
-            raise WorkflowSwitchBlockedError(
-                "Another workflow switch transaction is already in progress."
-            )
-        try:
-            persisted = self.workflow_state_store.load_existing()
-        except WorkflowStateError as exc:
-            self.workflow_state_error = str(exc)
-            raise WorkflowSwitchBlockedError(
-                f"Active workflow state is unavailable: {exc}"
-            ) from exc
-        current = persisted.active_workflow_id
-
-        # Validate the installed target before either first activation or a switch.
-        self.workflow_catalog.require_workflow(target)
-        self.workflow_catalog.require_runtime_factory(target)
-        try:
-            self.workflow_catalog.input_schema(target)
-            self.workflow_catalog.settings_schema(target)
-            self.workflow_catalog.task_schema(target)
-        except WorkflowError as exc:
-            raise WorkflowSwitchBlockedError(
-                f"Target workflow schema is unavailable: {exc}"
-            ) from exc
-
-        if target == current:
-            self._initialize_active_workflow_state_if_available()
-            self._refresh_workflow_runtime_error()
-            return "already_active"
-
-        if current is None:
-            blocker = self._workflow_recovery_block_reason()
-            if blocker:
-                raise WorkflowSwitchBlockedError(blocker)
-            if not self._confirm_first_workflow_activation(target):
-                return "cancelled"
-            new_state = self.workflow_state_store.commit_active_workflow(
-                target, expected_current_workflow_id=None
-            )
-            self._finalize_committed_workflow_switch(new_state.active_workflow_id)
-            self._workflow_restart_required = True
-            try:
-                self._spawn_workflow_restart()
-            except Exception as exc:
-                logging.exception("First workflow activation restart spawn failed")
-                _message(
-                    self,
-                    "Manual restart required",
-                    "Workflow activation was committed successfully, but VibraPilot could not "
-                    f"start the replacement process. Restart VibraPilot manually.\n\n{exc}",
-                    "error",
-                )
-                return "committed_restart_required"
-            QTimer.singleShot(0, self.close)
-            return "switched"
-
-        blocker = self._workflow_switch_block_reason()
-        if blocker:
-            raise WorkflowSwitchBlockedError(blocker)
-        if not self._confirm_workflow_switch(current, target):
-            return "cancelled"
-
-        # Persist the latest approved workspace snapshot before rollback staging.
-        if self.workspace_save_timer.isActive():
-            self.workspace_save_timer.stop()
-        self.save_workspace_state()
-        workspace_snapshot = self._workspace_snapshot()
-        settings_snapshot = dict(self.settings.data)
-
-        self._workflow_switch_in_progress = True
-        transaction = WorkflowSwitchTransaction(
-            data_root=APP_DATA_DIR,
-            transaction_root=self.workflow_switch_root,
-            old_workflow_id=current,
-            target_workflow_id=target,
-        )
-        committed = False
-        try:
-            if not self._settle_workflow_workers():
+        if target != self.active_workflow_id:
+            runtime_error = self._workflow_runtime_error_for(target)
+            if runtime_error:
                 raise WorkflowSwitchBlockedError(
-                    "One or more Task workers could not settle safely; workflow switch aborted."
+                    "Target workflow runtime/schema is unavailable: " + runtime_error
                 )
-            transaction.prepare(self._workflow_switch_paths())
-            try:
-                self._clear_workflow_scoped_state(workspace_snapshot)
-                new_state = self.workflow_state_store.commit_active_workflow(
-                    target, expected_current_workflow_id=current
-                )
-                committed = True
-            except BaseException:
-                transaction.rollback()
-                self._restore_after_failed_workflow_switch(settings_snapshot)
-                raise
-
-            # The workflow-state os.replace above is the commit point. From here
-            # onward the target workflow is authoritative and old data must not be
-            # restored, even if restart spawning fails.
-            try:
-                transaction.mark_committed()
-            except Exception as exc:
-                logging.exception("Workflow switch committed but transaction marker update failed")
-                self.log_ui(
-                    f"Workflow switch committed; transaction cleanup will be recovered on restart: {exc}",
-                    "WARNING",
-                )
-            self._finalize_committed_workflow_switch(new_state.active_workflow_id)
-            try:
-                transaction.cleanup()
-            except Exception as exc:
-                logging.exception("Committed workflow switch staging cleanup failed")
-                self.log_ui(
-                    f"Workflow switch committed; stale transaction staging will be cleaned on restart: {exc}",
-                    "WARNING",
-                )
-
-            self._workflow_restart_required = True
-            try:
-                self._spawn_workflow_restart()
-            except Exception as exc:
-                logging.exception("Workflow switch restart spawn failed")
-                _message(
-                    self,
-                    "Manual restart required",
-                    "Workflow switch was committed successfully, but VibraPilot could not "
-                    f"start the replacement process. Restart VibraPilot manually.\n\n{exc}",
-                    "error",
-                )
-                return "committed_restart_required"
-
-            QTimer.singleShot(0, self.close)
-            return "switched"
-        except WorkflowSwitchBlockedError:
-            if not committed:
-                self._workflow_switch_in_progress = False
-            raise
-        except BaseException:
-            if not committed:
-                self._workflow_switch_in_progress = False
-            raise
+            if not self._confirm_default_workflow_switch(target):
+                return "cancelled"
+        return self.request_default_workflow_switch(target)
 
     def _refresh_report_workflow_filter(self) -> None:
         if not hasattr(self, "report_workflow"):

@@ -1,42 +1,54 @@
-# VibraPilot v1.0.6.42 — Phase 2 Replace-Ready Patch
+# VibraPilot v1.0.6.43 — Phase 2 Forensic Closure Replace-Ready Patch
 
-## Baseline identity
+## Official baseline
 
-- Official input: `VibraPilot_Official_v1.0.6.41_Baseline(1).zip`
-- Input SHA-256: `9296626e20076a5ded1a2c6b854ce25489b09be9d8fb204061eba14612642982`
-- Baseline version: `1.0.6.41`
-- Baseline Git commit: `615fe1148431b90334e9ff3f9ae02b37a36bd1d8`
-- Baseline Git tree: `a6cb42814d7ed993ff5961823cf681e0cb0c0252`
-- Target version: `1.0.6.42`
+- Input: `VibraPilot_Official_v1.0.6.42_Baseline(1).zip`
+- Input SHA-256: `0713798e061b0eef15c1a1d4cb52e1347687f7498419b9ab1a79b3017f31dae1`
+- Baseline version: `1.0.6.42`
+- Baseline branch commit: `8c3e9a137ecf852aa152dba0590414e7f8f6209d`
+- Baseline Git tree: `c61a9864e99659bf0a3d3cb229e1ad6e5e85cb69`
+- Target version: `1.0.6.43`
 
-## Scope
+## Corrective scope
 
-- strict-newer Workflow Update/Replace with staged validation, rollback and crash recovery;
-- Workflow Remove/Unload and default Deactivate;
-- restart-free normal activation/switch/lifecycle;
-- immutable per-Task workflow identity and simultaneous different-workflow Tasks;
-- workspace/runtime schema-v2 workflow provenance;
-- workflow-aware Reports and per-workflow Dashboard metrics;
-- existing Chrome prerequisite/secure-install source re-verified byte-frozen.
+- restart-free historical workflow-switch compatibility service;
+- lifecycle transaction root/type and workflow-identity fail-closed validation;
+- schema-v2 workspace Task-shell preservation when workflow identity is unresolved/unavailable;
+- unresolved legacy unfinished-run package-mutation blocking;
+- same-session live lifecycle transaction blocking for package mutation, Task creation and browser start;
+- Default Workflow UI semantics replacing residual global `ACTIVE` wording;
+- removal of one duplicated staging-directory setup statement.
 
-## Frozen boundaries
+## Production source changes
 
-Plugin API 1, Chrome prerequisite implementation, browser profile architecture, power management, licensing, runtime settings defaults, dependencies, CI and portable packaging are unchanged.
+- `src/vibrapilot/qt_app.py`
+- `src/vibrapilot/workflow/plugin_loader.py`
+- `src/vibrapilot/workspace_state.py`
 
-## Automated verification
+Chrome prerequisite/runtime/installer/AuthentiCode, Plugin API 1, backend worker logic, runtime DB schema-v2 implementation, power, licensing, settings defaults, dependencies, CI and portable packaging are frozen from v1.0.6.42.
 
-- repository verifier: **PASS**
-- full pytest: **541 passed, 6 skipped, 105 subtests passed**
-- full unittest: **201 OK, 6 skipped**
-- compileall: **PASS**
-- `git diff --check`: **PASS**
-- deleted files: **0**
+## Verification evidence
 
-## Replace-ready inventory
+- v1.0.6.42 baseline: repository verifier PASS; pytest 541 passed / 6 skipped / 105 subtests; unittest 201 OK / 6 skipped; compileall PASS.
+- tests-first v1.0.6.43 reproduction: 8 concrete failures reproduced / 1 guard already passing.
+- corrected v1.0.6.43 closure tests: 9 PASS.
+- targeted historical/current correction gate: 123 PASS.
+- broader Phase-1/Phase-2/persistence/Chrome gate: 190 PASS.
+- frozen SHA audit: PASS.
+- metadata/current scope tests: 13 PASS; repository verifier PASS.
+- final full pytest: 550 passed, 6 skipped, 105 subtests passed.
+- final full unittest: 201 OK, 6 skipped.
+- compileall: PASS.
+- `git diff --check`: PASS.
+- deleted files: 0.
 
-- Public changed/new files: **48**
-- Private/local `project/` files: **20**
-- Total Delta entries: **68**
-- `project/**` is private/local only and must never be staged or pushed.
+## Delta inventory
 
-Windows live acceptance and GitHub v1.0.6.42 CI remain pending external evidence.
+- Public changed/new files: 30
+- Private/local `project/` files: 15
+- Total Delta entries: 45
+- `project/**` is local/private only and must never be staged/pushed.
+
+## External gates
+
+Windows live acceptance and GitHub v1.0.6.43 CI remain PENDING and are not claimed PASS.

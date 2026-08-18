@@ -318,34 +318,37 @@ def test_same_workflow_is_noop_before_confirmation_or_mutation():
         n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == "request_workflow_switch"
     )
     segment = ast.get_source_segment(source, method) or ""
-    assert 'if target == current:' in segment
-    assert 'return "already_active"' in segment
-    assert segment.index('return "already_active"') < segment.index("_confirm_workflow_switch")
-    assert segment.index('return "already_active"') < segment.index("transaction.prepare")
-
+    # v1.0.6.42+ supersedes destructive global switching: the historical service
+    # remains as a compatibility wrapper over the restart-free default workflow.
+    assert "request_default_workflow_switch(target)" in segment
+    assert "if target != self.active_workflow_id:" in segment
+    assert "_spawn_workflow_restart" not in segment
+    assert "_clear_workflow_scoped_state" not in segment
 
 def test_switch_blockers_confirmation_commit_and_restart_order_are_present():
     source = (ROOT / "src/vibrapilot/qt_app.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
     cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "MainWindow")
-    method = next(
-        n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == "request_workflow_switch"
-    )
-    segment = ast.get_source_segment(source, method) or ""
+    methods = {
+        n.name: ast.get_source_segment(source, n) or ""
+        for n in cls.body if isinstance(n, ast.FunctionDef)
+    }
+    switch = methods["request_workflow_switch"]
+    assert "_workflow_runtime_error_for(target)" in switch
+    assert "_confirm_default_workflow_switch(target)" in switch
+    assert "request_default_workflow_switch(target)" in switch
+    assert "_spawn_workflow_restart" not in switch
+    # Historical destructive transaction primitives remain only for explicit
+    # workflow-state recovery compatibility, not normal Phase-2 switching.
+    recovery = methods["request_workflow_state_recovery"]
     for marker in (
-        "_workflow_switch_block_reason()",
-        "_confirm_workflow_switch(current, target)",
         "_settle_workflow_workers()",
         "transaction.prepare(",
         "_clear_workflow_scoped_state(",
-        "commit_active_workflow(",
         "transaction.mark_committed()",
         "_spawn_workflow_restart()",
     ):
-        assert marker in segment
-    assert segment.index("_confirm_workflow_switch") < segment.index("transaction.prepare")
-    assert segment.index("commit_active_workflow") < segment.index("_spawn_workflow_restart")
-
+        assert marker in recovery
 
 def test_clear_policy_is_explicit_and_preserve_paths_are_not_deleted():
     source = (ROOT / "src/vibrapilot/qt_app.py").read_text(encoding="utf-8")

@@ -1,3 +1,9 @@
+# VibraPilot v1.0.6.43 — Phase 2 Forensic Closure
+
+v1.0.6.43 is a scope-locked corrective seal over v1.0.6.42. It preserves Workflow Update/Remove/Deactivate, restart-free lifecycle, immutable per-Task workflow identity and true simultaneous multiworkflow execution while closing concrete lifecycle-transaction, legacy-recovery, workspace-preservation and Default Workflow UI semantic gaps. Chrome prerequisite/secure-install, Plugin API 1, licensing, browser-profile, power, dependency, CI and packaging architecture remain unchanged.
+
+---
+
 # VibraPilot v1.0.6.42 — Workflow Lifecycle + True Multiworkflow
 
 v1.0.6.42 completes the approved Phase 2 production update: trusted workflow packages can be updated, removed or deactivated safely without normal app restart; the persisted default workflow applies only to newly created Tasks; each Task owns an immutable workflow identity; and different workflows can execute concurrently under the existing Task/profile isolation rules. Workspace/runtime persistence, Reports and Dashboard now retain workflow provenance. The existing Google Chrome prerequisite and secure installer implementation remains unchanged and fail-closed.

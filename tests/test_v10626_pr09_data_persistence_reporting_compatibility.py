@@ -165,24 +165,25 @@ def test_switch_clear_and_preserve_boundary_is_exact_and_no_wrong_workflow_recov
         assert preserved not in switch_paths
         assert preserved not in clear_state
     assert "for key in WORKFLOW_INPUT_KEYS" in clear_state
-    assert "transaction.prepare(self._workflow_switch_paths())" in switch
-    assert "transaction.rollback()" in switch
-    assert "self._restore_after_failed_workflow_switch(settings_snapshot)" in switch
-    assert "old data must not be" in switch and "restored" in switch
+    # v1.0.6.42+ keeps the historical destructive clear transaction only for
+    # explicit recovery; normal workflow switching is restart-free/default-only.
+    assert "transaction.prepare(self._workflow_switch_paths())" not in switch
+    assert "_clear_workflow_scoped_state" not in switch
+    assert "request_default_workflow_switch(target)" in switch
 
 
 def test_same_workflow_cancel_and_blockers_precede_destructive_clear():
     switch = _mainwindow_method_source("request_workflow_switch")
-    assert switch.index('if target == current:') < switch.index("transaction.prepare")
-    assert switch.index('return "already_active"') < switch.index("transaction.prepare")
-    assert switch.index("_workflow_switch_block_reason()") < switch.index("transaction.prepare")
-    assert switch.index('_confirm_workflow_switch(current, target)') < switch.index("transaction.prepare")
-    assert switch.index('return "cancelled"') < switch.index("transaction.prepare")
+    assert "if target != self.active_workflow_id:" in switch
+    assert "_confirm_default_workflow_switch(target)" in switch
+    assert "request_default_workflow_switch(target)" in switch
+    assert "transaction.prepare" not in switch
+    assert "_clear_workflow_scoped_state" not in switch
+    assert "_spawn_workflow_restart" not in switch
 
     blocker = _mainwindow_method_source("_workflow_switch_block_reason")
     for marker in ("workflow_state_error", "workflow_input_state_error", "is_running()", "manual_review_required"):
         assert marker in blocker
-
 
 def test_historical_pr09_contract_is_preserved_but_v10636_registry_is_zero_builtin():
     assert "return (SHARE_INVITE_MANIFEST,)" not in REGISTRY_SOURCE

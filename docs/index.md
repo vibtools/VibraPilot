@@ -1,3 +1,13 @@
+# VibraPilot Documentation — v1.0.6.43 Phase 2 Forensic Closure
+
+- Update: `docs/updates/v1.0.6.43-phase2-forensic-closure.md`
+- Verification: `docs/verification/V1.0.6.43_PHASE2_FORENSIC_CLOSURE.md`
+- Scope contract: `config/verification/v1.0.6.43_phase2_forensic_closure_scope.json`
+
+This corrective seal preserves all v1.0.6.42 Phase-2 features while closing only reproduced lifecycle/multiworkflow consistency defects.
+
+---
+
 # VibraPilot Documentation — v1.0.6.42 Phase 2
 
 - Update: `docs/updates/v1.0.6.42-phase2-workflow-lifecycle-multiworkflow.md`

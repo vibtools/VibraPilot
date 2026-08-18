@@ -126,7 +126,7 @@ def test_card_preserves_manifest_identity_version_source_logo_and_readable_descr
 
 def test_active_workflow_uses_status_badge_without_duplicate_disabled_active_action():
     source = _source("_workflow_card")
-    assert 'status_badge("ACTIVE" if is_active else "AVAILABLE"' in source
+    assert 'status_badge("DEFAULT" if is_active else "AVAILABLE"' in source
     assert 'button("Active", "secondary")' not in source
     assert 'action.setObjectName("WorkflowActiveButton")' not in source
 
