@@ -1,3 +1,7 @@
+# VibraPilot v1.0.6.41 — Phase 1 Active-Page Origin Closure
+
+v1.0.6.41 is a scope-locked forensic seal over v1.0.6.40. It corrects one proven deterministic active-page ownership defect: browser-equivalent default HTTP/HTTPS ports are now canonicalized before target-origin comparison, preventing an explicit `:80`/`:443` workflow page from losing ownership to an unrelated restored tab. All other Phase 1 runtime behavior remains frozen. Phase 2 is not implemented and is now planned for v1.0.6.42.
+
 # VibraPilot v1.0.6.40 — Phase 1 Forensic Closure
 
 v1.0.6.40 is a corrective closure release over the owner-frozen v1.0.6.39 Phase 1 baseline. It fixes only defects proven during forensic verification: guaranteed system-sleep-guard cleanup, actionable session-required context-recycle re-verification, fail-safe malformed target-origin handling, and exact session-readiness UI wording. The v1.0.6.39 background policy, Windows power implementation, workflow/plugin architecture, browser profiles, licensing, persistence and portable build architecture remain frozen. Phase 2 is not implemented and is now planned for v1.0.6.41.

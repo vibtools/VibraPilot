@@ -1,3 +1,7 @@
+## v1.0.6.41 — Phase 1 Active-Page Origin Closure
+
+Forensic verification of v1.0.6.40 reproduced one P1-WP04 defect: omitted default ports and explicit `:80`/`:443` were treated as different origins. `_origin_from_url()` now canonicalizes only those default-port equivalents; non-default ports and malformed-port fail-safe behavior are unchanged. Production source change is limited to `src/vibrapilot/backend.py`.
+
 ## v1.0.6.40 — Phase 1 Forensic Closure Fix
 
 **Official input baseline:** v1.0.6.39 / `7bd6428a89607df34dc96fbed28d1b2ac20b9365` / tree `074780843a9f6ed62d974123339020b86353d716`.

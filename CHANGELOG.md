@@ -1,3 +1,12 @@
+## v1.0.6.41 — Phase 1 Active-Page Origin Closure — 2026-08-18
+
+- Forensically re-audited the owner-frozen v1.0.6.40 Phase 1 closure against its deterministic active-page ownership contract.
+- Fixed browser-origin canonicalization so `https://host` equals `https://host:443` and `http://host` equals `http://host:80` for target-origin page selection.
+- Preserved non-default ports as distinct origins and retained malformed-port fail-safe behavior.
+- Added regression coverage proving an equivalent default-port workflow tab is preferred over an unrelated restored tab.
+- Kept session policy, Windows sleep guard, background Chrome policy, browser resilience, workflows, licensing, persistence, dependencies, CI and portable-release architecture unchanged.
+- Phase 2 remains NOT STARTED and moves to v1.0.6.42 because v1.0.6.41 is consumed by this scope-locked Phase 1 forensic seal.
+
 ## v1.0.6.40 — Phase 1 Forensic Closure Fix — 2026-08-18
 
 - Audited the owner-frozen v1.0.6.39 Phase 1 implementation and GitHub CI evidence against the exact Runtime Reliability & Workflow-Scoped Session Policy plan.

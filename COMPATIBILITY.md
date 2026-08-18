@@ -1,3 +1,14 @@
+# v1.0.6.41 Phase 1 Active-Page Origin Closure Compatibility
+
+- Baseline compatibility: v1.0.6.40; external Plugin API 1 workflows remain unchanged.
+- HTTPS omitted port and explicit `:443` are treated as the same target origin.
+- HTTP omitted port and explicit `:80` are treated as the same target origin.
+- Non-default ports remain distinct origins.
+- Session-required/sessionless behavior, Chrome background policy v2, Windows sleep guard, persistence, licensing, CI and portable packaging are unchanged.
+- Phase 2 workflow lifecycle/per-Task multiworkflow remains out of scope and is now planned for v1.0.6.42.
+
+---
+
 # v1.0.6.40 Phase 1 Forensic Closure Compatibility
 
 - Baseline compatibility is v1.0.6.39; Plugin API 1 and external workflow contracts are unchanged.

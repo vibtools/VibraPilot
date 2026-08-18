@@ -1,3 +1,12 @@
+# VibraPilot Documentation — v1.0.6.41 Phase 1 Active-Page Origin Closure
+
+- Update: `docs/updates/v1.0.6.41-phase1-active-page-origin-closure.md`
+- Verification: `docs/verification/V1.0.6.41_PHASE1_ACTIVE_PAGE_ORIGIN_CLOSURE.md`
+- Scope contract: `config/verification/v1.0.6.41_phase1_active_page_origin_closure_scope.json`
+- Phase 2 remains not started; next planned implementation version: v1.0.6.42.
+
+---
+
 # VibraPilot Documentation — v1.0.6.40 Phase 1 Forensic Closure
 
 - Update: `docs/updates/v1.0.6.40-phase1-forensic-closure-fix.md`

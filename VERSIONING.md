@@ -1,3 +1,14 @@
+# Current Candidate — v1.0.6.41 Phase 1 Active-Page Origin Closure
+
+- Official input baseline: **v1.0.6.40**, commit `7e6f4cc7abf49e08d4a94124ebffa97bb7794137`.
+- Target: **v1.0.6.41**.
+- Production change: one method boundary in `src/vibrapilot/backend.py` (`AutomationWorker._origin_from_url`).
+- No dependency, runtime-setting, UI, workflow, persistence, licensing, CI or packaging changes.
+- Phase 2 is **NOT STARTED** and moves to **v1.0.6.42** because v1.0.6.41 is consumed by this closure.
+- v1.0.6.41 becomes the next internal baseline only after delta sealing and required automated verification; GitHub CI/Windows live acceptance remain separately recorded gates.
+
+---
+
 # Current Candidate — v1.0.6.40 Phase 1 Forensic Closure
 
 - Official owner-frozen baseline: **v1.0.6.39**, commit `7bd6428a89607df34dc96fbed28d1b2ac20b9365`, tree `074780843a9f6ed62d974123339020b86353d716`.

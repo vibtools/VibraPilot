@@ -1,55 +1,51 @@
-# VibraPilot v1.0.6.40 — Phase 1 Forensic Closure Replace-Ready Patch
+# VibraPilot v1.0.6.41 — Phase 1 Active-Page Origin Closure Replace-Ready Patch
 
 ## Baseline identity
 
-- Official input: `VibraPilot_Official_v1.0.6.39_Baseline.zip`
-- SHA-256: `755c6bd4ce88be126482980dde6fd1ee5ddddaee7f7e6bd6f80fc8f96d805325`
-- Version: `1.0.6.39`
-- Git commit: `7bd6428a89607df34dc96fbed28d1b2ac20b9365`
-- Git tree: `074780843a9f6ed62d974123339020b86353d716`
-- GitHub CI run `32153560933`: SUCCESS on Windows / Python 3.12.10.
-
-## Target
-
+- Official input: `VibraPilot_Official_v1.0.6.40_Baseline(1).zip`
+- Input SHA-256: `b66cd21c1233761dbc6584f173c28017632f795bf16e98afc7eb1ffb2e2e6ad0`
 - Version: `1.0.6.40`
-- Classification: Phase 1 forensic closure / corrective fix only
-- Phase 2 implementation: **0 files / NOT STARTED**
-- Planned Phase 2 target: `v1.0.6.41`
+- Git branch: `main`
+- Git commit: `7e6f4cc7abf49e08d4a94124ebffa97bb7794137`
+- Git tree: `8b8b6f8e502011d730ac4508300c25273e3dbab5`
+- Uploaded workspace note: five tracked files differ only by line endings; semantic `git diff --ignore-space-at-eol` is empty.
 
-## Confirmed closure findings
+## Confirmed finding
 
-1. System-sleep guard cleanup was not guaranteed before every fallible finalization path.
-2. Required-session context recycle used the normal processing-time login short-circuit, so the claimed re-probe did not occur.
-3. A failed recycle re-probe did not block the next item.
-4. Malformed explicit HTTP/HTTPS ports could raise from the Phase 1 origin helper.
-5. Dashboard session label did not exactly match the approved `Login Verification` wording.
-6. Repository verification accepted a docstring text marker instead of validating the actual PowerRequest enum.
+`AutomationWorker._origin_from_url()` returned `None` for an omitted port but `443`/`80` for the browser-equivalent explicit default port. In a restored multi-tab context, `_select_preferred_page()` could therefore fail target-origin matching and choose an unrelated last usable tab.
 
 ## Production correction scope
 
 - `src/vibrapilot/backend.py`
-- `src/vibrapilot/qt_app.py`
+- Method: `AutomationWorker._origin_from_url`
+- Default HTTPS `:443` → canonical omitted/default representation
+- Default HTTP `:80` → canonical omitted/default representation
+- Non-default ports remain significant
+- Malformed-port fail-safe remains unchanged
 
-`src/vibrapilot/power_management.py`, `config/settings.defaults.json`, workflow/plugin lifecycle, licensing, persistence schemas, dependencies, CI and portable-release architecture are frozen from v1.0.6.39.
+## Frozen scope
 
-## Verification
+No changes are authorized to Qt UI/UX, Windows power implementation, browser settings, workflows/plugin lifecycle, licensing, persistence schemas, dependencies, CI, portable-release architecture or Phase 2 features.
 
-- Corrective targeted tests: PASS
-- Full pytest: **506 passed, 6 skipped, 105 subtests passed**
-- Full unittest: **201 OK, 6 skipped**
-- compileall: PASS
-- repository verifier: PASS
-- fresh v1.0.6.39 + Delta apply: PASS
-- frozen-file SHA contract: PASS
-- deletion count: **0**
+## Verification state
 
-Real Windows minimized/occluded 3–4 Task execution and actual OS-idle sleep prevention remain owner live-acceptance observations; they are not fabricated from unit/CI evidence.
+- Tests-first reproduction: **2 FAILED / 2 PASSED** before the fix.
+- Targeted correction regression: **17 PASSED**.
+- Complete Phase-1 work-package gate: **28 PASSED**.
+- Metadata/scope integration: **8 PASSED** + repository verifier **PASS**.
+- Final full pytest: **510 passed, 6 skipped, 105 subtests passed**.
+- Final unittest: **201 OK, 6 skipped**.
+- compileall: **PASS**.
+- Public changed/new files: **23**.
+- Private `project/` changed/new files: **13**.
+- Total replace-ready delta entries: **36**.
+- Deleted files: **0**.
+- Delta-apply sealing: recorded after package construction.
 
-## Payload
+## Phase 2
 
-- Public changed/new files: **25**
-- Private `project/` files: **10**
-- Total delta entries: **35**
-- Deletions: **0**
+**NOT STARTED.** Planned version moves from v1.0.6.41 to v1.0.6.42 because v1.0.6.41 is consumed by this forensic seal.
 
-`project/**` is private/local only and must never be staged or pushed to GitHub.
+## Private development documentation
+
+`project/**` remains local/private, is ignored by Git, and must never be staged or pushed.

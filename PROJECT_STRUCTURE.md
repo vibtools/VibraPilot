@@ -1,3 +1,20 @@
+# Project Structure — v1.0.6.41 Phase 1 Active-Page Origin Closure
+
+```text
+src/vibrapilot/backend.py
+    Canonicalizes explicit default HTTP/HTTPS ports in deterministic browser-origin matching.
+
+config/verification/v1.0.6.41_phase1_active_page_origin_closure_scope.json
+tests/test_v10641_phase1_active_page_origin_closure.py
+docs/updates/v1.0.6.41-phase1-active-page-origin-closure.md
+docs/verification/V1.0.6.41_PHASE1_ACTIVE_PAGE_ORIGIN_CLOSURE.md
+    Scope, regression and verification evidence for the v1.0.6.41 forensic seal.
+```
+
+`qt_app.py`, `power_management.py`, browser settings, workflow/plugin lifecycle, licensing, persistence, dependencies, CI and portable-release files are frozen from v1.0.6.40.
+
+---
+
 # Project Structure — v1.0.6.40 Phase 1 Forensic Closure
 
 ```text

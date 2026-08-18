@@ -1929,6 +1929,13 @@ class AutomationWorker(threading.Thread):
             return None
         if scheme not in {"http", "https"} or not host:
             return None
+        # Browser origins treat an omitted default port and its explicit
+        # equivalent as the same origin (HTTP :80, HTTPS :443). Canonicalize
+        # those representations so deterministic page ownership cannot fall
+        # through to an unrelated usable tab solely because one URL spells
+        # the default port explicitly. Non-default ports remain significant.
+        if (scheme == "http" and port == 80) or (scheme == "https" and port == 443):
+            port = None
         return (scheme, host, port)
 
     def _select_preferred_page(

@@ -1,3 +1,15 @@
+# Current Roadmap — v1.0.6.41 Phase 1 Active-Page Origin Closure
+
+## Phase 1 seal — v1.0.6.41
+
+v1.0.6.40 was re-audited against the locked Phase 1 plan. The only newly reproduced implementation defect was default-port origin non-canonicalization in deterministic active-page selection. v1.0.6.41 fixes only that defect and adds regression/verification evidence. No Phase 2 functionality is included.
+
+## Phase 2 — v1.0.6.42
+
+**NOT STARTED.** Workflow Update/Replace, Remove/Unload/Deactivate, restart-free switch, per-Task workflow identity and true simultaneous different-workflow execution remain frozen. v1.0.6.41 is consumed by this Phase 1 forensic seal, so Phase 2 advances to v1.0.6.42 without scope expansion.
+
+---
+
 # Current Roadmap — v1.0.6.40 Phase 1 Forensic Closure
 
 ## Phase 1 closure — v1.0.6.40

@@ -59,6 +59,7 @@ V10637_PORTABLE_RELEASE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.
 V10638_PORTABLE_RUNTIME_ROOT_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.38_portable_runtime_root_fix_scope.json"
 V10639_RUNTIME_RELIABILITY_SESSION_POLICY_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.39_runtime_reliability_session_policy_scope.json"
 V10640_PHASE1_FORENSIC_CLOSURE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.40_phase1_forensic_closure_fix_scope.json"
+V10641_PHASE1_ACTIVE_PAGE_ORIGIN_CLOSURE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.41_phase1_active_page_origin_closure_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -412,11 +413,27 @@ v10640_allowed_files = (
 )
 v10640_worker_methods = set(v10640_scope.get("authorized_automationworker_method_changes", []))
 
+# v1.0.6.41 seals the remaining Phase 1 default-port browser-origin mismatch.
+if not V10641_PHASE1_ACTIVE_PAGE_ORIGIN_CLOSURE_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.41 Phase 1 active-page origin closure scope contract is missing")
+try:
+    v10641_scope = json.loads(
+        V10641_PHASE1_ACTIVE_PAGE_ORIGIN_CLOSURE_SCOPE_CONTRACT.read_text(encoding="utf-8")
+    )
+except Exception as exc:
+    fail(f"v1.0.6.41 active-page origin closure scope contract is invalid: {exc}")
+v10641_production_allowed = set(v10641_scope.get("allowed_production_source_changes", []))
+v10641_allowed_files = (
+    v10641_production_allowed
+    | set(v10641_scope.get("authorized_nonproduction_files", []))
+)
+v10641_worker_methods = set(v10641_scope.get("authorized_automationworker_method_changes", []))
+
 current_worker_methods = (
-    v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods | v10635_worker_methods | v10636_worker_methods | v10639_worker_methods | v10640_worker_methods
+    v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods | v10635_worker_methods | v10636_worker_methods | v10639_worker_methods | v10640_worker_methods | v10641_worker_methods
 )
 current_allowed_files = (
-    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files | v10636_allowed_files | v10637_allowed_files | v10638_allowed_files | v10639_allowed_files | v10640_allowed_files
+    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files | v10636_allowed_files | v10637_allowed_files | v10638_allowed_files | v10639_allowed_files | v10640_allowed_files | v10641_allowed_files
 )
 if pr08_allowed_files != {
     "src/vibrapilot/workflow_inputs.py",
@@ -2733,6 +2750,35 @@ for marker in ("PowerCreateRequest", "PowerSetRequest", "PowerClearRequest", "cl
     if marker not in power_management_text:
         fail(f"v1.0.6.40 Windows system sleep guard implementation marker missing: {marker}")
 
+# v1.0.6.41 Phase 1 deterministic active-page origin closure.
+if v10641_scope.get("plan_id") != "VP-V10641-PHASE1-ACTIVE-PAGE-ORIGIN-CLOSURE-001":
+    fail("v1.0.6.41 active-page origin closure plan identifier mismatch")
+if v10641_scope.get("baseline_version") != "1.0.6.40" or v10641_scope.get("target_version") != "1.0.6.41":
+    fail("v1.0.6.41 active-page origin closure version boundary mismatch")
+if v10641_scope.get("baseline_commit") != "7e6f4cc7abf49e08d4a94124ebffa97bb7794137":
+    fail("v1.0.6.41 active-page origin closure baseline commit mismatch")
+if v10641_scope.get("baseline_tree") != "8b8b6f8e502011d730ac4508300c25273e3dbab5":
+    fail("v1.0.6.41 active-page origin closure baseline tree mismatch")
+if v10641_scope.get("baseline_zip_sha256") != "b66cd21c1233761dbc6584f173c28017632f795bf16e98afc7eb1ffb2e2e6ad0":
+    fail("v1.0.6.41 active-page origin closure baseline ZIP hash mismatch")
+if set(v10641_scope.get("allowed_production_source_changes", [])) != {"src/vibrapilot/backend.py"}:
+    fail("v1.0.6.41 production correction scope mismatch")
+if set(v10641_scope.get("authorized_automationworker_method_changes", [])) != {"_origin_from_url"}:
+    fail("v1.0.6.41 AutomationWorker method scope mismatch")
+if v10641_scope.get("allowed_runtime_config_changes", []) != []:
+    fail("v1.0.6.41 must not alter runtime settings")
+for relative, expected_sha in v10641_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or sha256(path) != expected_sha:
+        fail(f"v1.0.6.41 frozen surface drift detected: {relative}")
+for marker in (
+    'scheme == "http" and port == 80',
+    'scheme == "https" and port == 443',
+    'port = None',
+):
+    if marker not in backend_text:
+        fail(f"v1.0.6.41 default-port origin canonicalization marker missing: {marker}")
+
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
 app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
@@ -2742,8 +2788,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.40":
-    fail("AppConfig VERSION must be 1.0.6.40 for the Phase 1 forensic closure candidate")
+if app_version != "1.0.6.41":
+    fail("AppConfig VERSION must be 1.0.6.41 for the Phase 1 active-page origin closure candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -3509,12 +3555,14 @@ required = [
     "config/verification/v1.0.6.38_portable_runtime_root_fix_scope.json",
     "config/verification/v1.0.6.39_runtime_reliability_session_policy_scope.json",
     "config/verification/v1.0.6.40_phase1_forensic_closure_fix_scope.json",
+    "config/verification/v1.0.6.41_phase1_active_page_origin_closure_scope.json",
     "src/vibrapilot/power_management.py",
     "src/vibrapilot/chrome_runtime.py",
     "src/vibrapilot/chrome_installer.py",
     "src/vibrapilot/windows_authenticode.py",
     "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
     "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "src/vibrapilot/workflow/input_state.py", "src/vibrapilot/workflow/recovery.py", "src/vibrapilot/workspace_state.py", "src/vibrapilot/browser_capabilities.py",
+    "tests/test_v10641_phase1_active_page_origin_closure.py",
     "src/vibrapilot/workflow/plugin_loader.py", "src/vibrapilot/workflow/schemas.py", "src/vibrapilot/workflow/settings_state.py", "src/vibrapilot/workflow/task_state.py",
     "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/updates/v1.0.6.31-chrome-only-runtime-foundation.md",
@@ -3539,6 +3587,8 @@ required = [
     "docs/verification/V1.0.6.39_RUNTIME_RELIABILITY_SESSION_POLICY.md",
     "docs/updates/v1.0.6.40-phase1-forensic-closure-fix.md",
     "docs/verification/V1.0.6.40_PHASE1_FORENSIC_CLOSURE_FIX.md",
+    "docs/updates/v1.0.6.41-phase1-active-page-origin-closure.md",
+    "docs/verification/V1.0.6.41_PHASE1_ACTIVE_PAGE_ORIGIN_CLOSURE.md",
     "scripts/diagnostics/verify_v10633_browser_forensic_closure.py",
     "scripts/diagnostics/verify_v10634_ui_compact_polish.py",
     "scripts/diagnostics/verify_v10635_workflow_scoped_test_safety.py",
