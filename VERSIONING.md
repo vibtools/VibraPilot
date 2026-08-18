@@ -1,3 +1,9 @@
+# v1.0.6.44
+
+Final-release corrective version over v1.0.6.43. Production code scope is limited to `src/vibrapilot/chrome_installer.py`; completed Phase-1 and Phase-2 architecture remains frozen.
+
+---
+
 # v1.0.6.43 Version Boundary
 
 - Official input: v1.0.6.42.

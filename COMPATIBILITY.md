@@ -1,3 +1,12 @@
+# v1.0.6.44 Final Release Compatibility
+
+- Baseline: v1.0.6.43.
+- Plugin API remains 1; workspace/runtime schemas remain 2.
+- Existing external workflows, per-Task multiworkflow identity, background runtime, power guard and browser profiles remain compatible.
+- Chrome installer source/signature policy is unchanged; only the verified HTTPS transport is corrected for portable Windows certificate-chain reliability.
+
+---
+
 # v1.0.6.43 Phase 2 Forensic Closure Compatibility
 
 - External Workflow Plugin API remains version 1.

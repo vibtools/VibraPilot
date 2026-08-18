@@ -16,6 +16,7 @@ from vibrapilot import runtime_environment
 SCOPE = ROOT / "config/verification/v1.0.6.38_portable_runtime_root_fix_scope.json"
 V10639_SCOPE = ROOT / "config/verification/v1.0.6.39_runtime_reliability_session_policy_scope.json"
 V10642_SCOPE = ROOT / "config/verification/v1.0.6.42_phase2_workflow_lifecycle_multiworkflow_scope.json"
+V10644_SCOPE = ROOT / "config/verification/v1.0.6.44_final_release_chrome_tls_scope.json"
 
 
 def _sha256(path: Path) -> str:
@@ -94,6 +95,10 @@ def test_v10638_freezes_runtime_and_build_surfaces_outside_root_helper():
         phase2 = json.loads(V10642_SCOPE.read_text(encoding="utf-8"))
         later_allowed.update(phase2.get("allowed_production_source_changes", []))
         later_allowed.update(phase2.get("allowed_runtime_config_changes", []))
+    if V10644_SCOPE.is_file():
+        final_release = json.loads(V10644_SCOPE.read_text(encoding="utf-8"))
+        later_allowed.update(final_release.get("allowed_production_source_changes", []))
+        later_allowed.update(final_release.get("allowed_runtime_config_changes", []))
     for relative, expected in scope["frozen_file_sha256"].items():
         if relative in later_allowed:
             continue

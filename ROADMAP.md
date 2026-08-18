@@ -1,3 +1,9 @@
+# Current Roadmap — v1.0.6.44 Final Release Closure
+
+Phase 1: **COMPLETE**. Phase 2: **COMPLETE**. Phase-2 forensic closure: **COMPLETE**. v1.0.6.44 performs final release verification and fixes the reproduced Chrome prerequisite TLS transport failure. No new feature phase is introduced.
+
+---
+
 # Current Roadmap — v1.0.6.43 Phase 2 Forensic Closure
 
 ## Phase 2 status

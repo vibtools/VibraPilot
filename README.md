@@ -1,3 +1,9 @@
+# VibraPilot v1.0.6.44 — Final Release Candidate
+
+v1.0.6.44 seals the completed Phase-1/Phase-2 production work and fixes the Windows portable Chrome prerequisite download TLS failure. Chrome installation remains fail-closed: exact approved Google HTTPS source, verified TLS, redirect revalidation, Windows Authenticode trust and Google LLC publisher identity are required before execution.
+
+---
+
 # VibraPilot v1.0.6.43 — Phase 2 Forensic Closure
 
 v1.0.6.43 is a scope-locked corrective seal over v1.0.6.42. It preserves Workflow Update/Remove/Deactivate, restart-free lifecycle, immutable per-Task workflow identity and true simultaneous multiworkflow execution while closing concrete lifecycle-transaction, legacy-recovery, workspace-preservation and Default Workflow UI semantic gaps. Chrome prerequisite/secure-install, Plugin API 1, licensing, browser-profile, power, dependency, CI and packaging architecture remain unchanged.

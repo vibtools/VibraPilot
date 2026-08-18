@@ -1,3 +1,9 @@
+# VibraPilot v1.0.6.44
+
+Final release forensic closure: Phase-1 and Phase-2 remain complete; the Chrome prerequisite MSI download now uses verified Requests CA transport while exact Google source, redirect, Authenticode and Google LLC policies remain enforced.
+
+---
+
 # VibraPilot Documentation — v1.0.6.43 Phase 2 Forensic Closure
 
 - Update: `docs/updates/v1.0.6.43-phase2-forensic-closure.md`

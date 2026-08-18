@@ -62,6 +62,7 @@ V10640_PHASE1_FORENSIC_CLOSURE_SCOPE_CONTRACT = ROOT / "config" / "verification"
 V10641_PHASE1_ACTIVE_PAGE_ORIGIN_CLOSURE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.41_phase1_active_page_origin_closure_scope.json"
 V10642_PHASE2_WORKFLOW_LIFECYCLE_MULTIWORKFLOW_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.42_phase2_workflow_lifecycle_multiworkflow_scope.json"
 V10643_PHASE2_FORENSIC_CLOSURE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.43_phase2_forensic_closure_scope.json"
+V10644_FINAL_RELEASE_CHROME_TLS_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.44_final_release_chrome_tls_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -467,11 +468,29 @@ v10643_allowed_files = (
 )
 v10643_worker_methods = set(v10643_scope.get("authorized_automationworker_method_changes", []))
 
+# v1.0.6.44 is the final-release forensic seal. It may change only the
+# reproduced Chrome prerequisite TLS download transport surface.
+if not V10644_FINAL_RELEASE_CHROME_TLS_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.44 final release Chrome TLS scope contract is missing")
+try:
+    v10644_scope = json.loads(
+        V10644_FINAL_RELEASE_CHROME_TLS_SCOPE_CONTRACT.read_text(encoding="utf-8")
+    )
+except Exception as exc:
+    fail(f"v1.0.6.44 Chrome TLS scope contract is invalid: {exc}")
+v10644_production_allowed = set(v10644_scope.get("allowed_production_source_changes", []))
+v10644_allowed_files = (
+    v10644_production_allowed
+    | set(v10644_scope.get("allowed_runtime_config_changes", []))
+    | set(v10644_scope.get("authorized_nonproduction_files", []))
+)
+v10644_worker_methods = set()
+
 current_worker_methods = (
-    v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods | v10635_worker_methods | v10636_worker_methods | v10639_worker_methods | v10640_worker_methods | v10641_worker_methods | v10642_worker_methods | v10643_worker_methods
+    v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods | v10635_worker_methods | v10636_worker_methods | v10639_worker_methods | v10640_worker_methods | v10641_worker_methods | v10642_worker_methods | v10643_worker_methods | v10644_worker_methods
 )
 current_allowed_files = (
-    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files | v10636_allowed_files | v10637_allowed_files | v10638_allowed_files | v10639_allowed_files | v10640_allowed_files | v10641_allowed_files | v10642_allowed_files | v10643_allowed_files
+    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files | v10636_allowed_files | v10637_allowed_files | v10638_allowed_files | v10639_allowed_files | v10640_allowed_files | v10641_allowed_files | v10642_allowed_files | v10643_allowed_files | v10644_allowed_files
 )
 if pr08_allowed_files != {
     "src/vibrapilot/workflow_inputs.py",
@@ -2727,7 +2746,7 @@ if set(v10639_scope.get("allowed_production_source_changes", [])) != {
 if set(v10639_scope.get("allowed_runtime_config_changes", [])) != {"config/settings.defaults.json"}:
     fail("v1.0.6.39 Phase 1 runtime config scope mismatch")
 for relative, expected_sha in v10639_scope.get("frozen_file_sha256", {}).items():
-    if relative in v10642_production_allowed:
+    if relative in v10642_production_allowed or relative in v10644_production_allowed:
         continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
@@ -2774,7 +2793,7 @@ if set(v10640_scope.get("allowed_production_source_changes", [])) != {
 if v10640_scope.get("allowed_runtime_config_changes", []) != []:
     fail("v1.0.6.40 must not alter the v1.0.6.39 runtime settings policy")
 for relative, expected_sha in v10640_scope.get("frozen_file_sha256", {}).items():
-    if relative in v10642_production_allowed:
+    if relative in v10642_production_allowed or relative in v10644_production_allowed:
         continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
@@ -2821,7 +2840,7 @@ if set(v10641_scope.get("authorized_automationworker_method_changes", [])) != {"
 if v10641_scope.get("allowed_runtime_config_changes", []) != []:
     fail("v1.0.6.41 must not alter runtime settings")
 for relative, expected_sha in v10641_scope.get("frozen_file_sha256", {}).items():
-    if relative in v10642_production_allowed:
+    if relative in v10642_production_allowed or relative in v10644_production_allowed:
         continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
@@ -2867,6 +2886,8 @@ if v10642_scope.get("new_top_level_ui_pages") is not False:
 if v10642_scope.get("chrome_implementation_changes") != 0:
     fail("v1.0.6.42 Chrome implementation must remain frozen unless a proven defect exists")
 for relative, expected_sha in v10642_scope.get("frozen_file_sha256", {}).items():
+    if relative in v10644_production_allowed:
+        continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
         fail(f"v1.0.6.42 frozen surface drift detected: {relative}")
@@ -2953,6 +2974,8 @@ if v10643_scope.get("new_top_level_ui_pages") is not False:
 if v10643_scope.get("chrome_implementation_changes") != 0:
     fail("v1.0.6.43 Chrome implementation must remain frozen")
 for relative, expected_sha in v10643_scope.get("frozen_file_sha256", {}).items():
+    if relative == "src/vibrapilot/chrome_installer.py" and literal_assignment(APP_CONFIG_APP, "VERSION") == "1.0.6.44":
+        continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
         fail(f"v1.0.6.43 frozen surface drift detected: {relative}")
@@ -3004,6 +3027,49 @@ if literal_assignment(ROOT / "src" / "vibrapilot" / "qt_app.py", "NAV_SECTIONS")
 if 'launch_args["channel"] = "chromium"' in backend_text:
     fail("v1.0.6.43 must not reintroduce Chromium fallback")
 
+# v1.0.6.44 final-release Chrome TLS exact scope.
+if v10644_scope.get("plan_id") != "VP-V10644-FINAL-RELEASE-CHROME-TLS-001":
+    fail("v1.0.6.44 final release plan identifier mismatch")
+if v10644_scope.get("baseline_version") != "1.0.6.43" or v10644_scope.get("target_version") != "1.0.6.44":
+    fail("v1.0.6.44 version boundary mismatch")
+if v10644_scope.get("baseline_main_commit") != "8d76720740f9d822afb7ce5bc4f04f1e2407b5e9":
+    fail("v1.0.6.44 baseline main commit mismatch")
+if v10644_scope.get("baseline_source_commit") != "ab148f8137c1066e497136d6246ac6f84db54024":
+    fail("v1.0.6.44 baseline source commit mismatch")
+if v10644_scope.get("baseline_tree") != "1fa6033f55e59d7abcdfa1fe62a781edb4024f36":
+    fail("v1.0.6.44 baseline tree mismatch")
+if v10644_scope.get("baseline_zip_sha256") != "eb3d838d9fcdd1c1597883b820942b362123d3bb47190295a1f3565f37005002":
+    fail("v1.0.6.44 baseline ZIP hash mismatch")
+if v10644_production_allowed != {"src/vibrapilot/chrome_installer.py"}:
+    fail("v1.0.6.44 production source scope mismatch")
+if v10644_scope.get("allowed_runtime_config_changes", []) != []:
+    fail("v1.0.6.44 must not change runtime settings defaults")
+if v10644_scope.get("plugin_api_version") != 1:
+    fail("v1.0.6.44 must preserve external Workflow Plugin API 1")
+if v10644_scope.get("new_top_level_ui_pages") is not False:
+    fail("v1.0.6.44 must not add a top-level navigation page")
+for relative, expected_sha in v10644_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or sha256(path) != expected_sha:
+        fail(f"v1.0.6.44 frozen surface drift detected: {relative}")
+chrome_v10644 = (SRC / "chrome_installer.py").read_text(encoding="utf-8")
+for required_marker in (
+    "import requests",
+    "class _RequestsDownloadResponse",
+    "verify=True",
+    "allow_redirects=False",
+    "validate_download_url(redirected)",
+    'GOOGLE_CHROME_EXPECTED_PUBLISHER = "Google LLC"',
+    "verify_google_chrome_installer",
+):
+    if required_marker not in chrome_v10644:
+        fail(f"v1.0.6.44 Chrome TLS marker missing: {required_marker}")
+for insecure_marker in ("verify=False", "_create_unverified_context", "CERT_NONE", 'http://dl.google.com'):
+    if insecure_marker in chrome_v10644:
+        fail(f"v1.0.6.44 insecure Chrome TLS marker detected: {insecure_marker}")
+if 'launch_args["channel"] = "chromium"' in backend_text:
+    fail("v1.0.6.44 must not reintroduce Chromium fallback")
+
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
 app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
@@ -3013,8 +3079,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.43":
-    fail("AppConfig VERSION must be 1.0.6.43 for the Phase 2 forensic closure candidate")
+if app_version != "1.0.6.44":
+    fail("AppConfig VERSION must be 1.0.6.44 for the final release Chrome TLS closure candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -3784,6 +3850,7 @@ required = [
     "config/verification/v1.0.6.41_phase1_active_page_origin_closure_scope.json",
     "config/verification/v1.0.6.42_phase2_workflow_lifecycle_multiworkflow_scope.json",
     "config/verification/v1.0.6.43_phase2_forensic_closure_scope.json",
+    "config/verification/v1.0.6.44_final_release_chrome_tls_scope.json",
     "src/vibrapilot/power_management.py",
     "src/vibrapilot/chrome_runtime.py",
     "src/vibrapilot/chrome_installer.py",
@@ -3796,6 +3863,7 @@ required = [
     "tests/test_v10642_multiworkflow_persistence.py",
     "tests/test_v10642_chrome_final_acceptance_contract.py",
     "tests/test_v10643_phase2_forensic_closure.py",
+    "tests/test_v10644_chrome_tls_transport.py",
     "src/vibrapilot/workflow/plugin_loader.py", "src/vibrapilot/workflow/schemas.py", "src/vibrapilot/workflow/settings_state.py", "src/vibrapilot/workflow/task_state.py",
     "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/updates/v1.0.6.31-chrome-only-runtime-foundation.md",
@@ -3826,6 +3894,8 @@ required = [
     "docs/verification/V1.0.6.42_PHASE2_WORKFLOW_LIFECYCLE_MULTIWORKFLOW.md",
     "docs/updates/v1.0.6.43-phase2-forensic-closure.md",
     "docs/verification/V1.0.6.43_PHASE2_FORENSIC_CLOSURE.md",
+    "docs/updates/v1.0.6.44-final-release-chrome-tls.md",
+    "docs/verification/V1.0.6.44_FINAL_RELEASE_CHROME_TLS.md",
     "scripts/diagnostics/verify_v10633_browser_forensic_closure.py",
     "scripts/diagnostics/verify_v10634_ui_compact_polish.py",
     "scripts/diagnostics/verify_v10635_workflow_scoped_test_safety.py",

@@ -1,3 +1,9 @@
+# Project Structure — v1.0.6.44 Final Release Closure
+
+`src/vibrapilot/chrome_installer.py` is the only production source modified. It retains exact Google-source validation and Windows Authenticode/Google LLC verification while using Requests verified TLS transport for the MSI download.
+
+---
+
 # Project Structure — v1.0.6.43 Phase 2 Forensic Closure
 
 ```text

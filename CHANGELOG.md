@@ -1,3 +1,13 @@
+## v1.0.6.44 — Final Release Chrome TLS Closure — 2026-08-18
+
+- Final forensic verification of completed Phase-1 and Phase-2 behavior against the v1.0.6.43 baseline.
+- Fixed Google Chrome prerequisite MSI download failures caused by the portable Python urllib/OpenSSL certificate-chain path.
+- The approved Google MSI now downloads through the existing Requests runtime dependency with mandatory TLS verification, no automatic redirects, and validation of every redirect against the exact dl.google.com Stable x64 MSI policy.
+- Preserved mandatory Windows Authenticode trust and Google LLC publisher verification before installer execution.
+- No TLS bypass, HTTP fallback, Chromium fallback, Plugin API change, persistence schema change, licensing change, power change, workflow-lifecycle change or new UI page.
+
+---
+
 ## v1.0.6.43 — Phase 2 Forensic Closure — 2026-08-18
 
 - Re-audited v1.0.6.42 workflow lifecycle and true multiworkflow implementation against the approved Phase-2 contract.
