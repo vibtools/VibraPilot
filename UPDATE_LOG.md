@@ -1,3 +1,9 @@
+# v1.0.6.44 — Final Release Chrome TLS Closure
+
+Replaced only the Chrome MSI network transport path with Requests verified-CA HTTPS transport while preserving the existing exact Google source/redirect policy and Authenticode/Google LLC execution gate. Phase-1, Phase-2, UI, persistence, workflow lifecycle and multiworkflow behavior remain unchanged.
+
+---
+
 # v1.0.6.43 — Phase 2 Forensic Closure Update Log — 2026-08-18
 
 - Official baseline: v1.0.6.42 / `8c3e9a137ecf852aa152dba0590414e7f8f6209d` / tree `c61a9864e99659bf0a3d3cb229e1ad6e5e85cb69`.

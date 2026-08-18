@@ -17,6 +17,8 @@ import threading
 import urllib.error
 import urllib.parse
 import urllib.request
+
+import requests
 from ctypes import wintypes
 from dataclasses import dataclass
 from pathlib import Path
@@ -117,14 +119,99 @@ class _PolicyRedirectHandler(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
+class _RequestsDownloadResponse:
+    """File-like HTTPS response backed by Requests' verified CA transport."""
+
+    def __init__(self, session: requests.Session, response: requests.Response, final_url: str) -> None:
+        self._session = session
+        self._response = response
+        self._final_url = final_url
+        self.headers = response.headers
+        self._response.raw.decode_content = True
+
+    def read(self, size: int) -> bytes:
+        return self._response.raw.read(size)
+
+    def geturl(self) -> str:
+        return self._final_url
+
+    def close(self) -> None:
+        try:
+            self._response.close()
+        finally:
+            self._session.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args) -> bool:
+        self.close()
+        return False
+
+
 def _default_open(url: str, *, timeout: float):
-    opener = urllib.request.build_opener(_PolicyRedirectHandler())
-    request = urllib.request.Request(
-        validate_download_url(url),
-        headers={"User-Agent": "VibraPilot Chrome Prerequisite Installer"},
-        method="GET",
-    )
-    return opener.open(request, timeout=timeout)
+    """Open the approved Google MSI with verified TLS and redirect policy.
+
+    Requests is already a runtime dependency and carries a bundled CA set, which
+    avoids relying on the frozen executable's OpenSSL default-cert path. TLS
+    verification stays mandatory and every redirect is revalidated against the
+    exact Google host/path policy before another request is sent.
+    """
+    current_url = validate_download_url(url)
+    session = requests.Session()
+    headers = {
+        "User-Agent": "VibraPilot Chrome Prerequisite Installer",
+        "Accept-Encoding": "identity",
+    }
+    try:
+        for _hop in range(6):
+            response = session.get(
+                current_url,
+                headers=headers,
+                stream=True,
+                allow_redirects=False,
+                timeout=timeout,
+                verify=True,
+            )
+            if 300 <= int(response.status_code) < 400:
+                location = str(response.headers.get("Location", "") or "").strip()
+                response.close()
+                if not location:
+                    raise ChromeInstallError(
+                        "download_redirect_rejected",
+                        "Google Chrome installer download returned an invalid redirect.",
+                        detail="Redirect response did not include a Location header.",
+                    )
+                redirected = urllib.parse.urljoin(current_url, location)
+                try:
+                    current_url = validate_download_url(redirected)
+                except ValueError as exc:
+                    raise ChromeInstallError(
+                        "download_redirect_rejected",
+                        "Google Chrome installer download redirected outside the approved Google source.",
+                        detail=str(exc),
+                    ) from exc
+                continue
+            response.raise_for_status()
+            final_url = validate_download_url(str(response.url or current_url))
+            return _RequestsDownloadResponse(session, response, final_url)
+        raise ChromeInstallError(
+            "download_redirect_rejected",
+            "Google Chrome installer download exceeded the allowed redirect limit.",
+        )
+    except ChromeInstallError:
+        session.close()
+        raise
+    except requests.RequestException as exc:
+        session.close()
+        raise ChromeInstallError(
+            "download_failed",
+            "Google Chrome installer could not be downloaded from the official Google source.",
+            detail=str(exc),
+        ) from exc
+    except Exception:
+        session.close()
+        raise
 
 
 def _emit(
@@ -206,7 +293,7 @@ def download_google_chrome_msi(
         partial_path.unlink(missing_ok=True)
         final_path.unlink(missing_ok=True)
         raise
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError) as exc:
+    except (urllib.error.URLError, urllib.error.HTTPError, requests.RequestException, TimeoutError, OSError) as exc:
         partial_path.unlink(missing_ok=True)
         final_path.unlink(missing_ok=True)
         raise ChromeInstallError(

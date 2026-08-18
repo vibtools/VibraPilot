@@ -1,6 +1,6 @@
 [project]
 name = "vibrapilot"
-version = "1.0.6.43"
+version = "1.0.6.44"
 description = "VibraPilot browser automation desktop application by Vib Tools."
 requires-python = ">=3.12,<3.13"
 license = {text = "GPL-3.0-only"}

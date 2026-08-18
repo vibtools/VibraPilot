@@ -3,12 +3,12 @@
   "documentation": {
     "id": "vibrapilot",
     "title": "VibraPilot Documentation",
-    "description": "Documentation for VibraPilot v1.0.6.43 Phase 2 Forensic Closure.",
-    "version": "1.0.6.43",
+    "description": "Documentation for VibraPilot v1.0.6.44 final release Chrome TLS closure.",
+    "version": "1.0.6.44",
     "root": "docs",
     "home": "index.md"
   },
   "product": {
-    "description": "v1.0.6.43 closes proven Phase-2 lifecycle transaction, restart-free switch compatibility, workspace preservation and Default Workflow UI semantic gaps without changing the frozen Chrome secure-install implementation."
+    "description": "v1.0.6.44 seals completed Phase-1/Phase-2 behavior and fixes the portable Windows Chrome prerequisite verified TLS download path without weakening installer trust policy."
   }
 }
