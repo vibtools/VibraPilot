@@ -1721,9 +1721,9 @@ class AutomationWorker(threading.Thread):
         self._pending_file_chooser_request_id: str | None = None
         self._pending_file_chooser_page_id: int | None = None
         self.browser_launch_diagnostics: dict[str, Any] = {}
-        # PR-06: the application owns the persisted active workflow identity and
-        # injects it into each worker. None/unknown values remain fail-closed at
-        # the existing PR-05 Master Workflow Gate; no Share Invite fallback lives
+        # Phase 2: each Task owns an immutable workflow identity and injects a
+        # manager clone bound to that identity. None/unknown values remain fail-closed
+        # at the existing Master Workflow Gate; no workflow-specific fallback lives
         # inside AutomationWorker.
         if workflow_manager is not None:
             requested_workflow_id = (
@@ -4794,6 +4794,7 @@ class AutomationWorker(threading.Thread):
         return {
             "timestamp": now_str(),
             "slot_id": self.state.slot_id,
+            "workflow_id": self._workflow_manager.active_workflow_id or "",
             "email": item.email,
             "status": item.status,
             "message": message,

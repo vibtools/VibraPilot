@@ -1,3 +1,19 @@
+# Current Roadmap — v1.0.6.42 Phase 2
+
+## Phase 2 — Workflow Lifecycle Management & True Multiworkflow
+
+**LOCAL CODE + AUTOMATED VERIFICATION COMPLETE / WINDOWS LIVE ACCEPTANCE PENDING.** v1.0.6.42 completes strict-newer workflow update/replace, package remove, default deactivation, restart-free normal lifecycle operations, immutable per-Task workflow identity, simultaneous different-workflow Tasks, workflow-aware persistence/recovery/reporting and per-workflow Dashboard metrics.
+
+## Chrome final-acceptance track
+
+The existing v1.0.6.32 Chrome prerequisite/secure-install implementation is preserved. Source-level contracts are re-verified; real Windows Chrome/UAC and 1/2/4 Task acceptance remains owner evidence before public release closure.
+
+## Next gate
+
+Final repository verification → Replace-Ready Delta → owner Windows acceptance → GitHub feature branch/CI. No later feature phase starts automatically.
+
+---
+
 # Current Roadmap — v1.0.6.41 Phase 1 Active-Page Origin Closure
 
 ## Phase 1 seal — v1.0.6.41

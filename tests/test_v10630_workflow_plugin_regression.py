@@ -10,12 +10,13 @@ BACKEND = (ROOT / "src/vibrapilot/backend.py").read_text(encoding="utf-8")
 QT = (ROOT / "src/vibrapilot/qt_app.py").read_text(encoding="utf-8")
 
 
-def test_v10636_has_zero_builtins_and_retains_one_active_workflow_model():
+def test_v10636_has_zero_builtins_and_phase2_retains_one_default_with_task_owned_execution():
     manager = WorkflowManager.with_builtin_workflows()
     assert manager.list_workflows() == ()
     assert manager.active_workflow_id is None
-    assert 'active_workflow_id=self.app.active_workflow_id' in QT
-    assert 'def request_workflow_switch(' in QT
+    assert 'active_workflow_id=self.workflow_id' in QT
+    assert 'def request_workflow_switch(' in QT  # historical compatibility path retained
+    assert 'def request_default_workflow_switch(' in QT
 
 
 def test_core_browser_is_retained_and_specialized_workflow_processing_is_generic_hook():

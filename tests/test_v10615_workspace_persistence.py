@@ -27,8 +27,8 @@ class WorkspaceStateStoreTest(unittest.TestCase):
                 {
                     "saved_at": "2026-08-09 15:00:00",
                     "active_tasks": [
-                        {"slot_id": 3, "run_id": "run-3", "target_url": "https://example.test/a"},
-                        {"slot_id": 1, "run_id": "", "target_url": "https://example.test/b"},
+                        {"slot_id": 3, "workflow_id": "workflow_a", "run_id": "run-3", "target_url": "https://example.test/a"},
+                        {"slot_id": 1, "workflow_id": "workflow_b", "run_id": "", "target_url": "https://example.test/b"},
                     ],
                     "next_slot_id": 7,
                     "selected_page": "Tasks",
@@ -99,18 +99,28 @@ class WorkspaceStateStoreTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            loaded = WorkspaceStateStore(path).load()
-            self.assertEqual(loaded["active_tasks"], [{"slot_id": 2, "run_id": "a", "target_url": "u1"}])
+            # v1.0.6.42 migrates legacy workspace rows only through an explicit
+            # workflow-identity resolver; this test remains focused on duplicate/invalid slots.
+            loaded = WorkspaceStateStore(
+                path, legacy_workflow_resolver=lambda slot_id, _run_id: "legacy_workflow"
+            ).load()
+            self.assertEqual(
+                loaded["active_tasks"],
+                [{"slot_id": 2, "workflow_id": "legacy_workflow", "run_id": "a", "target_url": "u1"}],
+            )
 
 
 class WorkspacePersistenceScopeTest(unittest.TestCase):
-    def test_runtime_database_schema_remains_frozen(self):
-        self.assertEqual(SCHEMA_VERSION, 1)
+    def test_runtime_database_schema_phase2_successor_is_workflow_aware(self):
+        # v1.0.6.42 intentionally supersedes the v1 schema to persist immutable
+        # per-Task workflow provenance without changing unrelated runtime behavior.
+        self.assertEqual(SCHEMA_VERSION, 2)
 
     def test_qt_workspace_contract_contains_required_safe_restore_paths(self):
         text = (ROOT / "src" / "vibrapilot" / "qt_app.py").read_text(encoding="utf-8")
         for marker in (
-            "WorkspaceStateStore(APP_STATE_FILE)",
+            "WorkspaceStateStore(",
+            "legacy_workflow_resolver=self._resolve_legacy_workspace_workflow_identity",
             "def schedule_workspace_save",
             "def save_workspace_state",
             "def _restore_active_workspace_tasks",

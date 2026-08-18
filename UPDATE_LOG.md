@@ -1,3 +1,14 @@
+# v1.0.6.42 — Phase 2 Update Log — 2026-08-18
+
+- Workflow lifecycle transaction/update/remove implementation added and tested fail-closed.
+- Default workflow activation/deactivation made restart-free without clearing existing Tasks.
+- Per-Task workflow identity wired through Task creation, worker runtime, persistence, recovery, reports and dashboard.
+- Workspace/TaskRuntimeStore workflow provenance schema migrations added.
+- Chrome secure-install implementation re-verified under frozen-source policy.
+- Final full regression and Windows owner live acceptance are separate release gates.
+
+---
+
 ## v1.0.6.41 — Phase 1 Active-Page Origin Closure
 
 Forensic verification of v1.0.6.40 reproduced one P1-WP04 defect: omitted default ports and explicit `:80`/`:443` were treated as different origins. `_origin_from_url()` now canonicalizes only those default-port equivalents; non-default ports and malformed-port fail-safe behavior are unchanged. Production source change is limited to `src/vibrapilot/backend.py`.

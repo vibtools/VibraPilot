@@ -141,6 +141,10 @@ from .workflow import (
     default_workflow_plugin_root,
     inspect_workflow_package,
     install_workflow_package,
+    compare_workflow_versions,
+    update_workflow_package,
+    remove_installed_workflow,
+    recover_workflow_lifecycle_transactions,
     normalize_form_values,
     normalize_task_values,
 )
@@ -1009,7 +1013,7 @@ class ChromeRequiredDialog(QDialog):
 class TaskSlotWidget(QFrame):
     """One independent browser/task slot using the frozen Vib Tools card contract."""
 
-    def __init__(self, app: "MainWindow", slot_id: int) -> None:
+    def __init__(self, app: "MainWindow", slot_id: int, workflow_id: str | None = None) -> None:
         super().__init__()
         self.setObjectName("Card")
         self.app = app
@@ -1021,7 +1025,7 @@ class TaskSlotWidget(QFrame):
         self.browser_action_button: QPushButton | None = None
         # Preserve lightweight Qt-host compatibility without inventing an active
         # production workflow when the application has none.
-        self.workflow_id = str(getattr(app, "active_workflow_id", "") or "compatibility_host")
+        self.workflow_id = str(workflow_id or getattr(app, "active_workflow_id", "") or "compatibility_host")
         workflow_catalog = getattr(app, "workflow_catalog", None)
         workflow_task_state_store = getattr(app, "workflow_task_state_store", None)
         if workflow_catalog is None or workflow_task_state_store is None:
@@ -1220,6 +1224,18 @@ class TaskSlotWidget(QFrame):
         text_col = QWidget()
         text_lay = vbox(text_col, spacing=2)
         text_lay.addWidget(title(f"Task {self.slot_id}", "CardTitle"))
+        try:
+            workflow_manifest = self.app.workflow_catalog.require_workflow(self.workflow_id)
+            workflow_name = workflow_manifest.name
+            workflow_version = workflow_manifest.version
+        except Exception:
+            workflow_name = self.workflow_id
+            workflow_version = "?"
+        workflow_identity = label(
+            f"Workflow: {workflow_name} • v{workflow_version}", "Caption", False
+        )
+        workflow_identity.setObjectName("TaskSubtitle")
+        text_lay.addWidget(workflow_identity)
         header_lay.addWidget(text_col, 1)
 
         control_group = QWidget()
@@ -1651,16 +1667,16 @@ class TaskSlotWidget(QFrame):
             self.pause_event,
             initial_url=url,
             runtime_store=self.app.runtime_store,
-            active_workflow_id=self.app.active_workflow_id,
-            workflow_input_values=self.app.current_workflow_input_snapshot(),
-            workflow_settings_values=self.app.current_workflow_settings_snapshot(),
+            active_workflow_id=self.workflow_id,
+            workflow_input_values=self.app.current_workflow_input_snapshot(self.workflow_id),
+            workflow_settings_values=self.app.current_workflow_settings_snapshot(self.workflow_id),
             workflow_task_values=dict(self.workflow_task_values),
             workflow_item_payloads=(
                 list(self.workflow_item_payloads)
                 if self.workflow_item_payloads
                 else ([dict(self.workflow_task_values)] if self.task_schema.single_item else [])
             ),
-            workflow_manager=self.app.workflow_catalog.for_active_workflow(self.app.active_workflow_id),
+            workflow_manager=self.app.workflow_catalog.for_active_workflow(self.workflow_id),
         )
         self.worker.start()
         self.app.log_ui(f"Task {self.slot_id}: opening browser session for workflow {self.workflow_id}")
@@ -1737,6 +1753,7 @@ class TaskSlotWidget(QFrame):
         self.state.created_at = now_str()
         self.state.run_id = self.app.runtime_store.start_run(
             slot_id=self.slot_id,
+            workflow_id=self.workflow_id,
             target_url=self.url.text().strip(),
             source_file=str(path),
             source_fingerprint=fingerprint,
@@ -1835,6 +1852,7 @@ class TaskSlotWidget(QFrame):
             if not self.state.run_id:
                 self.state.run_id = self.app.runtime_store.start_run(
                     slot_id=self.slot_id,
+                    workflow_id=self.workflow_id,
                     target_url=self.url.text().strip(),
                     source_file="",
                     source_fingerprint="",
@@ -1962,6 +1980,7 @@ class TaskSlotWidget(QFrame):
         if not self.state.run_id:
             self.state.run_id = self.app.runtime_store.start_run(
                 slot_id=self.slot_id,
+                workflow_id=self.workflow_id,
                 target_url=self.state.target_url,
                 source_file=self.state.source_file,
                 source_fingerprint=self.state.source_fingerprint,
@@ -2128,6 +2147,14 @@ class MainWindow(QMainWindow):
         self.settings = SettingsManager(SETTINGS_FILE)
         super().__init__()
         self.workflow_plugin_root = default_workflow_plugin_root(APP_DATA_DIR)
+        self.workflow_lifecycle_error = ""
+        self._workflow_lifecycle_recovery_actions: list[str] = []
+        try:
+            self._workflow_lifecycle_recovery_actions = recover_workflow_lifecycle_transactions(
+                self.workflow_plugin_root
+            )
+        except WorkflowPluginError as exc:
+            self.workflow_lifecycle_error = str(exc)
         self.workflow_catalog = WorkflowManager.with_available_workflows(
             workflow_root=self.workflow_plugin_root
         )
@@ -2203,7 +2230,10 @@ class MainWindow(QMainWindow):
 
         self.license_manager = LicenseManager(self.settings)
         self.runtime_store = TaskRuntimeStore(TASK_RUNTIME_DB)
-        self.workspace_store = WorkspaceStateStore(APP_STATE_FILE)
+        self.workspace_store = WorkspaceStateStore(
+            APP_STATE_FILE,
+            legacy_workflow_resolver=self._resolve_legacy_workspace_workflow_identity,
+        )
         self.ui_queue: queue.Queue = queue.Queue(maxsize=UI_QUEUE_CAPACITY)
         self.tasks: dict[int, TaskSlotWidget] = {}
         self.next_slot_id = 1
@@ -2398,6 +2428,7 @@ class MainWindow(QMainWindow):
             or self._workspace_transitioning
             or self._workspace_restore_in_progress
             or self._workflow_switch_in_progress
+            or self.workspace_store.migration_blocked
         ):
             return
         self.workspace_save_timer.start()
@@ -2407,6 +2438,7 @@ class MainWindow(QMainWindow):
         active_tasks = [
             {
                 "slot_id": int(task.slot_id),
+                "workflow_id": task.workflow_id,
                 "run_id": str(task.state.run_id or ""),
                 "target_url": task.url.text().strip(),
             }
@@ -2426,12 +2458,44 @@ class MainWindow(QMainWindow):
             },
         }
 
+    def _resolve_legacy_workspace_workflow_identity(
+        self, slot_id: int, run_id: str
+    ) -> str | None:
+        """Resolve legacy v1 workspace Task identity without arbitrary guessing."""
+        candidates: list[str] = []
+        try:
+            state = self.workflow_task_state_store.load_existing()
+            entry = state.get("tasks", {}).get(str(max(1, int(slot_id))), {})
+            workflow_id = str(entry.get("workflow_id", "") or "").strip()
+            if workflow_id:
+                candidates.append(workflow_id)
+        except Exception:
+            pass
+        if run_id:
+            try:
+                run = self.runtime_store.load_run(str(run_id))
+                workflow_id = str((run or {}).get("workflow_id", "") or "").strip()
+                if workflow_id:
+                    candidates.append(workflow_id)
+            except Exception:
+                pass
+        if candidates:
+            first = candidates[0]
+            if all(value == first for value in candidates) and self.workflow_catalog.get_workflow(first) is not None:
+                return first
+            return None
+        default_id = str(self.active_workflow_id or "").strip()
+        if default_id and self.workflow_catalog.get_workflow(default_id) is not None:
+            return default_id
+        return None
+
     def save_workspace_state(self) -> bool:
         """Persist lightweight active-workspace metadata without duplicating Task data."""
         if (
             not self._workspace_active
             or self._workspace_restore_in_progress
             or self._workflow_switch_in_progress
+            or self.workspace_store.migration_blocked
         ):
             return False
         if self.workspace_save_timer.isActive():
@@ -2505,14 +2569,21 @@ class MainWindow(QMainWindow):
                 continue
             if slot_id <= 0:
                 continue
+            workflow_id = str(entry.get("workflow_id", "") or "").strip()
             run_id = str(entry.get("run_id", "") or "")
             target_url = str(entry.get("target_url", "") or "")
+            if not workflow_id or self.workflow_catalog.get_workflow(workflow_id) is None:
+                self.log_ui(
+                    f"Task {slot_id}: workspace restore blocked because workflow {workflow_id or '<missing>'!r} is unavailable.",
+                    "WARNING",
+                )
+                continue
             if run_id and run_id in closed_run_ids:
                 self.log_ui(
                     f"Task {slot_id}: workspace restore skipped because it is deliberately Closed."
                 )
                 continue
-            slot = self._add_task_with_id(slot_id)
+            slot = self._add_task_with_id(slot_id, workflow_id)
             if slot is None:
                 continue
             if run_id:
@@ -2568,7 +2639,6 @@ class MainWindow(QMainWindow):
                 if (
                     not self.workflow_recovery_error
                     and not self.workflow_state_error
-                    and self.active_workflow_id
                 ):
                     self._restore_active_workspace_tasks(workspace_state)
 
@@ -2582,8 +2652,15 @@ class MainWindow(QMainWindow):
                 initial_slots = max(1, int(self.settings.get(
                     "browser_slot_default", DEFAULT_SETTINGS["browser_slot_default"]
                 )))
+                # Preserve baseline first-workspace behavior: auto-created slots bind
+                # directly to the persisted default and never prompt repeatedly.
+                closed_slots = set(self.runtime_store.closed_slot_ids())
+                candidate = max(1, int(self.next_slot_id))
                 for _ in range(initial_slots):
-                    self.add_task()
+                    while candidate in self.tasks or candidate in closed_slots:
+                        candidate += 1
+                    self._add_task_with_id(candidate, self.active_workflow_id)
+                    candidate += 1
 
             selected_page = (
                 str(workspace_state.get("selected_page", "Dashboard"))
@@ -2595,9 +2672,28 @@ class MainWindow(QMainWindow):
             self.navigate(selected_page)
             self._workspace_active = True
             self.log_ui("License validated. Main workspace loaded.")
+            for action in self._workflow_lifecycle_recovery_actions:
+                self.log_ui(f"Workflow lifecycle recovery: {action}", "WARNING")
+            self._workflow_lifecycle_recovery_actions.clear()
             for action in self._workflow_recovery_actions:
                 self.log_ui(f"Workflow switch recovery: {action}", "WARNING")
             self._workflow_recovery_actions.clear()
+            if self.workflow_lifecycle_error:
+                self.log_ui(
+                    f"Workflow lifecycle recovery is hard-blocked: {self.workflow_lifecycle_error}",
+                    "ERROR",
+                )
+                QTimer.singleShot(
+                    0,
+                    lambda: _message(
+                        self,
+                        "Workflow lifecycle blocked",
+                        "VibraPilot detected an unresolved workflow package lifecycle transaction. "
+                        "Workflow package mutation and browser automation are blocked until manual repair.\n\n"
+                        f"{self.workflow_lifecycle_error}",
+                        "error",
+                    ),
+                )
             if self.workflow_recovery_error:
                 self.log_ui(
                     f"Workflow recovery is hard-blocked: {self.workflow_recovery_error}",
@@ -2659,7 +2755,6 @@ class MainWindow(QMainWindow):
             if (
                 not self.workflow_recovery_error
                 and not self.workflow_state_error
-                and self.active_workflow_id
             ):
                 QTimer.singleShot(0, self.offer_task_recovery)
         finally:
@@ -2985,7 +3080,7 @@ class MainWindow(QMainWindow):
         summary_grid.setColumnStretch(1, 1)
         content_lay.addWidget(summary_host)
 
-        workflow_card = card("Active Workflow")
+        workflow_card = card("Default Workflow")
         workflow_lay = workflow_card.layout()
         self.dashboard_workflow_name = label("", "CardTitle", False)
         self.dashboard_workflow_activity = label("", "Description", False)
@@ -3124,6 +3219,17 @@ class MainWindow(QMainWindow):
         self._refresh_workflow_runtime_error()
 
     def load_workflow_plugin(self) -> None:
+        if self.workflow_lifecycle_error or self._transaction_root_has_directories(
+            self.workflow_plugin_root / ".transactions"
+        ):
+            _message(
+                self,
+                "Workflow lifecycle blocked",
+                "A workflow lifecycle transaction requires recovery/manual repair before loading or updating packages. "
+                + (self.workflow_lifecycle_error or ""),
+                "warning",
+            )
+            return
         package, _ = QFileDialog.getOpenFileName(
             self,
             "Load Workflow",
@@ -3138,6 +3244,9 @@ class MainWindow(QMainWindow):
             _message(self, "Workflow package invalid", str(exc), "error")
             return
         manifest = inspection.manifest
+        if self.workflow_catalog.get_workflow(manifest.workflow_id) is not None:
+            self._update_workflow_from_inspection(inspection)
+            return
         if not _confirm(
             self,
             "Trust and install workflow",
@@ -3171,6 +3280,217 @@ class MainWindow(QMainWindow):
             )
         except Exception as exc:
             _message(self, "Workflow install failed", str(exc), "error")
+
+    def _workflow_reserved_ids(self) -> set[str]:
+        return {
+            item.workflow_id
+            for item in WorkflowManager.with_builtin_workflows().list_workflows()
+        }
+
+    def _workflow_reference_block_reason(self, workflow_id: str) -> str:
+        resolved = str(workflow_id or "").strip()
+        if self.workflow_lifecycle_error:
+            return "Workflow lifecycle recovery is unresolved: " + self.workflow_lifecycle_error
+        lifecycle_root = self.workflow_plugin_root / ".transactions"
+        if self._transaction_root_has_directories(lifecycle_root):
+            return "A workflow lifecycle transaction is still present; restart or manual repair is required."
+        open_slots = sorted(
+            task.slot_id for task in self.tasks.values() if task.workflow_id == resolved
+        )
+        if open_slots:
+            return "Workflow is referenced by open Task(s): " + ", ".join(str(value) for value in open_slots)
+        referenced_runs: list[str] = []
+        rows = list(self.runtime_store.recoverable_runs())
+        rows.extend(
+            row
+            for row in self.runtime_store.closed_runs()
+            if row.get("completed_at") is None
+        )
+        for row in rows:
+            if str(row.get("workflow_id", "") or "").strip() == resolved:
+                run_id = str(row.get("run_id", "") or "")
+                if run_id:
+                    referenced_runs.append(run_id[:12])
+        if referenced_runs:
+            return "Workflow is referenced by recoverable/unfinished closed Task runtime(s): " + ", ".join(sorted(set(referenced_runs)))
+        return ""
+
+    def _update_workflow_from_inspection(
+        self, inspection: Any, *, expected_workflow_id: str | None = None
+    ) -> None:
+        manifest = inspection.manifest
+        if expected_workflow_id and manifest.workflow_id != expected_workflow_id:
+            _message(
+                self,
+                "Workflow update blocked",
+                f"Selected package workflow ID {manifest.workflow_id!r} does not match {expected_workflow_id!r}.",
+                "warning",
+            )
+            return
+        current = self.workflow_catalog.get_workflow(manifest.workflow_id)
+        if current is None:
+            _message(
+                self,
+                "Workflow update blocked",
+                f"Workflow {manifest.workflow_id!r} is not installed. Use Load Workflow instead.",
+                "warning",
+            )
+            return
+        if compare_workflow_versions(manifest.version, current.version) <= 0:
+            _message(
+                self,
+                "Workflow update blocked",
+                f"Selected version {manifest.version} must be strictly newer than installed version {current.version}.",
+                "warning",
+            )
+            return
+        blocker = self._workflow_reference_block_reason(manifest.workflow_id)
+        if blocker:
+            _message(self, "Workflow update blocked", blocker, "warning")
+            return
+        if not _confirm(
+            self,
+            "Trust and update workflow",
+            f"Workflow: {current.name} ({manifest.workflow_id})\n"
+            f"Installed version: {current.version}\n"
+            f"Selected version: {manifest.version}\n\n"
+            "The selected package contains executable Python workflow.py code and will replace the installed package only after validation. "
+            "The previous package is restored automatically if post-swap validation fails. Continue?",
+        ):
+            return
+        try:
+            updated = update_workflow_package(
+                inspection,
+                self.workflow_plugin_root,
+                reserved_workflow_ids=self._workflow_reserved_ids(),
+            )
+            self._reload_workflow_catalog()
+            self.refresh_workflow_showcase()
+            self.update_dashboard()
+            self.log_ui(
+                f"Workflow plugin updated: {updated.manifest.workflow_id} v{updated.manifest.version} "
+                f"({inspection.package_sha256[:12]}…)."
+            )
+            _message(
+                self,
+                "Workflow updated",
+                f"{updated.manifest.name} was atomically updated to v{updated.manifest.version} without restarting VibraPilot.",
+            )
+        except Exception as exc:
+            _message(self, "Workflow update failed", str(exc), "error")
+
+    def update_workflow_plugin(self, workflow_id: str) -> None:
+        package, _ = QFileDialog.getOpenFileName(
+            self,
+            "Update Workflow",
+            "",
+            "VibraPilot Workflow (*.vpworkflow *.zip);;All files (*.*)",
+        )
+        if not package:
+            return
+        try:
+            inspection = inspect_workflow_package(Path(package))
+        except Exception as exc:
+            _message(self, "Workflow package invalid", str(exc), "error")
+            return
+        self._update_workflow_from_inspection(
+            inspection, expected_workflow_id=str(workflow_id).strip()
+        )
+
+    def remove_workflow_plugin(self, workflow_id: str) -> None:
+        resolved = str(workflow_id or "").strip()
+        manifest = self.workflow_catalog.get_workflow(resolved)
+        if manifest is None:
+            _message(self, "Workflow remove blocked", "The workflow is not installed.", "warning")
+            return
+        if resolved == self.active_workflow_id:
+            _message(
+                self,
+                "Workflow remove blocked",
+                "Deactivate this default workflow before removing its installed package.",
+                "warning",
+            )
+            return
+        blocker = self._workflow_reference_block_reason(resolved)
+        if blocker:
+            _message(self, "Workflow remove blocked", blocker, "warning")
+            return
+        if not _confirm(
+            self,
+            "Remove workflow",
+            f"Remove the installed executable package for {manifest.name} ({resolved})?\n\n"
+            "Saved Workflow Inputs/Settings and historical reports are preserved. This action does not purge user data.",
+        ):
+            return
+        try:
+            removed = remove_installed_workflow(resolved, self.workflow_plugin_root)
+            self._reload_workflow_catalog()
+            self.refresh_workflow_showcase()
+            self.update_dashboard()
+            self.log_ui(f"Workflow plugin removed: {removed.workflow_id}.")
+            _message(self, "Workflow removed", f"{removed.name} was removed without restarting VibraPilot.")
+        except Exception as exc:
+            _message(self, "Workflow remove failed", str(exc), "error")
+
+    def request_default_workflow_switch(self, target_workflow_id: str | None) -> str:
+        """Atomically change only the default workflow for future Tasks, without restart."""
+        if self.workflow_recovery_error:
+            raise WorkflowSwitchBlockedError(
+                "Workflow default change is blocked by unresolved recovery state: "
+                + self.workflow_recovery_error
+            )
+        if self.workflow_lifecycle_error:
+            raise WorkflowSwitchBlockedError(
+                "Workflow default change is blocked by unresolved lifecycle state: "
+                + self.workflow_lifecycle_error
+            )
+        if self.workflow_state_error:
+            raise WorkflowSwitchBlockedError(
+                "Workflow default state is unavailable; use explicit recovery before changing it."
+            )
+        current = self.workflow_state_store.load_existing().active_workflow_id
+        target = str(target_workflow_id or "").strip() or None
+        if target == current:
+            return "already_active" if target is not None else "already_deactivated"
+        if target is not None:
+            error = self._workflow_runtime_error_for(target)
+            if error:
+                raise WorkflowSwitchBlockedError(
+                    "Target workflow runtime/schema is unavailable: " + error
+                )
+        new_state = self.workflow_state_store.commit_default_workflow(
+            target, expected_current_workflow_id=current
+        )
+        self.active_workflow_id = new_state.active_workflow_id
+        self.workflow_input_selected_id = self.active_workflow_id or self.workflow_input_selected_id
+        self.workflow_settings_selected_id = self.active_workflow_id or self.workflow_settings_selected_id
+        self._reload_workflow_catalog()
+        self.refresh_workflow_showcase()
+        self.update_dashboard()
+        self.schedule_workspace_save()
+        if target is None:
+            self.log_ui("Default workflow deactivated. Existing Tasks retain their workflow identities.")
+            return "deactivated"
+        self.log_ui(
+            f"Default workflow changed to {target}. Existing Tasks retain their workflow identities."
+        )
+        return "activated" if current is None else "switched"
+
+    def deactivate_default_workflow(self, workflow_id: str) -> None:
+        resolved = str(workflow_id or "").strip()
+        if resolved != self.active_workflow_id:
+            self.refresh_workflow_showcase()
+            return
+        if not _confirm(
+            self,
+            "Deactivate workflow",
+            "Deactivate this workflow as the default for new Tasks?\n\nExisting Tasks keep their current workflow and continue to operate normally.",
+        ):
+            return
+        try:
+            self.request_default_workflow_switch(None)
+        except WorkflowError as exc:
+            _message(self, "Workflow deactivation unavailable", str(exc), "warning")
 
     def _workflow_card(self, manifest: Any, *, active_workflow_id: str | None, state_available: bool) -> QFrame:
         panel = card()
@@ -3253,13 +3573,14 @@ class MainWindow(QMainWindow):
         )
 
         action: QPushButton | None = None
-        if is_active and runtime_available:
-            action = None
-        elif is_active and not runtime_available:
-            badge.setText("UNAVAILABLE")
-            action = button("Unavailable", "secondary")
-            action.setObjectName("WorkflowUnavailableButton")
-            action.setEnabled(False)
+        if is_active:
+            if not runtime_available or not schema_available:
+                badge.setText("UNAVAILABLE")
+            action = button("Deactivate", "secondary")
+            action.setObjectName("WorkflowDeactivateButton")
+            action.clicked.connect(
+                lambda _=False, workflow_id=manifest.workflow_id: self.deactivate_default_workflow(workflow_id)
+            )
         elif recovery_available:
             badge.setText("RECOVERY")
             action = button(f"Recover as {manifest.name}", "danger")
@@ -3294,6 +3615,29 @@ class MainWindow(QMainWindow):
         action_lay.addStretch(1)
         if action is not None:
             action_lay.addWidget(action)
+        if origin == "plugin" and state_available:
+            lifecycle_blocker = self._workflow_reference_block_reason(manifest.workflow_id)
+            update_action = button("Update", "secondary")
+            update_action.setObjectName("WorkflowUpdateButton")
+            update_action.setEnabled(not bool(lifecycle_blocker))
+            if lifecycle_blocker:
+                update_action.setToolTip(lifecycle_blocker)
+            update_action.clicked.connect(
+                lambda _=False, workflow_id=manifest.workflow_id: self.update_workflow_plugin(workflow_id)
+            )
+            action_lay.addWidget(update_action)
+            remove_action = button("Remove", "danger")
+            remove_action.setObjectName("WorkflowRemoveButton")
+            remove_blocker = lifecycle_blocker or (
+                "Deactivate this default workflow before removing it." if is_active else ""
+            )
+            remove_action.setEnabled(not bool(remove_blocker))
+            if remove_blocker:
+                remove_action.setToolTip(remove_blocker)
+            remove_action.clicked.connect(
+                lambda _=False, workflow_id=manifest.workflow_id: self.remove_workflow_plugin(workflow_id)
+            )
+            action_lay.addWidget(remove_action)
         lay.addWidget(action_row)
         return panel
 
@@ -3338,7 +3682,14 @@ class MainWindow(QMainWindow):
 
         if state_available:
             self._refresh_workflow_runtime_error()
-            if self.workflow_recovery_error:
+            if self.workflow_lifecycle_error:
+                self.workflow_showcase_notice_title.setText("Workflow lifecycle recovery blocked")
+                self.workflow_showcase_notice_text.setText(
+                    "Workflow package lifecycle operations are fail-closed until the pending transaction is repaired. "
+                    + self.workflow_lifecycle_error
+                )
+                self.workflow_showcase_notice.show()
+            elif self.workflow_recovery_error:
                 self.workflow_showcase_notice_title.setText("Workflow recovery blocked")
                 self.workflow_showcase_notice_text.setText(
                     "Manual repair is required before automation or destructive workflow recovery. "
@@ -3398,21 +3749,38 @@ class MainWindow(QMainWindow):
             self.workflow_showcase_cards.append(empty)
         self._reflow_workflow_showcase()
 
+    def _confirm_default_workflow_switch(self, workflow_id: str) -> bool:
+        target = self.workflow_catalog.require_workflow(str(workflow_id).strip())
+        current_id = str(self.active_workflow_id or "").strip()
+        if current_id:
+            try:
+                current_name = self.workflow_catalog.require_workflow(current_id).name
+            except WorkflowError:
+                current_name = current_id
+            message = (
+                f"Set {target.name} as the default workflow for new Tasks instead of {current_name}?\n\n"
+                "Existing Tasks keep their current workflow identities and are not restarted or cleared."
+            )
+        else:
+            message = (
+                f"Set {target.name} as the default workflow for new Tasks?\n\n"
+                "Existing Tasks keep their current workflow identities and are not restarted or cleared."
+            )
+        return _confirm(self, "Set default workflow", message)
+
     def _activate_workflow_from_showcase(self, workflow_id: str) -> None:
-        """Delegate activation to the existing PR-06 switch service only."""
+        """Change the default workflow for future Tasks without restarting VibraPilot."""
+        resolved = str(workflow_id or "").strip()
+        if resolved != self.active_workflow_id and not self._confirm_default_workflow_switch(resolved):
+            return
         try:
-            result = self.request_workflow_switch(workflow_id)
+            result = self.request_default_workflow_switch(resolved)
         except WorkflowError as exc:
             self.refresh_workflow_showcase()
             _message(self, "Workflow activation unavailable", str(exc), "warning")
             return
-
-        if result in {"already_active", "cancelled"}:
+        if result in {"already_active", "activated", "switched"}:
             self.refresh_workflow_showcase()
-        elif result == "committed_restart_required":
-            self.refresh_workflow_showcase()
-        elif result == "switched":
-            return
 
     def _recover_workflow_from_showcase(self, workflow_id: str) -> None:
         try:
@@ -3453,6 +3821,9 @@ class MainWindow(QMainWindow):
         self.report_search.setMinimumWidth(CONST.table_search_min_width)
         self.report_search.textChanged.connect(self.refresh_report_table)
         tl.addWidget(self.report_search, 1)
+        self.report_workflow = combo_box(["All Workflows"])
+        self.report_workflow.currentTextChanged.connect(self.refresh_report_table)
+        tl.addWidget(self.report_workflow)
         self.report_task = combo_box(["All Tasks"])
         self.report_task.currentTextChanged.connect(self.refresh_report_table)
         tl.addWidget(self.report_task)
@@ -3466,9 +3837,9 @@ class MainWindow(QMainWindow):
         tl.addWidget(clear_btn)
         lay.addWidget(toolbar)
 
-        self.report_table = QTableWidget(0, 8)
+        self.report_table = QTableWidget(0, 9)
         self.report_table.setObjectName("InvoiceProductGrid")
-        columns = ["timestamp", "slot_id", "email", "status", "message", "attempts", "target_url", "result"]
+        columns = ["timestamp", "slot_id", "workflow_id", "email", "status", "message", "attempts", "target_url", "result"]
         self.report_columns = columns
         self.report_table.setHorizontalHeaderLabels([c.replace("_", " ").title() for c in columns])
         self.report_table.verticalHeader().setVisible(False)
@@ -3480,8 +3851,9 @@ class MainWindow(QMainWindow):
             header.setSectionResizeMode(i, QHeaderView.Stretch)
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
         lay.addWidget(self.report_table, 1)
         root.addWidget(content, 1)
         return page
@@ -3905,12 +4277,23 @@ class MainWindow(QMainWindow):
         )
         self.workflow_settings_state_error = ""
 
-    def current_workflow_settings_snapshot(self) -> dict[str, Any]:
-        if self.workflow_settings_state_error or not self.active_workflow_id:
+    def current_workflow_settings_snapshot(
+        self, workflow_id: str | None = None
+    ) -> dict[str, Any]:
+        resolved_id = str(workflow_id or self.active_workflow_id or "").strip()
+        if not resolved_id:
             raise WorkflowSettingsStateError(
-                "Active Workflow Settings are unavailable; worker creation is blocked."
+                "Workflow Settings are unavailable; worker creation is blocked."
             )
-        return dict(self.active_workflow_settings_values)
+        if resolved_id == self.active_workflow_id and not self.workflow_settings_state_error:
+            return dict(self.active_workflow_settings_values)
+        try:
+            state = self.workflow_settings_state_store.load_or_create()
+            return dict(self.workflow_settings_state_store.values_for(resolved_id, state=state))
+        except (WorkflowSettingsStateError, WorkflowError) as exc:
+            raise WorkflowSettingsStateError(
+                f"Workflow Settings are unavailable for {resolved_id}: {exc}"
+            ) from exc
 
     def _refresh_workflow_runtime_error(self) -> str:
         """Preflight active runtime and declarative schemas without instantiation."""
@@ -3934,13 +4317,28 @@ class MainWindow(QMainWindow):
         self.workflow_runtime_error = ""
         return ""
 
-    def current_workflow_input_snapshot(self) -> dict[str, Any]:
-        """Return a detached validated snapshot for a newly created worker."""
-        if self.workflow_input_state_error or not self.active_workflow_id:
+    def current_workflow_input_snapshot(
+        self, workflow_id: str | None = None
+    ) -> dict[str, Any]:
+        """Return a detached validated snapshot for one Task-owned workflow."""
+        resolved_id = str(workflow_id or self.active_workflow_id or "").strip()
+        if not resolved_id:
             raise WorkflowInputStateError(
-                "Active Workflow Inputs are unavailable; worker creation is blocked."
+                "Workflow Inputs are unavailable; worker creation is blocked."
             )
-        return dict(self.active_workflow_input_values)
+        if resolved_id == self.active_workflow_id and not self.workflow_input_state_error:
+            return dict(self.active_workflow_input_values)
+        try:
+            state = self.workflow_input_state_store.load_or_migrate(
+                legacy_share_invite_values=self._legacy_share_invite_input_values(),
+                active_workflow_id=self.active_workflow_id,
+                preserve_legacy_share_invite=True,
+            )
+            return dict(self.workflow_input_state_store.values_for(resolved_id, state=state))
+        except (WorkflowInputStateError, WorkflowError) as exc:
+            raise WorkflowInputStateError(
+                f"Workflow Inputs are unavailable for {resolved_id}: {exc}"
+            ) from exc
 
     def _workflow_input_widget(
         self, field: WorkflowFieldSchema, value: Any
@@ -4156,13 +4554,13 @@ class MainWindow(QMainWindow):
 
     # ---------- task collection ----------
 
-    def _add_task_with_id(self, slot_id: int) -> TaskSlotWidget | None:
+    def _add_task_with_id(self, slot_id: int, workflow_id: str | None = None) -> TaskSlotWidget | None:
         task_layout = self.task_layout
         if task_layout is None:
             return None
         if slot_id in self.tasks:
             return self.tasks[slot_id]
-        slot = TaskSlotWidget(self, slot_id)
+        slot = TaskSlotWidget(self, slot_id, workflow_id)
         insert_at = max(0, task_layout.count() - 1)
         task_layout.insertWidget(insert_at, slot)
         self.tasks[slot_id] = slot
@@ -4171,19 +4569,68 @@ class MainWindow(QMainWindow):
         self.update_dashboard()
         return slot
 
+    def _select_workflow_for_new_task(self) -> str | None:
+        manifests = list(self.workflow_catalog.list_workflows())
+        if not manifests:
+            _message(
+                self,
+                "No workflows installed",
+                "Install a trusted workflow before creating a Task.",
+                "warning",
+            )
+            return None
+        if len(manifests) == 1:
+            return manifests[0].workflow_id
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Workflow for New Task")
+        layout = vbox(dialog, margins=(16, 16, 16, 16), spacing=12)
+        layout.addWidget(label(
+            "Choose the workflow this Task will use. The Task workflow cannot be changed after creation.",
+            "Description",
+            False,
+        ))
+        selector = combo_box([])
+        selected_index = 0
+        for index, manifest in enumerate(manifests):
+            selector.addItem(f"{manifest.name}  •  v{manifest.version}", manifest.workflow_id)
+            if manifest.workflow_id == self.active_workflow_id:
+                selected_index = index
+        selector.setCurrentIndex(selected_index)
+        layout.addWidget(selector)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        if dialog.exec() != QDialog.Accepted:
+            return None
+        return str(selector.currentData() or "").strip() or None
+
+    def _workflow_runtime_error_for(self, workflow_id: str) -> str:
+        resolved = str(workflow_id or "").strip()
+        if not resolved:
+            return "Workflow ID is unavailable."
+        try:
+            self.workflow_catalog.require_workflow(resolved)
+            self.workflow_catalog.require_runtime_factory(resolved)
+            self.workflow_catalog.input_schema(resolved)
+            self.workflow_catalog.settings_schema(resolved)
+            self.workflow_catalog.task_schema(resolved)
+        except WorkflowError as exc:
+            return str(exc)
+        return ""
+
     def add_task(self) -> None:
+        if self.workflow_lifecycle_error:
+            _message(self, "Workflow lifecycle blocked", self.workflow_lifecycle_error, "warning")
+            return
         if self.workflow_state_error:
             _message(self, "Workflow unavailable", self.workflow_state_error, "warning")
             return
-        if not self.active_workflow_id:
-            _message(
-                self,
-                "No active workflow",
-                "Install and activate a workflow before creating a Task.",
-                "warning",
-            )
+        workflow_id = self._select_workflow_for_new_task()
+        if not workflow_id:
             return
-        runtime_error = self._refresh_workflow_runtime_error()
+        runtime_error = self._workflow_runtime_error_for(workflow_id)
         if runtime_error:
             _message(self, "Workflow unavailable", runtime_error, "warning")
             return
@@ -4191,7 +4638,7 @@ class MainWindow(QMainWindow):
         candidate = max(1, int(self.next_slot_id))
         while candidate in self.tasks or candidate in closed_slots:
             candidate += 1
-        self._add_task_with_id(candidate)
+        self._add_task_with_id(candidate, workflow_id)
         self.schedule_workspace_save()
 
     def remove_task(self, slot_id: int) -> None:
@@ -4201,11 +4648,11 @@ class MainWindow(QMainWindow):
         self.schedule_workspace_save()
 
     def open_closed_tasks(self) -> None:
-        if self.workflow_recovery_error or self.workflow_state_error or not self.active_workflow_id:
+        if self.workflow_recovery_error or self.workflow_state_error:
             _message(
                 self,
                 "Workflow state blocked",
-                "Closed Task recovery is blocked until the active workflow state is valid.",
+                "Closed Task recovery is blocked until workflow state is valid.",
                 "warning",
             )
             return
@@ -4227,10 +4674,19 @@ class MainWindow(QMainWindow):
             if slot_id in self.tasks:
                 conflicts.append(slot_id)
                 continue
+            workflow_id = str(summary.get("workflow_id", "") or "").strip()
+            if not workflow_id:
+                workflow_id = str(self._resolve_legacy_workspace_workflow_identity(slot_id, run_id) or "").strip()
+            if not workflow_id or self.workflow_catalog.get_workflow(workflow_id) is None:
+                self.log_ui(
+                    f"Task {slot_id}: Closed Task reopen blocked because workflow {workflow_id or '<missing>'!r} is unavailable.",
+                    "WARNING",
+                )
+                continue
             run = self.runtime_store.reopen_closed_run(run_id, now_str())
             if not run:
                 continue
-            slot = self._add_task_with_id(slot_id)
+            slot = self._add_task_with_id(slot_id, workflow_id)
             if slot is None:
                 # Restore the archived marker if the UI could not own the slot.
                 self.runtime_store.close_run(
@@ -4539,24 +4995,37 @@ class MainWindow(QMainWindow):
             )
         if self._workflow_restart_required:
             return False, "Workflow change is committed. Restart VibraPilot before opening automation browsers."
+        if self.workflow_lifecycle_error:
+            return False, (
+                "Workflow lifecycle recovery is unresolved. Automation is fail-closed until manual repair. "
+                + self.workflow_lifecycle_error
+            )
         if self.workflow_recovery_error:
             return False, (
                 "Workflow recovery state is unresolved. Automation is hard-blocked until manual repair. "
                 + self.workflow_recovery_error
             )
         if self.workflow_state_error:
-            return False, "Active workflow state is unavailable. Automation is fail-closed until the workflow state is repaired."
-        if not self.active_workflow_id:
-            return False, "No workflow is active. Install and activate a workflow before opening automation browsers."
+            return False, "Workflow state is unavailable. Automation is fail-closed until the workflow state is repaired."
+        # Workflow input/settings stores are shared persistence roots. Preserve the
+        # historical fail-closed boundary if either root is known unavailable;
+        # per-Task snapshots below then validate the selected workflow namespace.
         if self.workflow_input_state_error:
-            return False, "Active Workflow Inputs are unavailable. Automation is fail-closed until repaired. " + self.workflow_input_state_error
+            return False, "Workflow Inputs are unavailable. Automation is fail-closed until repaired. " + self.workflow_input_state_error
         if self.workflow_settings_state_error:
-            return False, "Active Workflow Settings are unavailable. Automation is fail-closed until repaired. " + self.workflow_settings_state_error
+            return False, "Workflow Settings are unavailable. Automation is fail-closed until repaired. " + self.workflow_settings_state_error
         if self.workflow_task_state_error:
             return False, "Workflow Task state is unavailable. Automation is fail-closed until repaired. " + self.workflow_task_state_error
-        runtime_error = self._refresh_workflow_runtime_error()
+        if self.workflow_catalog.get_workflow(slot.workflow_id) is None:
+            return False, f"Task workflow {slot.workflow_id!r} is not installed. Browser creation is blocked."
+        runtime_error = self._workflow_runtime_error_for(slot.workflow_id)
         if runtime_error:
-            return False, "Active workflow runtime is unavailable. Browser creation is blocked before worker startup. " + runtime_error
+            return False, "Task workflow runtime is unavailable. Browser creation is blocked before worker startup. " + runtime_error
+        try:
+            self.current_workflow_input_snapshot(slot.workflow_id)
+            self.current_workflow_settings_snapshot(slot.workflow_id)
+        except (WorkflowInputStateError, WorkflowSettingsStateError) as exc:
+            return False, "Task workflow configuration is unavailable. Automation is fail-closed until repaired. " + str(exc)
         limit = max(1, int(self.settings.get("max_concurrent_tasks", DEFAULT_SETTINGS["max_concurrent_tasks"])))
         active = [task for task in self.tasks.values() if task.slot_id != slot.slot_id and task.worker and task.worker.is_alive()]
         if len(active) >= limit:
@@ -5043,7 +5512,29 @@ class MainWindow(QMainWindow):
                 self._workflow_switch_in_progress = False
             raise
 
+    def _refresh_report_workflow_filter(self) -> None:
+        if not hasattr(self, "report_workflow"):
+            return
+        current_data = str(self.report_workflow.currentData() or "")
+        workflow_ids = sorted(
+            set(self.runtime_store.result_workflow_ids())
+            | {task.workflow_id for task in self.tasks.values()}
+        )
+        self.report_workflow.blockSignals(True)
+        self.report_workflow.clear()
+        self.report_workflow.addItem("All Workflows", "")
+        selected_index = 0
+        for workflow_id in workflow_ids:
+            manifest = self.workflow_catalog.get_workflow(workflow_id)
+            name = manifest.name if manifest is not None else workflow_id
+            self.report_workflow.addItem(name, workflow_id)
+            if workflow_id == current_data:
+                selected_index = self.report_workflow.count() - 1
+        self.report_workflow.setCurrentIndex(selected_index)
+        self.report_workflow.blockSignals(False)
+
     def _refresh_report_task_filter(self) -> None:
+        self._refresh_report_workflow_filter()
         if not hasattr(self, "report_task"):
             return
         current = self.report_task.currentText()
@@ -5056,7 +5547,7 @@ class MainWindow(QMainWindow):
         self.report_task.blockSignals(False)
 
     def offer_task_recovery(self) -> None:
-        if self.workflow_recovery_error or self.workflow_state_error or not self.active_workflow_id:
+        if self.workflow_recovery_error or self.workflow_state_error:
             return
         recoverable = self.runtime_store.recoverable_runs()
         for summary in recoverable:
@@ -5067,6 +5558,17 @@ class MainWindow(QMainWindow):
             if not run:
                 continue
             slot_id = int(run.get("slot_id", 0))
+            workflow_id = str(run.get("workflow_id", "") or "").strip()
+            if not workflow_id:
+                workflow_id = str(
+                    self._resolve_legacy_workspace_workflow_identity(slot_id, run_id) or ""
+                ).strip()
+            if not workflow_id or self.workflow_catalog.get_workflow(workflow_id) is None:
+                self.log_ui(
+                    f"Task {slot_id}: recovery blocked because workflow {workflow_id or '<missing>'!r} is unavailable.",
+                    "WARNING",
+                )
+                continue
             manual = bool(run.get("manual_review_required", 0))
             box = QMessageBox(self)
             box.setIcon(QMessageBox.Warning if manual else QMessageBox.Question)
@@ -5103,7 +5605,7 @@ class MainWindow(QMainWindow):
                     continue
                 if clicked is not restore:
                     continue
-            slot = self._add_task_with_id(slot_id)
+            slot = self._add_task_with_id(slot_id, workflow_id)
             if slot is not None:
                 slot.restore_runtime(run)
                 self.log_ui(f"Task {slot_id}: recovered runtime state; browser remains closed until explicitly opened.")
@@ -5937,6 +6439,12 @@ class MainWindow(QMainWindow):
                 return None
         return None
 
+    def _selected_report_workflow(self) -> str | None:
+        if not hasattr(self, "report_workflow"):
+            return None
+        value = str(self.report_workflow.currentData() or "").strip()
+        return value or None
+
     def add_report_row(self, row: dict[str, Any]) -> None:
         # Worker-side runtime storage is authoritative. Processing-start events stay
         # in Live Logs; Reports expose one latest outcome per recipient/run item.
@@ -5946,6 +6454,14 @@ class MainWindow(QMainWindow):
             return
         self._report_dirty = True
 
+    @staticmethod
+    def _report_display_row(row: dict[str, Any]) -> dict[str, Any]:
+        """Render legacy rows without fabricating a workflow identity."""
+        display = dict(row)
+        if not str(display.get("workflow_id", "") or "").strip():
+            display["workflow_id"] = "Legacy / Unknown"
+        return display
+
     def refresh_report_table(self) -> None:
         if not hasattr(self, "report_table"):
             return
@@ -5953,6 +6469,7 @@ class MainWindow(QMainWindow):
         search = self.report_search.text().lower() if hasattr(self, "report_search") else ""
         filtered = self.runtime_store.results(
             slot_id=self._selected_report_slot(),
+            workflow_id=self._selected_report_workflow(),
             status=status_filter,
             search=search,
             limit=REPORT_RECENT_LIMIT,
@@ -5960,21 +6477,26 @@ class MainWindow(QMainWindow):
         self.report_rows = filtered
         self.report_table.setRowCount(len(filtered))
         for r, row in enumerate(filtered):
+            display_row = self._report_display_row(row)
             for c, key in enumerate(self.report_columns):
-                item = QTableWidgetItem(str(row.get(key, "")))
-                item.setToolTip(str(row.get(key, "")))
+                item = QTableWidgetItem(str(display_row.get(key, "")))
+                item.setToolTip(str(display_row.get(key, "")))
                 self.report_table.setItem(r, c, item)
         self.report_table.resizeRowsToContents()
 
     def _report_export_rows(self) -> list[dict[str, Any]]:
         status_filter = self.report_status.currentText() if hasattr(self, "report_status") else "All"
         search = self.report_search.text().lower() if hasattr(self, "report_search") else ""
-        return self.runtime_store.results(
-            slot_id=self._selected_report_slot(),
-            status=status_filter,
-            search=search,
-            limit=None,
-        )
+        return [
+            self._report_display_row(row)
+            for row in self.runtime_store.results(
+                slot_id=self._selected_report_slot(),
+                workflow_id=self._selected_report_workflow(),
+                status=status_filter,
+                search=search,
+                limit=None,
+            )
+        ]
 
     def export_report_csv(self) -> None:
         rows = self._report_export_rows()
@@ -6212,21 +6734,31 @@ class MainWindow(QMainWindow):
             except (TypeError, ValueError):
                 pass
 
-        task_limit = self.workflow_test_send_limit(self.active_workflow_id)
         usage_used = 0
         usage_capacity = 0
         limited_tasks = [task for task in tasks if task.task_schema.uses_test_send_limit]
+        configured_limits: list[int] = []
         for task in limited_tasks:
+            configured_limit = self.workflow_test_send_limit(task.workflow_id)
+            configured_limits.append(configured_limit)
             worker = task.worker
             if worker is not None:
-                worker_limit = max(0, int(getattr(worker, "run_send_limit", task_limit)))
+                worker_limit = max(0, int(getattr(worker, "run_send_limit", configured_limit)))
                 worker_used = max(0, int(getattr(worker, "run_send_count", 0)))
             else:
-                worker_limit = self.workflow_test_send_limit(task.workflow_id)
+                worker_limit = configured_limit
                 worker_used = max(0, int(task.state.send_limit_used))
             usage_capacity += worker_limit
             usage_used += min(worker_used, worker_limit)
         usage_available = max(0, usage_capacity - usage_used)
+        unique_limits = sorted(set(configured_limits))
+        task_limit_text = (
+            f"{unique_limits[0]} per task"
+            if len(unique_limits) == 1
+            else "Per workflow"
+            if unique_limits
+            else "Not applicable"
+        )
 
         details = {
             "Browsers Ready": f"{browsers_ready} / {task_count}",
@@ -6246,20 +6778,20 @@ class MainWindow(QMainWindow):
             "Device Status": "Authorized" if license_active else "Not authorized",
             "Current Usage": f"{usage_used} / {usage_capacity}" if limited_tasks else "Not applicable",
             "Available": str(usage_available) if limited_tasks else "Not applicable",
-            "Task Limit": f"{task_limit} per task" if limited_tasks else "Not applicable",
+            "Task Limit": task_limit_text,
         }
 
         next_action: tuple[str, int | None] = ("tasks", None)
         next_message = "Review your tasks to continue."
         next_button = "View Tasks"
         if not tasks:
-            if not self.active_workflow_id:
+            if not self.workflow_catalog.list_workflows():
                 next_action = ("workflows", None)
-                next_message = "No workflow is active. Install and activate a workflow to get started."
+                next_message = "No workflow is installed. Load a trusted workflow to get started."
                 next_button = "View Workflows"
             else:
                 next_action = ("add", None)
-                next_message = "No tasks yet. Create a task to get started."
+                next_message = "No tasks yet. Create a task and choose its workflow."
                 next_button = "Add Task"
         else:
             selected = next((task for task in tasks if not task.is_browser_open()), None)
@@ -6313,27 +6845,52 @@ class MainWindow(QMainWindow):
                     widget.setAccessibleName(f"{key}: {value}")
                     widget.updateGeometry()
             try:
-                active_manifest = self.workflow_catalog.require_workflow(self.active_workflow_id or "")
-                workflow_name = active_manifest.name
+                default_manifest = self.workflow_catalog.require_workflow(self.active_workflow_id or "")
+                workflow_name = default_manifest.name
             except Exception:
-                workflow_name = self.active_workflow_id or "No active workflow"
+                workflow_name = "No default workflow"
             if self.dashboard_workflow_name is not None:
                 self.dashboard_workflow_name.setText(workflow_name)
             if self.dashboard_workflow_activity is not None:
-                aggregated: dict[str, Any] = {}
+                workflow_groups: dict[str, list[TaskSlotWidget]] = {}
                 for task in tasks:
-                    for key, value in task.workflow_metrics.items():
-                        if isinstance(value, (int, float)) and not isinstance(value, bool):
-                            aggregated[key] = aggregated.get(key, 0) + value
-                        elif key not in aggregated and value not in (None, ""):
-                            aggregated[key] = value
-                metric_labels = {}
-                try:
-                    metric_labels = {m.key: m.label for m in self.workflow_catalog.task_schema(self.active_workflow_id or "").metrics if m.source == "workflow" and m.visible}
-                except Exception:
-                    pass
-                lines = [f"{metric_labels.get(key, key.replace('_', ' ').title())}: {aggregated[key]}" for key in metric_labels if key in aggregated]
-                self.dashboard_workflow_activity.setText("  •  ".join(lines) if lines else "No workflow-specific activity metrics yet.")
+                    workflow_groups.setdefault(task.workflow_id, []).append(task)
+                workflow_lines: list[str] = []
+                for workflow_id in sorted(workflow_groups):
+                    group_tasks = workflow_groups[workflow_id]
+                    manifest = self.workflow_catalog.get_workflow(workflow_id)
+                    group_name = manifest.name if manifest is not None else workflow_id
+                    metric_labels: dict[str, str] = {}
+                    try:
+                        metric_labels = {
+                            metric.key: metric.label
+                            for metric in self.workflow_catalog.task_schema(workflow_id).metrics
+                            if metric.source == "workflow" and metric.visible
+                        }
+                    except Exception:
+                        metric_labels = {}
+                    aggregated: dict[str, Any] = {}
+                    for task in group_tasks:
+                        for key, value in task.workflow_metrics.items():
+                            if key not in metric_labels:
+                                continue
+                            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                                aggregated[key] = aggregated.get(key, 0) + value
+                            elif key not in aggregated and value not in (None, ""):
+                                aggregated[key] = value
+                    values = [
+                        f"{metric_labels[key]}: {aggregated[key]}"
+                        for key in metric_labels
+                        if key in aggregated
+                    ]
+                    workflow_lines.append(
+                        f"{group_name} — " + (" • ".join(values) if values else f"{len(group_tasks)} Task(s)")
+                    )
+                self.dashboard_workflow_activity.setText(
+                    "\n".join(workflow_lines)
+                    if workflow_lines
+                    else "No workflow-specific activity metrics yet."
+                )
             self.dashboard_next_action = next_action
             if self.dashboard_next_message is not None:
                 self.dashboard_next_message.setText(next_message)

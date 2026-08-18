@@ -450,6 +450,7 @@ def install_workflow_package(
         )
     root = Path(workflow_root).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
+    _assert_lifecycle_idle(root)
     destination = root / workflow_id
     if destination.exists():
         raise WorkflowPluginInstallError(
@@ -506,6 +507,328 @@ def install_workflow_package(
         except OSError:
             pass
 
+
+
+WORKFLOW_LIFECYCLE_TRANSACTION_SCHEMA_VERSION = 1
+_LIFECYCLE_PREPARED = "PREPARED"
+_LIFECYCLE_COMMITTED = "COMMITTED"
+
+
+def _version_tuple(value: str) -> tuple[int, int, int, int]:
+    parts = [int(part) for part in str(value).strip().split(".")]
+    if not 1 <= len(parts) <= 4:
+        raise WorkflowPluginInstallError(f"Workflow version is invalid: {value!r}.")
+    return tuple((parts + [0] * (4 - len(parts)))[:4])  # type: ignore[return-value]
+
+
+def compare_workflow_versions(left: str, right: str) -> int:
+    """Compare validated numeric dotted workflow versions without lexical ordering."""
+    lhs = _version_tuple(left)
+    rhs = _version_tuple(right)
+    return (lhs > rhs) - (lhs < rhs)
+
+
+def _lifecycle_root(workflow_root: Path) -> Path:
+    return Path(workflow_root).expanduser().resolve() / ".transactions"
+
+
+def _assert_lifecycle_idle(workflow_root: Path) -> None:
+    tx_root = _lifecycle_root(workflow_root)
+    if tx_root.is_dir() and any(tx_root.iterdir()):
+        raise WorkflowPluginInstallError(
+            "A pending workflow lifecycle transaction must be recovered before another package mutation."
+        )
+
+
+def _write_lifecycle_manifest(path: Path, payload: Mapping[str, Any]) -> None:
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")
+    data = json.dumps(dict(payload), indent=2, sort_keys=True) + "\n"
+    try:
+        with temporary.open("w", encoding="utf-8", newline="\n") as handle:
+            handle.write(data)
+            handle.flush()
+            try:
+                os.fsync(handle.fileno())
+            except OSError:
+                pass
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _new_lifecycle_transaction(
+    workflow_root: Path, *, action: str, workflow_id: str, target_version: str = ""
+) -> tuple[Path, Path]:
+    tx_root = _lifecycle_root(workflow_root)
+    tx_root.mkdir(parents=True, exist_ok=True)
+    tx = tx_root / f"{workflow_id}-{action}-{uuid.uuid4().hex}"
+    tx.mkdir(parents=False, exist_ok=False)
+    manifest = tx / "transaction.json"
+    _write_lifecycle_manifest(
+        manifest,
+        {
+            "schema_version": WORKFLOW_LIFECYCLE_TRANSACTION_SCHEMA_VERSION,
+            "status": _LIFECYCLE_PREPARED,
+            "action": action,
+            "workflow_id": workflow_id,
+            "target_version": target_version,
+            "created_at": _utc_now(),
+        },
+    )
+    return tx, manifest
+
+
+def _commit_lifecycle_transaction(manifest: Path) -> None:
+    payload = json.loads(Path(manifest).read_text(encoding="utf-8"))
+    payload["status"] = _LIFECYCLE_COMMITTED
+    _write_lifecycle_manifest(manifest, payload)
+
+
+def _cleanup_lifecycle_transaction(tx: Path) -> None:
+    tx = Path(tx)
+    if tx.exists():
+        shutil.rmtree(tx, ignore_errors=False)
+    root = tx.parent
+    try:
+        if root.is_dir() and not any(root.iterdir()):
+            root.rmdir()
+    except OSError:
+        pass
+
+
+def recover_workflow_lifecycle_transactions(workflow_root: Path) -> list[str]:
+    """Recover interrupted workflow update/remove transactions before catalog load."""
+    root = Path(workflow_root).expanduser().resolve()
+    tx_root = _lifecycle_root(root)
+    if not tx_root.exists():
+        return []
+    unexpected = sorted(path.name for path in tx_root.iterdir() if not path.is_dir())
+    if unexpected:
+        raise WorkflowPluginInstallError(
+            "Workflow lifecycle transaction root contains unexpected entries: "
+            + ", ".join(unexpected)
+        )
+    actions: list[str] = []
+    for tx in sorted((p for p in tx_root.iterdir() if p.is_dir()), key=lambda p: p.name):
+        manifest = tx / "transaction.json"
+        if not manifest.is_file():
+            raise WorkflowPluginInstallError(
+                f"Workflow lifecycle transaction manifest is missing: {tx.name}."
+            )
+        try:
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+        except Exception as exc:
+            raise WorkflowPluginInstallError(
+                f"Workflow lifecycle transaction manifest is invalid: {tx.name}: {exc}"
+            ) from exc
+        if int(payload.get("schema_version", 0)) != WORKFLOW_LIFECYCLE_TRANSACTION_SCHEMA_VERSION:
+            raise WorkflowPluginInstallError(
+                f"Unsupported workflow lifecycle transaction schema: {tx.name}."
+            )
+        status = str(payload.get("status", ""))
+        action = str(payload.get("action", ""))
+        workflow_id = str(payload.get("workflow_id", "")).strip()
+        if action not in {"update", "remove"} or not workflow_id:
+            raise WorkflowPluginInstallError(
+                f"Workflow lifecycle transaction identity is invalid: {tx.name}."
+            )
+        destination = root / workflow_id
+        backup = tx / "backup"
+        if status == _LIFECYCLE_PREPARED:
+            if backup.exists():
+                if destination.exists():
+                    shutil.rmtree(destination, ignore_errors=False)
+                os.replace(backup, destination)
+                actions.append(f"rolled back {action} transaction for {workflow_id}")
+            else:
+                actions.append(f"cleaned uncommitted {action} transaction for {workflow_id}")
+            _cleanup_lifecycle_transaction(tx)
+        elif status == _LIFECYCLE_COMMITTED:
+            _cleanup_lifecycle_transaction(tx)
+            actions.append(f"cleaned committed {action} transaction for {workflow_id}")
+        else:
+            raise WorkflowPluginInstallError(
+                f"Workflow lifecycle transaction status is invalid: {tx.name}."
+            )
+    try:
+        if tx_root.is_dir() and not any(tx_root.iterdir()):
+            tx_root.rmdir()
+    except OSError:
+        pass
+    return actions
+
+
+def _extract_inspected_package_to_staging(
+    inspection: WorkflowPackageInspection,
+    staging: Path,
+) -> InstalledWorkflowPlugin:
+    with zipfile.ZipFile(inspection.package_path) as archive:
+        infos, prefix = _package_members(archive)
+        if prefix != inspection.root_prefix:
+            raise WorkflowPluginInstallError("Workflow package changed after inspection.")
+        current_sha = _sha256(inspection.package_path)
+        if current_sha != inspection.package_sha256:
+            raise WorkflowPluginInstallError("Workflow package changed after inspection.")
+        for info in infos:
+            rel_name = info.filename[len(prefix):] if prefix else info.filename
+            rel = _safe_archive_name(rel_name)
+            target = (staging / Path(*rel.parts)).resolve()
+            try:
+                target.relative_to(staging)
+            except ValueError as exc:
+                raise WorkflowPluginInstallError("Workflow extraction escaped staging directory.") from exc
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(info, "r") as src, target.open("wb") as dst:
+                shutil.copyfileobj(src, dst)
+    metadata = {
+        "schema_version": 1,
+        "workflow_id": inspection.manifest.workflow_id,
+        "package_sha256": inspection.package_sha256,
+        "installed_at": _utc_now(),
+        "plugin_api": inspection.plugin_api,
+    }
+    (staging / _INSTALL_METADATA).write_text(
+        json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    loaded = load_workflow_directory(staging)
+    if loaded.manifest != inspection.manifest:
+        raise WorkflowPluginInstallError("Staged workflow manifest differs from inspected package.")
+    return loaded
+
+
+def update_workflow_package(
+    inspection: WorkflowPackageInspection,
+    workflow_root: Path,
+    *,
+    reserved_workflow_ids: set[str] | frozenset[str],
+) -> InstalledWorkflowPlugin:
+    """Atomically replace an installed workflow with a strictly newer validated package."""
+    if inspection.plugin_api != WORKFLOW_PLUGIN_API_VERSION:
+        raise WorkflowPluginInstallError("Workflow package inspection is no longer compatible.")
+    workflow_id = inspection.manifest.workflow_id
+    if workflow_id in set(reserved_workflow_ids):
+        raise WorkflowPluginInstallError(f"Workflow ID {workflow_id!r} is reserved by a built-in workflow.")
+    root = Path(workflow_root).expanduser().resolve()
+    _assert_lifecycle_idle(root)
+    destination = root / workflow_id
+    if not destination.is_dir():
+        raise WorkflowPluginInstallError(
+            f"Workflow {workflow_id!r} is not installed; use Load Workflow instead of Update."
+        )
+    current = load_workflow_directory(destination)
+    if current.manifest.workflow_id != workflow_id:
+        raise WorkflowPluginInstallError("Installed workflow identity does not match update package.")
+    if compare_workflow_versions(inspection.manifest.version, current.manifest.version) <= 0:
+        raise WorkflowPluginInstallError(
+            f"Workflow update must be strictly newer than installed version {current.manifest.version}."
+        )
+
+    staging_parent = root / ".staging"
+    staging_parent.mkdir(parents=True, exist_ok=True)
+    staging = staging_parent / f"{workflow_id}-update-{uuid.uuid4().hex}"
+    staging.mkdir(parents=True, exist_ok=False)
+    tx: Path | None = None
+    manifest: Path | None = None
+    swapped = False
+    try:
+        _extract_inspected_package_to_staging(inspection, staging)
+        tx, manifest = _new_lifecycle_transaction(
+            root, action="update", workflow_id=workflow_id, target_version=inspection.manifest.version
+        )
+        backup = tx / "backup"
+        os.replace(destination, backup)
+        os.replace(staging, destination)
+        swapped = True
+        try:
+            loaded = load_workflow_directory(destination)
+        except Exception as exc:
+            if destination.exists():
+                shutil.rmtree(destination, ignore_errors=True)
+            if backup.exists():
+                os.replace(backup, destination)
+            raise WorkflowPluginInstallError(
+                f"Workflow update post-swap validation failed; previous version restored: {exc}"
+            ) from exc
+        if loaded.manifest != inspection.manifest:
+            if destination.exists():
+                shutil.rmtree(destination, ignore_errors=True)
+            if backup.exists():
+                os.replace(backup, destination)
+            raise WorkflowPluginInstallError(
+                "Workflow update post-swap manifest mismatch; previous version restored."
+            )
+        _commit_lifecycle_transaction(manifest)
+        if backup.exists():
+            shutil.rmtree(backup, ignore_errors=False)
+        _cleanup_lifecycle_transaction(tx)
+        return loaded
+    except WorkflowPluginError:
+        raise
+    except Exception as exc:
+        if swapped and tx is not None:
+            backup = tx / "backup"
+            if backup.exists():
+                if destination.exists():
+                    shutil.rmtree(destination, ignore_errors=True)
+                os.replace(backup, destination)
+        raise WorkflowPluginInstallError(str(exc)) from exc
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging, ignore_errors=True)
+        try:
+            if staging_parent.is_dir() and not any(staging_parent.iterdir()):
+                staging_parent.rmdir()
+        except OSError:
+            pass
+        if tx is not None and tx.exists():
+            # A failed operation that restored the old package no longer needs
+            # recovery staging. A committed operation already cleaned itself.
+            backup = tx / "backup"
+            if not backup.exists():
+                _cleanup_lifecycle_transaction(tx)
+
+
+def remove_installed_workflow(workflow_id: str, workflow_root: Path) -> WorkflowManifest:
+    """Atomically remove one installed workflow package directory only."""
+    normalized = str(workflow_id).strip()
+    root = Path(workflow_root).expanduser().resolve()
+    _assert_lifecycle_idle(root)
+    if (
+        not normalized
+        or normalized in {".", ".."}
+        or "/" in normalized
+        or "\\" in normalized
+        or ":" in normalized
+    ):
+        raise WorkflowPluginInstallError("Workflow remove ID is not a safe installed workflow identifier.")
+    destination = (root / normalized).resolve()
+    try:
+        destination.relative_to(root)
+    except ValueError as exc:
+        raise WorkflowPluginInstallError("Workflow remove path escapes the workflow root.") from exc
+    if not destination.is_dir():
+        raise WorkflowPluginInstallError(f"Workflow {normalized!r} is not installed.")
+    current = load_workflow_directory(destination)
+    if current.manifest.workflow_id != normalized:
+        raise WorkflowPluginInstallError("Installed workflow identity does not match its directory name.")
+    tx, manifest = _new_lifecycle_transaction(root, action="remove", workflow_id=normalized)
+    backup = tx / "backup"
+    try:
+        os.replace(destination, backup)
+        _commit_lifecycle_transaction(manifest)
+        shutil.rmtree(backup, ignore_errors=False)
+        _cleanup_lifecycle_transaction(tx)
+        return current.manifest
+    except Exception as exc:
+        if backup.exists() and not destination.exists():
+            os.replace(backup, destination)
+        if tx.exists() and not (tx / "backup").exists():
+            _cleanup_lifecycle_transaction(tx)
+        if isinstance(exc, WorkflowPluginError):
+            raise
+        raise WorkflowPluginInstallError(str(exc)) from exc
 
 def load_installed_workflows(
     workflow_root: Path,

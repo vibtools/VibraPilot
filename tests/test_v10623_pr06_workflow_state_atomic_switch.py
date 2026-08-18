@@ -298,12 +298,16 @@ def test_backend_worker_has_no_hardcoded_share_invite_fallback():
     assert 'active_workflow_id="share_invite"' not in source
 
 
-def test_qt_injects_authoritative_active_workflow_into_worker():
+def test_qt_injects_authoritative_task_workflow_into_worker():
     source = (ROOT / "src/vibrapilot/qt_app.py").read_text(encoding="utf-8")
     assert 'APP_DATA_DIR / "workflow_state.json"' in source
-    assert "active_workflow_id=self.app.active_workflow_id" in source
+    # v1.0.6.42 intentionally supersedes the PR-06 global run identity: the
+    # persisted app workflow is now only the default for new Tasks.
+    assert "active_workflow_id=self.workflow_id" in source
+    assert "workflow_manager=self.app.workflow_catalog.for_active_workflow(self.workflow_id)" in source
     assert "WorkflowSwitchTransaction.recover_all(" in source
     assert "def request_workflow_switch(" in source
+    assert "def request_default_workflow_switch(" in source
 
 
 def test_same_workflow_is_noop_before_confirmation_or_mutation():
@@ -391,6 +395,16 @@ def test_v10636_registry_has_no_fake_or_builtin_production_workflow():
 
 def test_frozen_out_of_scope_files_are_byte_identical_to_v10622_baseline():
     pr08_authorized_supersession = {"src/vibrapilot/workflow_inputs.py"}
+    # v1.0.6.42 approved Phase-2 successor surface; all other PR-06 frozen hashes remain enforced.
+    v10642_authorized_supersession = {
+        "src/vibrapilot/backend.py",
+        "src/vibrapilot/qt_app.py",
+        "src/vibrapilot/task_runtime_store.py",
+        "src/vibrapilot/workspace_state.py",
+        "src/vibrapilot/workflow/__init__.py",
+        "src/vibrapilot/workflow/plugin_loader.py",
+        "src/vibrapilot/workflow/state.py",
+    }
     v10630_path = ROOT / "config/verification/v1.0.6.30_workflow_plugin_system_scope.json"
     v10630 = json.loads(v10630_path.read_text(encoding="utf-8")) if v10630_path.is_file() else {}
     v10631_path = ROOT / "config/verification/v1.0.6.31_chrome_only_browser_runtime_scope.json"
@@ -399,6 +413,7 @@ def test_frozen_out_of_scope_files_are_byte_identical_to_v10622_baseline():
     v10636 = json.loads(v10636_path.read_text(encoding="utf-8")) if v10636_path.is_file() else {}
     current_authorized = (
         pr08_authorized_supersession
+        | v10642_authorized_supersession
         | set(v10630.get("allowed_production_source_changes", []))
         | set(v10630.get("authorized_nonproduction_files", []))
         | set(v10631.get("allowed_production_source_changes", []))
@@ -423,6 +438,9 @@ def test_safety_critical_worker_methods_remain_baseline_identical():
     authorized_methods = (
         set(current.get("authorized_automationworker_method_changes", []))
         | set(v10631.get("authorized_automationworker_method_changes", []))
+        # v1.0.6.42 adds only workflow provenance to report_row; other frozen
+        # AutomationWorker safety methods remain byte/AST protected here.
+        | {"report_row"}
     )
     for name, expected in _scope()["frozen_automationworker_method_canonical_ast_sha256"].items():
         if name in authorized_methods:

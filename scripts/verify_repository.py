@@ -60,6 +60,7 @@ V10638_PORTABLE_RUNTIME_ROOT_FIX_SCOPE_CONTRACT = ROOT / "config" / "verificatio
 V10639_RUNTIME_RELIABILITY_SESSION_POLICY_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.39_runtime_reliability_session_policy_scope.json"
 V10640_PHASE1_FORENSIC_CLOSURE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.40_phase1_forensic_closure_fix_scope.json"
 V10641_PHASE1_ACTIVE_PAGE_ORIGIN_CLOSURE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.41_phase1_active_page_origin_closure_scope.json"
+V10642_PHASE2_WORKFLOW_LIFECYCLE_MULTIWORKFLOW_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.42_phase2_workflow_lifecycle_multiworkflow_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -429,11 +430,29 @@ v10641_allowed_files = (
 )
 v10641_worker_methods = set(v10641_scope.get("authorized_automationworker_method_changes", []))
 
+# v1.0.6.42 completes the explicitly approved Phase 2 workflow lifecycle and
+# true per-Task multiworkflow scope while keeping Chrome and other frozen systems unchanged.
+if not V10642_PHASE2_WORKFLOW_LIFECYCLE_MULTIWORKFLOW_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.42 Phase 2 workflow lifecycle/multiworkflow scope contract is missing")
+try:
+    v10642_scope = json.loads(
+        V10642_PHASE2_WORKFLOW_LIFECYCLE_MULTIWORKFLOW_SCOPE_CONTRACT.read_text(encoding="utf-8")
+    )
+except Exception as exc:
+    fail(f"v1.0.6.42 Phase 2 scope contract is invalid: {exc}")
+v10642_production_allowed = set(v10642_scope.get("allowed_production_source_changes", []))
+v10642_allowed_files = (
+    v10642_production_allowed
+    | set(v10642_scope.get("allowed_runtime_config_changes", []))
+    | set(v10642_scope.get("authorized_nonproduction_files", []))
+)
+v10642_worker_methods = set(v10642_scope.get("authorized_automationworker_method_changes", []))
+
 current_worker_methods = (
-    v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods | v10635_worker_methods | v10636_worker_methods | v10639_worker_methods | v10640_worker_methods | v10641_worker_methods
+    v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods | v10635_worker_methods | v10636_worker_methods | v10639_worker_methods | v10640_worker_methods | v10641_worker_methods | v10642_worker_methods
 )
 current_allowed_files = (
-    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files | v10636_allowed_files | v10637_allowed_files | v10638_allowed_files | v10639_allowed_files | v10640_allowed_files | v10641_allowed_files
+    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files | v10636_allowed_files | v10637_allowed_files | v10638_allowed_files | v10639_allowed_files | v10640_allowed_files | v10641_allowed_files | v10642_allowed_files
 )
 if pr08_allowed_files != {
     "src/vibrapilot/workflow_inputs.py",
@@ -1830,12 +1849,16 @@ for marker in (
     "def make_workflows_page(self) -> QWidget:",
     "self.workflow_catalog.list_workflows()",
     "self.workflow_catalog.require_runtime_factory(manifest.workflow_id)",
-    "self.request_workflow_switch(workflow_id)",
     'elif name == "Workflows":',
     "self.refresh_workflow_showcase()",
 ):
     if marker not in qt_text:
         fail(f"v1.0.6.24 PR-07 UI integration marker missing: {marker}")
+if "src/vibrapilot/qt_app.py" in v10642_production_allowed:
+    if "self.request_default_workflow_switch(resolved)" not in qt_text:
+        fail("v1.0.6.42 restart-free workflow activation integration marker missing")
+elif "self.request_workflow_switch(workflow_id)" not in qt_text:
+    fail("v1.0.6.24 PR-07 workflow-switch integration marker missing")
 registry_text = (SRC / "workflow" / "registry.py").read_text(encoding="utf-8")
 if v10636_scope.get("target_version") == "1.0.6.36":
     if "return ()" not in registry_text or "SHARE_INVITE_MANIFEST" in registry_text or "ShareInviteWorkflow" in registry_text:
@@ -1872,7 +1895,7 @@ if v10636_scope.get("target_version") == "1.0.6.36":
         "LEGACY_SHARE_INVITE_INPUT_KEYS",
         'WORKFLOW_INPUT_STATE_SCHEMA_VERSION = 1',
         'APP_DATA_DIR / "workflow_inputs.json"',
-        "workflow_input_values=self.app.current_workflow_input_snapshot()",
+        "workflow_input_values=self.app.current_workflow_input_snapshot(self.workflow_id)",
         "self.workflow_input_state_error",
     ):
         if marker not in (workflow_inputs_text_current + input_state_text_current + qt_text):
@@ -1885,7 +1908,7 @@ else:
         'workflow_id="share_invite"',
         'WORKFLOW_INPUT_STATE_SCHEMA_VERSION = 1',
         'APP_DATA_DIR / "workflow_inputs.json"',
-        "workflow_input_values=self.app.current_workflow_input_snapshot()",
+        "workflow_input_values=self.app.current_workflow_input_snapshot(self.workflow_id)",
         "self.workflow_input_state_error",
     ):
         if marker not in (workflow_inputs_text_current + input_state_text_current + qt_text):
@@ -1956,16 +1979,17 @@ for relative, expected_sha in pr09_scope.get("frozen_file_sha256", {}).items():
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.26 PR-09 frozen production/runtime drift detected: {relative}")
-for marker in (
-    'SCHEMA_VERSION = 1',
-    'CREATE TABLE IF NOT EXISTS runs',
-    'CREATE TABLE IF NOT EXISTS items',
-    'CREATE TABLE IF NOT EXISTS results',
-):
-    if marker not in (SRC / "task_runtime_store.py").read_text(encoding="utf-8"):
-        fail(f"v1.0.6.26 PR-09 TaskRuntimeStore compatibility marker missing: {marker}")
-if "workflow_id" in (SRC / "task_runtime_store.py").read_text(encoding="utf-8"):
-    fail("v1.0.6.26 PR-09 must not add workflow_id to TaskRuntimeStore")
+if "src/vibrapilot/task_runtime_store.py" not in v10642_production_allowed:
+    for marker in (
+        'SCHEMA_VERSION = 1',
+        'CREATE TABLE IF NOT EXISTS runs',
+        'CREATE TABLE IF NOT EXISTS items',
+        'CREATE TABLE IF NOT EXISTS results',
+    ):
+        if marker not in (SRC / "task_runtime_store.py").read_text(encoding="utf-8"):
+            fail(f"v1.0.6.26 PR-09 TaskRuntimeStore compatibility marker missing: {marker}")
+    if "workflow_id" in (SRC / "task_runtime_store.py").read_text(encoding="utf-8"):
+        fail("v1.0.6.26 PR-09 must not add workflow_id to TaskRuntimeStore")
 for marker in (
     'Path(str(TASK_RUNTIME_DB) + "-wal")',
     'Path(str(TASK_RUNTIME_DB) + "-shm")',
@@ -2060,7 +2084,7 @@ for marker in (
     'self.workflow_runtime_error',
     'def request_workflow_state_recovery(',
     'button("Recover Workflow Inputs"',
-    'runtime_error = self._refresh_workflow_runtime_error()',
+    'self._refresh_workflow_runtime_error()',
 ):
     if marker not in (recovery_text + (SRC / "workflow" / "state.py").read_text(encoding="utf-8") + (SRC / "workflow" / "input_state.py").read_text(encoding="utf-8") + qt_text):
         fail(f"v1.0.6.27 PR-10 recovery marker missing: {marker}")
@@ -2190,7 +2214,7 @@ for key, expected in {
     if v10630_scope.get(key) != expected:
         fail(f"v1.0.6.30 Workflow Plugin System boundary mismatch: {key}")
 for relative in v10630_scope.get("frozen_runtime_surfaces", []):
-    if relative in v10636_allowed_files:
+    if relative in current_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file():
@@ -2579,8 +2603,9 @@ if ci_stability.get("general_ci_workflow_changed") is not False:
     fail("v1.0.6.37 general CI workflow must remain byte-frozen")
 if ci_stability.get("production_task_runtime_store_changed") is not False:
     fail("v1.0.6.37 CI stability correction must not change TaskRuntimeStore production code")
-if sha256(SRC / "task_runtime_store.py") != v10637_scope.get("frozen_task_runtime_store_sha256"):
-    fail("v1.0.6.37 TaskRuntimeStore production source changed during CI stability correction")
+if "src/vibrapilot/task_runtime_store.py" not in v10642_production_allowed:
+    if sha256(SRC / "task_runtime_store.py") != v10637_scope.get("frozen_task_runtime_store_sha256"):
+        fail("v1.0.6.37 TaskRuntimeStore production source changed during CI stability correction")
 portable_requirements = (ROOT / "requirements-portable.txt").read_text(encoding="utf-8")
 portable_builder = (ROOT / "scripts" / "packaging" / "build_portable_nuitka.py").read_text(encoding="utf-8")
 portable_verifier = (ROOT / "scripts" / "packaging" / "verify_portable_release.py").read_text(encoding="utf-8")
@@ -2647,7 +2672,7 @@ if v10638_invariants != {
 }:
     fail("v1.0.6.38 portable architecture invariant mismatch")
 for relative, expected in v10638_scope.get("frozen_file_sha256", {}).items():
-    if relative in v10639_allowed_files:
+    if relative in current_allowed_files:
         continue
     if sha256(ROOT / relative) != expected:
         fail(f"v1.0.6.38 frozen file changed outside runtime-root scope: {relative}")
@@ -2678,6 +2703,8 @@ if set(v10639_scope.get("allowed_production_source_changes", [])) != {
 if set(v10639_scope.get("allowed_runtime_config_changes", [])) != {"config/settings.defaults.json"}:
     fail("v1.0.6.39 Phase 1 runtime config scope mismatch")
 for relative, expected_sha in v10639_scope.get("frozen_file_sha256", {}).items():
+    if relative in v10642_production_allowed:
+        continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
         fail(f"v1.0.6.39 frozen surface drift detected: {relative}")
@@ -2723,6 +2750,8 @@ if set(v10640_scope.get("allowed_production_source_changes", [])) != {
 if v10640_scope.get("allowed_runtime_config_changes", []) != []:
     fail("v1.0.6.40 must not alter the v1.0.6.39 runtime settings policy")
 for relative, expected_sha in v10640_scope.get("frozen_file_sha256", {}).items():
+    if relative in v10642_production_allowed:
+        continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
         fail(f"v1.0.6.40 frozen surface drift detected: {relative}")
@@ -2768,6 +2797,8 @@ if set(v10641_scope.get("authorized_automationworker_method_changes", [])) != {"
 if v10641_scope.get("allowed_runtime_config_changes", []) != []:
     fail("v1.0.6.41 must not alter runtime settings")
 for relative, expected_sha in v10641_scope.get("frozen_file_sha256", {}).items():
+    if relative in v10642_production_allowed:
+        continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
         fail(f"v1.0.6.41 frozen surface drift detected: {relative}")
@@ -2779,6 +2810,96 @@ for marker in (
     if marker not in backend_text:
         fail(f"v1.0.6.41 default-port origin canonicalization marker missing: {marker}")
 
+# v1.0.6.42 Phase 2 workflow lifecycle + true multiworkflow exact scope.
+if v10642_scope.get("plan_id") != "VP-V10642-PHASE2-WORKFLOW-LIFECYCLE-MULTIWORKFLOW-001":
+    fail("v1.0.6.42 Phase 2 plan identifier mismatch")
+if v10642_scope.get("baseline_version") != "1.0.6.41" or v10642_scope.get("target_version") != "1.0.6.42":
+    fail("v1.0.6.42 Phase 2 version boundary mismatch")
+if v10642_scope.get("baseline_commit") != "615fe1148431b90334e9ff3f9ae02b37a36bd1d8":
+    fail("v1.0.6.42 baseline commit mismatch")
+if v10642_scope.get("baseline_tree") != "a6cb42814d7ed993ff5961823cf681e0cb0c0252":
+    fail("v1.0.6.42 baseline tree mismatch")
+if v10642_scope.get("baseline_zip_sha256") != "9296626e20076a5ded1a2c6b854ce25489b09be9d8fb204061eba14612642982":
+    fail("v1.0.6.42 baseline ZIP hash mismatch")
+expected_v10642_production = {
+    "src/vibrapilot/backend.py",
+    "src/vibrapilot/qt_app.py",
+    "src/vibrapilot/task_runtime_store.py",
+    "src/vibrapilot/workflow/__init__.py",
+    "src/vibrapilot/workflow/plugin_loader.py",
+    "src/vibrapilot/workflow/state.py",
+    "src/vibrapilot/workspace_state.py",
+}
+if v10642_production_allowed != expected_v10642_production:
+    fail("v1.0.6.42 production source scope mismatch")
+if v10642_worker_methods != {"report_row"}:
+    fail("v1.0.6.42 AutomationWorker method scope mismatch")
+if v10642_scope.get("allowed_runtime_config_changes", []) != []:
+    fail("v1.0.6.42 must not change runtime settings defaults")
+if v10642_scope.get("plugin_api_version") != 1:
+    fail("v1.0.6.42 must preserve external Workflow Plugin API 1")
+if v10642_scope.get("new_top_level_ui_pages") is not False:
+    fail("v1.0.6.42 must not add a top-level navigation page")
+if v10642_scope.get("chrome_implementation_changes") != 0:
+    fail("v1.0.6.42 Chrome implementation must remain frozen unless a proven defect exists")
+for relative, expected_sha in v10642_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or sha256(path) != expected_sha:
+        fail(f"v1.0.6.42 frozen surface drift detected: {relative}")
+
+plugin_loader_v10642 = (SRC / "workflow" / "plugin_loader.py").read_text(encoding="utf-8")
+workflow_state_v10642 = (SRC / "workflow" / "state.py").read_text(encoding="utf-8")
+workspace_v10642 = (SRC / "workspace_state.py").read_text(encoding="utf-8")
+runtime_store_v10642 = (SRC / "task_runtime_store.py").read_text(encoding="utf-8")
+for marker in (
+    "WORKFLOW_LIFECYCLE_TRANSACTION_SCHEMA_VERSION = 1",
+    "def recover_workflow_lifecycle_transactions",
+    "def update_workflow_package",
+    "def remove_installed_workflow",
+    "compare_workflow_versions",
+):
+    if marker not in plugin_loader_v10642:
+        fail(f"v1.0.6.42 workflow lifecycle marker missing: {marker}")
+if "def commit_default_workflow" not in workflow_state_v10642:
+    fail("v1.0.6.42 restart-free default workflow state commit is missing")
+if literal_assignment(SRC / "workspace_state.py", "WORKSPACE_STATE_SCHEMA_VERSION") != 2:
+    fail("v1.0.6.42 workspace schema must be 2")
+if '"workflow_id"' not in workspace_v10642 or "migration_blocked" not in workspace_v10642:
+    fail("v1.0.6.42 workspace workflow provenance/fail-closed migration markers are missing")
+if literal_assignment(SRC / "task_runtime_store.py", "SCHEMA_VERSION") != 2:
+    fail("v1.0.6.42 TaskRuntimeStore schema must be 2")
+if 'workflow_id TEXT NOT NULL DEFAULT' not in runtime_store_v10642:
+    fail("v1.0.6.42 TaskRuntimeStore workflow provenance column is missing")
+for marker in (
+    "active_workflow_id=self.workflow_id",
+    "for_active_workflow(self.workflow_id)",
+    "def request_default_workflow_switch",
+    "self.report_workflow",
+    'display["workflow_id"] = "Legacy / Unknown"',
+    'f"Workflow: {workflow_name} • v{workflow_version}"',
+):
+    if marker not in qt_text:
+        fail(f"v1.0.6.42 Task/UI multiworkflow marker missing: {marker}")
+if "active_workflow_id=self.app.active_workflow_id" in qt_text:
+    fail("v1.0.6.42 worker creation must not use the App-global workflow identity")
+if literal_assignment(SRC / "workflow" / "schemas.py", "WORKFLOW_PLUGIN_API_VERSION") != 1:
+    fail("v1.0.6.42 Workflow Plugin API changed unexpectedly")
+if literal_assignment(ROOT / "src" / "vibrapilot" / "qt_app.py", "NAV_SECTIONS") != [
+    "Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Workflow Settings",
+    "Reports", "Live Logs", "App Settings", "Browser Settings", "About",
+]:
+    fail("v1.0.6.42 top-level navigation drift detected")
+for marker in (
+    "GOOGLE_CHROME_ENTERPRISE_MSI_URL",
+    'GOOGLE_CHROME_EXPECTED_PUBLISHER = "Google LLC"',
+    "verify_google_chrome_installer",
+    "run_google_chrome_installer",
+):
+    if marker not in (SRC / "chrome_installer.py").read_text(encoding="utf-8"):
+        fail(f"v1.0.6.42 frozen Chrome secure-install contract marker missing: {marker}")
+if 'launch_args["channel"] = "chromium"' in backend_text:
+    fail("v1.0.6.42 must not reintroduce Chromium fallback")
+
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
 app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
@@ -2788,8 +2909,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.41":
-    fail("AppConfig VERSION must be 1.0.6.41 for the Phase 1 active-page origin closure candidate")
+if app_version != "1.0.6.42":
+    fail("AppConfig VERSION must be 1.0.6.42 for the Phase 2 workflow lifecycle/multiworkflow candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -2954,8 +3075,9 @@ if settings_defaults.get("use_persistent_context") is not True:
     fail("v1.0.6.14 managed persistent browser default must be enabled")
 if settings_defaults.get("restore_previous_session") is not False:
     fail("v1.0.6.14 must not enable previous-tab/session restoration by default")
-if literal_assignment(SRC / "task_runtime_store.py", "SCHEMA_VERSION") != 1:
-    fail("v1.0.6.14 must preserve TaskRuntimeStore SCHEMA_VERSION = 1")
+if "src/vibrapilot/task_runtime_store.py" not in v10642_production_allowed:
+    if literal_assignment(SRC / "task_runtime_store.py", "SCHEMA_VERSION") != 1:
+        fail("v1.0.6.14 must preserve TaskRuntimeStore SCHEMA_VERSION = 1")
 production_runtime_store = SRC / "task_runtime_store.py"
 if not production_runtime_store.is_file():
     fail("VP-PROD-MT-LR-001 task runtime store module is missing")
@@ -3556,6 +3678,7 @@ required = [
     "config/verification/v1.0.6.39_runtime_reliability_session_policy_scope.json",
     "config/verification/v1.0.6.40_phase1_forensic_closure_fix_scope.json",
     "config/verification/v1.0.6.41_phase1_active_page_origin_closure_scope.json",
+    "config/verification/v1.0.6.42_phase2_workflow_lifecycle_multiworkflow_scope.json",
     "src/vibrapilot/power_management.py",
     "src/vibrapilot/chrome_runtime.py",
     "src/vibrapilot/chrome_installer.py",
@@ -3563,6 +3686,10 @@ required = [
     "src/vibrapilot/app_config.py", "src/vibrapilot/backend.py", "src/vibrapilot/licensing_v2.py", "src/vibrapilot/data_io.py", "src/vibrapilot/task_runtime_store.py",
     "src/vibrapilot/qt_app.py", "src/vibrapilot/workflow_inputs.py", "src/vibrapilot/workflow/input_state.py", "src/vibrapilot/workflow/recovery.py", "src/vibrapilot/workspace_state.py", "src/vibrapilot/browser_capabilities.py",
     "tests/test_v10641_phase1_active_page_origin_closure.py",
+    "tests/test_v10642_workflow_lifecycle.py",
+    "tests/test_v10642_multiworkflow_identity.py",
+    "tests/test_v10642_multiworkflow_persistence.py",
+    "tests/test_v10642_chrome_final_acceptance_contract.py",
     "src/vibrapilot/workflow/plugin_loader.py", "src/vibrapilot/workflow/schemas.py", "src/vibrapilot/workflow/settings_state.py", "src/vibrapilot/workflow/task_state.py",
     "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/updates/v1.0.6.31-chrome-only-runtime-foundation.md",
@@ -3589,6 +3716,8 @@ required = [
     "docs/verification/V1.0.6.40_PHASE1_FORENSIC_CLOSURE_FIX.md",
     "docs/updates/v1.0.6.41-phase1-active-page-origin-closure.md",
     "docs/verification/V1.0.6.41_PHASE1_ACTIVE_PAGE_ORIGIN_CLOSURE.md",
+    "docs/updates/v1.0.6.42-phase2-workflow-lifecycle-multiworkflow.md",
+    "docs/verification/V1.0.6.42_PHASE2_WORKFLOW_LIFECYCLE_MULTIWORKFLOW.md",
     "scripts/diagnostics/verify_v10633_browser_forensic_closure.py",
     "scripts/diagnostics/verify_v10634_ui_compact_polish.py",
     "scripts/diagnostics/verify_v10635_workflow_scoped_test_safety.py",

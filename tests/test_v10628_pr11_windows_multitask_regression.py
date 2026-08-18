@@ -186,6 +186,12 @@ class PR11FrozenRuntimeContractTest(unittest.TestCase):
             | set(v10636_scope.get("allowed_production_source_changes", []))
             | set(v10637_scope.get("allowed_production_source_changes", []))
             | set(v10639_scope.get("allowed_production_source_changes", []))
+            | {
+                "src/vibrapilot/backend.py", "src/vibrapilot/qt_app.py",
+                "src/vibrapilot/task_runtime_store.py", "src/vibrapilot/workspace_state.py",
+                "src/vibrapilot/workflow/__init__.py", "src/vibrapilot/workflow/plugin_loader.py",
+                "src/vibrapilot/workflow/state.py",
+            }
         )
         deleted = set(v10636_scope.get("deleted_production_paths", []))
         historical = set(hashes)

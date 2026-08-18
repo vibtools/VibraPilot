@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import ast
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 QT_PATH = ROOT / "src" / "vibrapilot" / "qt_app.py"
 WIDGETS_PATH = ROOT / "vib_validation_app" / "widgets.py"
+V10642_SCOPE = ROOT / "config" / "verification" / "v1.0.6.42_phase2_workflow_lifecycle_multiworkflow_scope.json"
 STYLES_PATH = ROOT / "vib_validation_app" / "styles.py"
 QT_TEXT = QT_PATH.read_text(encoding="utf-8")
 WIDGETS_TEXT = WIDGETS_PATH.read_text(encoding="utf-8")
@@ -62,8 +64,16 @@ def test_task_card_keeps_workflow_identity_in_state_but_not_as_visible_subtitle(
     task_cls = next(n for n in QT_TREE.body if isinstance(n, ast.ClassDef) and n.name == "TaskSlotWidget")
     build = next(n for n in task_cls.body if isinstance(n, ast.FunctionDef) and n.name == "_build")
     source = ast.get_source_segment(QT_TEXT, build) or ""
-    assert 'f"Workflow: {workflow_name}"' not in source
-    assert 'setObjectName("TaskSubtitle")' not in source
+    phase2_qt = False
+    if V10642_SCOPE.is_file():
+        phase2 = json.loads(V10642_SCOPE.read_text(encoding="utf-8"))
+        phase2_qt = "src/vibrapilot/qt_app.py" in set(phase2.get("allowed_production_source_changes", []))
+    if phase2_qt:
+        assert 'f"Workflow: {workflow_name} • v{workflow_version}"' in source
+        assert 'setObjectName("TaskSubtitle")' in source
+    else:
+        assert 'f"Workflow: {workflow_name}"' not in source
+        assert 'setObjectName("TaskSubtitle")' not in source
     task_source = ast.get_source_segment(QT_TEXT, task_cls) or ""
     assert "self.workflow_id" in task_source
 
@@ -150,8 +160,13 @@ def test_activation_keeps_functional_feedback_but_removes_decorative_subtitle_an
 
 def test_ui_polish_does_not_touch_frozen_behavior_markers():
     # Static safety anchors: the UI polish must not remove existing functional calls.
+    switch_marker = "self.request_workflow_switch(workflow_id)"
+    if V10642_SCOPE.is_file():
+        phase2 = json.loads(V10642_SCOPE.read_text(encoding="utf-8"))
+        if "src/vibrapilot/qt_app.py" in set(phase2.get("allowed_production_source_changes", [])):
+            switch_marker = "self.request_default_workflow_switch(resolved)"
     for marker in (
-        "self.request_workflow_switch(workflow_id)",
+        switch_marker,
         "self.start_chrome_install",
         "self.save_workflow_inputs",
         "self.save_workflow_settings",

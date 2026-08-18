@@ -223,7 +223,9 @@ class ClosedTaskRecoveryContractTest(unittest.TestCase):
     def test_close_and_reopen_preserve_schema_items_progress_and_run_identity(self):
         with tempfile.TemporaryDirectory() as td:
             store = TaskRuntimeStore(Path(td) / "store.sqlite3")
-            self.assertEqual(SCHEMA_VERSION, 1)
+            # v1.0.6.42 intentionally migrates TaskRuntimeStore to schema v2 for
+            # workflow provenance; this test continues to protect close/reopen semantics.
+            self.assertEqual(SCHEMA_VERSION, 2)
             run_id = self._start(store)
             items = [
                 Item("a@example.com", status="success", attempts=1, result="sent"),

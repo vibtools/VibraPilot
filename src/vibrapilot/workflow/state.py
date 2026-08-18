@@ -228,13 +228,17 @@ class WorkflowStateStore:
         _atomic_write_json(self.path, state.to_dict())
         return state
 
-    def commit_active_workflow(
+    def commit_default_workflow(
         self,
-        target_workflow_id: str,
+        target_workflow_id: str | None,
         *,
         expected_current_workflow_id: str | None,
     ) -> WorkflowState:
-        """Atomically commit a validated target, including first activation from None."""
+        """Atomically change the default workflow for newly created Tasks.
+
+        ``None`` is a legitimate deactivated/default-free state. Existing Task
+        workflow identities are owned elsewhere and are never mutated here.
+        """
         current = self.load_existing()
         expected = (
             str(expected_current_workflow_id).strip()
@@ -245,7 +249,11 @@ class WorkflowStateStore:
             raise WorkflowSwitchError(
                 "workflow state changed during switch transaction; commit aborted"
             )
-        target = self._validate_workflow_id(target_workflow_id)
+        target = (
+            self._validate_workflow_id(target_workflow_id)
+            if target_workflow_id is not None
+            else None
+        )
         state = WorkflowState(
             schema_version=WORKFLOW_STATE_SCHEMA_VERSION,
             active_workflow_id=target,
@@ -254,6 +262,18 @@ class WorkflowStateStore:
         )
         _atomic_write_json(self.path, state.to_dict())
         return state
+
+    def commit_active_workflow(
+        self,
+        target_workflow_id: str,
+        *,
+        expected_current_workflow_id: str | None,
+    ) -> WorkflowState:
+        """Compatibility wrapper for validated non-null active/default workflow commits."""
+        return self.commit_default_workflow(
+            target_workflow_id,
+            expected_current_workflow_id=expected_current_workflow_id,
+        )
 
 
 @dataclass(frozen=True, slots=True)

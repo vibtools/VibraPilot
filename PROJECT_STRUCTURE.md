@@ -1,3 +1,24 @@
+# Project Structure — v1.0.6.42 Phase 2
+
+```text
+src/vibrapilot/workflow/plugin_loader.py
+    Workflow package lifecycle: strict-newer update, staging/swap rollback, transaction recovery, remove.
+src/vibrapilot/workflow/state.py
+    Restart-free default workflow commit/deactivation.
+src/vibrapilot/qt_app.py
+    Per-Task workflow selection/binding, lifecycle actions, Reports/Dashboard multiworkflow UI integration.
+src/vibrapilot/workspace_state.py
+    Workspace schema v2 per-Task workflow provenance.
+src/vibrapilot/task_runtime_store.py
+    Runtime DB schema v2 run/result workflow provenance.
+src/vibrapilot/backend.py
+    Worker report rows include immutable Task workflow identity.
+```
+
+Chrome secure-install, licensing, power, browser-profile, dependency, CI and portable-release files remain outside the Phase-2 production-change surface.
+
+---
+
 # Project Structure — v1.0.6.41 Phase 1 Active-Page Origin Closure
 
 ```text

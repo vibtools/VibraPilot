@@ -98,6 +98,12 @@ def test_approved_frozen_runtime_surfaces_remain_byte_identical():
         current_authorized.update(scope.get("allowed_production_source_changes", []))
         current_authorized.update(scope.get("authorized_nonproduction_files", []))
         current_authorized.update(scope.get("deleted_production_paths", []))
+    current_authorized.update({
+        "src/vibrapilot/backend.py", "src/vibrapilot/qt_app.py",
+        "src/vibrapilot/task_runtime_store.py", "src/vibrapilot/workspace_state.py",
+        "src/vibrapilot/workflow/__init__.py", "src/vibrapilot/workflow/plugin_loader.py",
+        "src/vibrapilot/workflow/state.py",
+    })
     for rel, expected in FROZEN.items():
         if rel in current_authorized:
             continue
@@ -107,7 +113,8 @@ def test_approved_frozen_runtime_surfaces_remain_byte_identical():
 def test_active_runtime_factory_is_preflighted_before_worker_creation():
     can_open = _method_source("can_open_task_browser")
     open_browser = (ROOT / "src/vibrapilot/qt_app.py").read_text(encoding="utf-8")
-    assert "runtime_error = self._refresh_workflow_runtime_error()" in can_open
+    # v1.0.6.42 preflights the immutable Task workflow rather than the app default.
+    assert "runtime_error = self._workflow_runtime_error_for(slot.workflow_id)" in can_open
     assert "Browser creation is blocked before worker startup" in can_open
     task_method = ast.get_source_segment(
         open_browser,
@@ -124,7 +131,7 @@ def test_runtime_error_blocks_browser_but_is_not_a_switch_away_blocker():
     can_open = _method_source("can_open_task_browser")
     switch_block = _method_source("_workflow_switch_block_reason")
     switch = _method_source("request_workflow_switch")
-    assert "self.workflow_runtime_error" in can_open or "_refresh_workflow_runtime_error" in can_open
+    assert "_workflow_runtime_error_for(slot.workflow_id)" in can_open
     assert "workflow_runtime_error" not in switch_block
     assert "require_runtime_factory(target)" in switch
 

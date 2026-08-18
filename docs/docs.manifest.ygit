@@ -3,12 +3,12 @@
   "documentation": {
     "id": "vibrapilot",
     "title": "VibraPilot Documentation",
-    "description": "Documentation for VibraPilot v1.0.6.41 Phase 1 Active-Page Origin Closure.",
-    "version": "1.0.6.41",
+    "description": "Documentation for VibraPilot v1.0.6.42 Phase 2 Workflow Lifecycle Management + True Multiworkflow.",
+    "version": "1.0.6.42",
     "root": "docs",
     "home": "index.md"
   },
   "product": {
-    "description": "v1.0.6.41 is a scope-locked Phase 1 forensic seal over v1.0.6.40: deterministic page-origin matching now canonicalizes HTTP :80 and HTTPS :443 so equivalent workflow pages are not rejected in favor of unrelated restored tabs. Phase 2 remains unimplemented."
+    "description": "v1.0.6.42 completes restart-free workflow package update/remove/deactivate and immutable per-Task multiworkflow identity, adds workflow provenance to workspace/runtime reporting, and re-verifies the existing Chrome prerequisite secure-install implementation without changing it."
   }
 }
