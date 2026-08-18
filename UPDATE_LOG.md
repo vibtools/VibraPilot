@@ -1,3 +1,9 @@
+## v1.0.6.40 — Phase 1 Forensic Closure Fix
+
+**Official input baseline:** v1.0.6.39 / `7bd6428a89607df34dc96fbed28d1b2ac20b9365` / tree `074780843a9f6ed62d974123339020b86353d716`.
+
+Forensic verification found and corrected only Phase 1 defects: a possible Windows sleep-guard leak on exception paths, ineffective context-recycle re-probing while the worker was processing, lack of a stop boundary after failed required-session recycle verification, malformed-port failure in the new page-origin helper, a minor Dashboard session-label mismatch, and a weak docstring-based verifier marker. No Phase 2 feature is included.
+
 ## v1.0.6.39 — Phase 1 Runtime Reliability & Workflow-Scoped Session Policy
 
 **Baseline:** v1.0.6.38 / `bc894115f505b7b9ecbc15a235b91d37a9693cec`

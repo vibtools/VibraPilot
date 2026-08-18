@@ -1,21 +1,14 @@
-# Current Roadmap — v1.0.6.39 Phase 1
+# Current Roadmap — v1.0.6.40 Phase 1 Forensic Closure
 
-## Phase 1 — Runtime Reliability & Workflow-Scoped Session Policy
+## Phase 1 closure — v1.0.6.40
 
-Implementation is locally complete and automated verification is green. Remaining release gate: target-Windows owner acceptance for session-required/sessionless behavior, minimized/occluded 3–4 Task execution and the Windows system-sleep guard.
+The v1.0.6.39 Phase 1 implementation has been forensically audited against the locked plan. v1.0.6.40 is reserved only for the proven corrective gaps: guaranteed sleep-guard cleanup, enforceable required-session recycle verification, fail-safe page-origin parsing, exact session UI wording and stronger verification evidence.
 
-Implemented Phase 1 work packages:
+No Phase 2 implementation is included.
 
-1. authoritative `requires_session` contract
-2. background Chrome production policy v2
-3. Windows system-sleep guard
-4. deterministic active-page/multi-tab ownership
-5. safe browser-restart/checkpoint hardening
-6. background multi-task acceptance contract
+## Phase 2 — v1.0.6.41
 
-## Phase 2 — v1.0.6.40
-
-NOT STARTED. Workflow Update/Replace, Remove/Unload/Deactivate, restart-free switch, per-Task workflow identity and true simultaneous different-workflow execution remain frozen until v1.0.6.39 is accepted and frozen.
+**NOT STARTED.** Workflow Update/Replace, Remove/Unload/Deactivate, restart-free switch, per-Task workflow identity and true simultaneous different-workflow execution remain frozen. The former v1.0.6.40 Phase 2 version slot is superseded by this v1.0.6.40 forensic closure, so Phase 2 advances to v1.0.6.41 without any scope expansion.
 
 ---
 

@@ -2946,7 +2946,7 @@ class MainWindow(QMainWindow):
             "Workspace Readiness",
             [
                 ("Browsers Ready", "Browsers Ready"),
-                ("Login Verified", "Login Verified"),
+                ("Login Verified", "Login Verification"),
                 ("Tasks with Data", "Tasks with Data"),
                 ("Ready to Start", "Ready to Start"),
             ],

@@ -58,6 +58,7 @@ V10636_SHARE_INVITE_EXTERNALIZATION_SCOPE_CONTRACT = ROOT / "config" / "verifica
 V10637_PORTABLE_RELEASE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.37_portable_release_packaging_scope.json"
 V10638_PORTABLE_RUNTIME_ROOT_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.38_portable_runtime_root_fix_scope.json"
 V10639_RUNTIME_RELIABILITY_SESSION_POLICY_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.39_runtime_reliability_session_policy_scope.json"
+V10640_PHASE1_FORENSIC_CLOSURE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.40_phase1_forensic_closure_fix_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -395,11 +396,27 @@ v10639_allowed_files = (
 )
 v10639_worker_methods = set(v10639_scope.get("authorized_automationworker_method_changes", []))
 
+# v1.0.6.40 closes only defects proven by the v1.0.6.39 Phase 1 forensic audit.
+if not V10640_PHASE1_FORENSIC_CLOSURE_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.40 Phase 1 forensic closure scope contract is missing")
+try:
+    v10640_scope = json.loads(
+        V10640_PHASE1_FORENSIC_CLOSURE_SCOPE_CONTRACT.read_text(encoding="utf-8")
+    )
+except Exception as exc:
+    fail(f"v1.0.6.40 Phase 1 forensic closure scope contract is invalid: {exc}")
+v10640_production_allowed = set(v10640_scope.get("allowed_production_source_changes", []))
+v10640_allowed_files = (
+    v10640_production_allowed
+    | set(v10640_scope.get("authorized_nonproduction_files", []))
+)
+v10640_worker_methods = set(v10640_scope.get("authorized_automationworker_method_changes", []))
+
 current_worker_methods = (
-    v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods | v10635_worker_methods | v10636_worker_methods | v10639_worker_methods
+    v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods | v10635_worker_methods | v10636_worker_methods | v10639_worker_methods | v10640_worker_methods
 )
 current_allowed_files = (
-    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files | v10636_allowed_files | v10637_allowed_files | v10638_allowed_files | v10639_allowed_files
+    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files | v10636_allowed_files | v10637_allowed_files | v10638_allowed_files | v10639_allowed_files | v10640_allowed_files
 )
 if pr08_allowed_files != {
     "src/vibrapilot/workflow_inputs.py",
@@ -2673,6 +2690,49 @@ if "PowerRequestDisplayRequired" in power_management_text:
 if "Allow Chrome Background Throttling" not in qt_text:
     fail("v1.0.6.39 Browser Settings background policy label missing")
 
+# v1.0.6.40 Phase 1 forensic closure exact correction boundary.
+if v10640_scope.get("plan_id") != "VP-V10640-PHASE1-FORENSIC-CLOSURE-001":
+    fail("v1.0.6.40 Phase 1 forensic closure plan identifier mismatch")
+if v10640_scope.get("baseline_version") != "1.0.6.39" or v10640_scope.get("target_version") != "1.0.6.40":
+    fail("v1.0.6.40 Phase 1 forensic closure version boundary mismatch")
+if v10640_scope.get("baseline_commit") != "7bd6428a89607df34dc96fbed28d1b2ac20b9365":
+    fail("v1.0.6.40 Phase 1 forensic closure baseline commit mismatch")
+if v10640_scope.get("baseline_tree") != "074780843a9f6ed62d974123339020b86353d716":
+    fail("v1.0.6.40 Phase 1 forensic closure baseline tree mismatch")
+if set(v10640_scope.get("allowed_production_source_changes", [])) != {
+    "src/vibrapilot/backend.py", "src/vibrapilot/qt_app.py"
+}:
+    fail("v1.0.6.40 production correction scope mismatch")
+if v10640_scope.get("allowed_runtime_config_changes", []) != []:
+    fail("v1.0.6.40 must not alter the v1.0.6.39 runtime settings policy")
+for relative, expected_sha in v10640_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or sha256(path) != expected_sha:
+        fail(f"v1.0.6.40 frozen surface drift detected: {relative}")
+
+for marker in (
+    "allow_while_processing: bool = False",
+    "allow_while_processing=True",
+    "if recycle_session_ready is False:",
+    "session_blocked = True",
+):
+    if marker not in backend_text:
+        fail(f"v1.0.6.40 Phase 1 closure backend marker missing: {marker}")
+if backend_text.count("allow_while_processing=True") < 2:
+    fail("v1.0.6.40 both persistent and non-persistent recycle paths must force required-session re-probe")
+if 'except (TypeError, ValueError):\n            return None' not in backend_text:
+    fail("v1.0.6.40 malformed target origin handling must fail safe")
+if '("Login Verified", "Login Verification")' not in qt_text:
+    fail("v1.0.6.40 dashboard session row label must be Login Verification")
+
+power_management_path = SRC / "power_management.py"
+if literal_assignment(power_management_path, "_POWER_REQUEST_SYSTEM_REQUIRED") != 0:
+    fail("v1.0.6.40 Windows PowerRequestSystemRequired enum must be verified as numeric value 0")
+# Do not accept the old docstring-only verification marker as proof of the enum.
+for marker in ("PowerCreateRequest", "PowerSetRequest", "PowerClearRequest", "class SystemSleepGuard"):
+    if marker not in power_management_text:
+        fail(f"v1.0.6.40 Windows system sleep guard implementation marker missing: {marker}")
+
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
 app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
@@ -2682,8 +2742,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.39":
-    fail("AppConfig VERSION must be 1.0.6.39 for the Phase 1 runtime reliability candidate")
+if app_version != "1.0.6.40":
+    fail("AppConfig VERSION must be 1.0.6.40 for the Phase 1 forensic closure candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -3448,6 +3508,7 @@ required = [
     "config/verification/v1.0.6.37_portable_release_packaging_scope.json",
     "config/verification/v1.0.6.38_portable_runtime_root_fix_scope.json",
     "config/verification/v1.0.6.39_runtime_reliability_session_policy_scope.json",
+    "config/verification/v1.0.6.40_phase1_forensic_closure_fix_scope.json",
     "src/vibrapilot/power_management.py",
     "src/vibrapilot/chrome_runtime.py",
     "src/vibrapilot/chrome_installer.py",
@@ -3476,6 +3537,8 @@ required = [
     "docs/verification/V1.0.6.38_PORTABLE_RUNTIME_ROOT_FIX.md",
     "docs/updates/v1.0.6.39-runtime-reliability-session-policy.md",
     "docs/verification/V1.0.6.39_RUNTIME_RELIABILITY_SESSION_POLICY.md",
+    "docs/updates/v1.0.6.40-phase1-forensic-closure-fix.md",
+    "docs/verification/V1.0.6.40_PHASE1_FORENSIC_CLOSURE_FIX.md",
     "scripts/diagnostics/verify_v10633_browser_forensic_closure.py",
     "scripts/diagnostics/verify_v10634_ui_compact_polish.py",
     "scripts/diagnostics/verify_v10635_workflow_scoped_test_safety.py",

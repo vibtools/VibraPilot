@@ -1,3 +1,24 @@
+# Project Structure — v1.0.6.40 Phase 1 Forensic Closure
+
+```text
+src/vibrapilot/backend.py
+    Corrects Phase 1 sleep-guard cleanup, recycle-time required-session re-probe/blocking,
+    and malformed target-origin handling.
+
+src/vibrapilot/qt_app.py
+    Aligns Dashboard session row wording to the approved Login Verification contract.
+
+config/verification/v1.0.6.40_phase1_forensic_closure_fix_scope.json
+tests/test_v10640_phase1_forensic_fix.py
+docs/updates/v1.0.6.40-phase1-forensic-closure-fix.md
+docs/verification/V1.0.6.40_PHASE1_FORENSIC_CLOSURE_FIX.md
+    Scope, root-cause and regression evidence for the corrective closure.
+```
+
+`src/vibrapilot/power_management.py`, runtime settings, workflow lifecycle/plugin surfaces, licensing, persistence, dependencies, CI and portable-release files are frozen from v1.0.6.39.
+
+---
+
 # v1.0.6.39 Phase 1 Structure Addendum
 
 New/updated Phase 1 surfaces:

@@ -1922,13 +1922,14 @@ class AutomationWorker(threading.Thread):
     def _origin_from_url(url: str) -> tuple[str, str, int | None] | None:
         try:
             parsed = urlparse(str(url or ""))
-        except Exception:
+            scheme = parsed.scheme.lower()
+            host = (parsed.hostname or "").lower()
+            port = parsed.port
+        except (TypeError, ValueError):
             return None
-        scheme = parsed.scheme.lower()
-        host = (parsed.hostname or "").lower()
         if scheme not in {"http", "https"} or not host:
             return None
-        return (scheme, host, parsed.port)
+        return (scheme, host, port)
 
     def _select_preferred_page(
         self, pages: list[Any], *, preferred_url: str | None = None
@@ -2767,13 +2768,18 @@ class AutomationWorker(threading.Thread):
             )
         return decision
 
-    def refresh_login_verification(self, force_emit: bool = False) -> bool:
+    def refresh_login_verification(
+        self, force_emit: bool = False, *, allow_while_processing: bool = False
+    ) -> bool:
         if not self.workflow_requires_session():
             # Sessionless workflows must never construct/probe a runtime merely
             # for Core login state; their browser readiness is independent.
             self.login_verified_event.clear()
             return False
-        if self.processing_event.is_set() or not self.browser_ready_event.is_set():
+        if (
+            (self.processing_event.is_set() and not allow_while_processing)
+            or not self.browser_ready_event.is_set()
+        ):
             return self.login_verified_event.is_set()
         now = time.monotonic()
         poll_interval = max(
@@ -2820,22 +2826,22 @@ class AutomationWorker(threading.Thread):
 
     def process_batch(self) -> None:
         self.processing_event.set()
-        sleep_guard_acquired = SYSTEM_SLEEP_GUARD.acquire(self._power_guard_owner)
-        if not sleep_guard_acquired:
-            self.log(
-                "System sleep guard could not be acquired; automation will continue without OS sleep inhibition.",
-                "WARNING",
-            )
-        self.state.status = "Running"
-        self.emit("status", {"status": "Running"})
-        self.emit_progress()
-        self._save_runtime_progress(force=True)
-        limit_reached = False
-        session_blocked = False
-        processing_interrupted = False
-        batch_size = max(1, int(self.settings.get("batch_size", DEFAULT_SETTINGS["batch_size"])))
-        finalized_in_batch = 0
         try:
+            sleep_guard_acquired = SYSTEM_SLEEP_GUARD.acquire(self._power_guard_owner)
+            if not sleep_guard_acquired:
+                self.log(
+                    "System sleep guard could not be acquired; automation will continue without OS sleep inhibition.",
+                    "WARNING",
+                )
+            self.state.status = "Running"
+            self.emit("status", {"status": "Running"})
+            self.emit_progress()
+            self._save_runtime_progress(force=True)
+            limit_reached = False
+            session_blocked = False
+            processing_interrupted = False
+            batch_size = max(1, int(self.settings.get("batch_size", DEFAULT_SETTINGS["batch_size"])))
+            finalized_in_batch = 0
             if self.state.current_index >= self.state.total:
                 self.state.status = "Completed"
                 runtime = self._workflow_runtime()
@@ -2891,7 +2897,13 @@ class AutomationWorker(threading.Thread):
                 ):
                     self.reopen_active_page()
                 if item.status in {"success", "failed"}:
-                    self.maybe_recycle_context()
+                    recycle_session_ready = self.maybe_recycle_context()
+                    # Historical/internal overrides may return None. Only an
+                    # explicit False from the v1.0.6.40 recycle contract means
+                    # a required session was actively re-probed and failed.
+                    if recycle_session_ready is False:
+                        session_blocked = True
+                        break
 
                 if finalized_in_batch >= batch_size:
                     self._save_runtime_progress(force=True)
@@ -2939,9 +2951,12 @@ class AutomationWorker(threading.Thread):
             self.emit("status", {"status": "Failed"})
             self.save_unprocessed()
         finally:
-            self.save_failed()
+            # Release process-level sleep inhibition before any fallible final
+            # persistence/UI work so worker-finalization errors cannot strand
+            # a Windows system-awake request.
             self.processing_event.clear()
             SYSTEM_SLEEP_GUARD.release(self._power_guard_owner)
+            self.save_failed()
             self._save_runtime_progress(force=True)
             self.emit_progress()
             self.emit("done", {"status": self.state.status})
@@ -4264,7 +4279,7 @@ class AutomationWorker(threading.Thread):
         finally:
             self._context_transitioning = False
 
-    def maybe_recycle_context(self) -> None:
+    def maybe_recycle_context(self) -> bool:
         self.context_item_count += 1
         n_limit = max(
             0,
@@ -4289,7 +4304,7 @@ class AutomationWorker(threading.Thread):
             and (time.monotonic() - self.context_created_at) / 60 >= min_limit
         )
         if not should_recycle:
-            return
+            return True
 
         current_url = self.state.target_url
         storage_state = None
@@ -4379,13 +4394,21 @@ class AutomationWorker(threading.Thread):
             # the Core Login Verification path at all.
             self.login_verified_event.clear()
             if self.workflow_requires_session():
-                self.refresh_login_verification(force_emit=True)
-            return
+                return self.refresh_login_verification(
+                    force_emit=True, allow_while_processing=True
+                )
+            return True
 
         self.new_context(
             storage_state=storage_state,
             initial_url=current_url if restore_page else "",
         )
+        self.login_verified_event.clear()
+        if self.workflow_requires_session():
+            return self.refresh_login_verification(
+                force_emit=True, allow_while_processing=True
+            )
+        return True
 
     def _process_generic_workflow_item(self, index: int, item: TaskItem) -> None:
         """Run one item for a workflow that does not provide specialized orchestration."""

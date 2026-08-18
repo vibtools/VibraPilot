@@ -1,3 +1,12 @@
+## v1.0.6.40 — Phase 1 Forensic Closure Fix — 2026-08-18
+
+- Audited the owner-frozen v1.0.6.39 Phase 1 implementation and GitHub CI evidence against the exact Runtime Reliability & Workflow-Scoped Session Policy plan.
+- Guaranteed Windows system-sleep guard release across early setup and fallible finalization failures.
+- Made context-recycle session re-verification real during processing and block the next item when a required session cannot be re-verified.
+- Hardened the new active-page origin parser against malformed explicit ports.
+- Aligned Dashboard wording to `Login Verification` and strengthened repository verification to validate the actual `PowerRequestSystemRequired = 0` enum instead of a docstring marker.
+- Preserved v1.0.6.39 browser policy v2, power module, workflows, licensing, persistence, dependencies, CI and portable-release architecture. Phase 2 remains NOT STARTED and moves to v1.0.6.41.
+
 ## v1.0.6.39 — Runtime Reliability & Workflow-Scoped Session Policy — 2026-08-18
 
 - Made each workflow Task schema's `requires_session` flag authoritative across Core worker and Qt UI behavior. Sessionless workflows no longer receive Core login polling, fake `Login Required` state, or an unconditional pre-Start `ensure_session()` call; session-required workflows preserve the existing verification path.

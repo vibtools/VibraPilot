@@ -1,3 +1,14 @@
+# v1.0.6.40 Phase 1 Forensic Closure Compatibility
+
+- Baseline compatibility is v1.0.6.39; Plugin API 1 and external workflow contracts are unchanged.
+- `requires_session=true` and `requires_session=false` semantics remain those introduced in v1.0.6.39; the closure only fixes exception/recycle boundaries.
+- Browser runtime policy v2 and `background_throttling_enabled=false` remain unchanged.
+- `src/vibrapilot/power_management.py` is byte-frozen from v1.0.6.39; only worker ownership/release use is corrected.
+- Task runtime, workspace, reports, licensing, Chrome installer, dependencies, CI and portable release architecture are unchanged.
+- Phase 2 workflow lifecycle/per-Task multiworkflow implementation remains out of scope and shifts to v1.0.6.41.
+
+---
+
 # v1.0.6.39 Phase 1 Compatibility Addendum
 
 - Baseline compatibility: v1.0.6.38 external workflows and Plugin API 1 remain supported.

@@ -1,3 +1,7 @@
+# VibraPilot v1.0.6.40 — Phase 1 Forensic Closure
+
+v1.0.6.40 is a corrective closure release over the owner-frozen v1.0.6.39 Phase 1 baseline. It fixes only defects proven during forensic verification: guaranteed system-sleep-guard cleanup, actionable session-required context-recycle re-verification, fail-safe malformed target-origin handling, and exact session-readiness UI wording. The v1.0.6.39 background policy, Windows power implementation, workflow/plugin architecture, browser profiles, licensing, persistence and portable build architecture remain frozen. Phase 2 is not implemented and is now planned for v1.0.6.41.
+
 # VibraPilot v1.0.6.39 — Phase 1 Runtime Reliability & Workflow-Scoped Session Policy
 
 v1.0.6.39 is the local Phase 1 candidate built from the frozen v1.0.6.38 baseline. It makes `WorkflowTaskSchema.requires_session` authoritative in Core, moves sessionless workflows onto a true no-login-gate path, changes the production browser runtime policy to disable Chrome background throttling by default, adds a Windows system-sleep guard while Tasks are processing, makes multi-tab page ownership deterministic, and constrains browser restart to safe checkpoints. Phase 2 workflow update/remove/hot-switch/per-Task multiworkflow work is explicitly out of scope. Windows background/sleep acceptance remains required before release.

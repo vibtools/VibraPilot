@@ -1,3 +1,14 @@
+# Current Candidate — v1.0.6.40 Phase 1 Forensic Closure
+
+- Official owner-frozen baseline: **v1.0.6.39**, commit `7bd6428a89607df34dc96fbed28d1b2ac20b9365`, tree `074780843a9f6ed62d974123339020b86353d716`.
+- Target: **v1.0.6.40**.
+- Classification: Phase 1 forensic verification/corrective closure only.
+- Allowed production source corrections: `src/vibrapilot/backend.py`, `src/vibrapilot/qt_app.py`.
+- Phase 2 is **NOT STARTED** and, because v1.0.6.40 is consumed by this closure release, its planned version becomes **v1.0.6.41**.
+- v1.0.6.40 becomes the next baseline only after the replace-ready candidate and required verification gates pass; GitHub publication/CI status must be recorded separately rather than inferred.
+
+---
+
 # Current Candidate — v1.0.6.39 Phase 1
 
 - Frozen source baseline: v1.0.6.38 / `bc894115f505b7b9ecbc15a235b91d37a9693cec`.

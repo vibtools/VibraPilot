@@ -195,9 +195,10 @@ class ManagedPersistentBrowserContractTest(unittest.TestCase):
             observations.append(("launch", worker._context_transitioning))
             worker.context = object()
 
-        def verify(*, force_emit=False):
+        def verify(*, force_emit=False, allow_while_processing=False):
             observations.append(("verify", worker._context_transitioning))
             self.assertTrue(force_emit)
+            self.assertTrue(allow_while_processing)
 
         worker.launch_browser = launch  # type: ignore[method-assign]
         worker.refresh_login_verification = verify  # type: ignore[method-assign]

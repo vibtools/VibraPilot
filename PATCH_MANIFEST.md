@@ -1,42 +1,55 @@
-# VibraPilot v1.0.6.39 — Phase 1 Replace-Ready Patch Manifest
+# VibraPilot v1.0.6.40 — Phase 1 Forensic Closure Replace-Ready Patch
 
-## Identity
+## Baseline identity
 
-- Official baseline: `v1.0.6.38`
-- Baseline commit: `bc894115f505b7b9ecbc15a235b91d37a9693cec`
-- Baseline tree: `8bc5cba5c2d6256769caf1e2fdd5e0a1afd53faf`
-- Baseline ZIP SHA-256: `59d444b54ad1068060399bc10f418124f13ff2af797f19d6f127affa776bbe9a`
-- Target: `v1.0.6.39`
-- Scope ID: `VP-V10639-RUNTIME-RELIABILITY-SESSION-POLICY-001`
-- State: `LOCAL VERIFIED / WINDOWS ACCEPTANCE PENDING / UNRELEASED`
+- Official input: `VibraPilot_Official_v1.0.6.39_Baseline.zip`
+- SHA-256: `755c6bd4ce88be126482980dde6fd1ee5ddddaee7f7e6bd6f80fc8f96d805325`
+- Version: `1.0.6.39`
+- Git commit: `7bd6428a89607df34dc96fbed28d1b2ac20b9365`
+- Git tree: `074780843a9f6ed62d974123339020b86353d716`
+- GitHub CI run `32153560933`: SUCCESS on Windows / Python 3.12.10.
 
-## Public delta
+## Target
 
-- Changed/new public project files: **36**
-- Deleted files: **0**
-- Production/runtime-config files: **4**
-- Test files: **12**
-- Phase 2 implementation: **0 files**
+- Version: `1.0.6.40`
+- Classification: Phase 1 forensic closure / corrective fix only
+- Phase 2 implementation: **0 files / NOT STARTED**
+- Planned Phase 2 target: `v1.0.6.41`
 
-## Production scope
+## Confirmed closure findings
+
+1. System-sleep guard cleanup was not guaranteed before every fallible finalization path.
+2. Required-session context recycle used the normal processing-time login short-circuit, so the claimed re-probe did not occur.
+3. A failed recycle re-probe did not block the next item.
+4. Malformed explicit HTTP/HTTPS ports could raise from the Phase 1 origin helper.
+5. Dashboard session label did not exactly match the approved `Login Verification` wording.
+6. Repository verification accepted a docstring text marker instead of validating the actual PowerRequest enum.
+
+## Production correction scope
 
 - `src/vibrapilot/backend.py`
 - `src/vibrapilot/qt_app.py`
-- `src/vibrapilot/power_management.py` (new)
-- `config/settings.defaults.json`
 
-All workflow lifecycle Update/Remove/hot-switch/per-Task workflow identity work remains Phase 2 and is unchanged.
+`src/vibrapilot/power_management.py`, `config/settings.defaults.json`, workflow/plugin lifecycle, licensing, persistence schemas, dependencies, CI and portable-release architecture are frozen from v1.0.6.39.
 
 ## Verification
 
-- Historical + Phase 1 targeted regression: **120 passed**
-- Full pytest: **497 passed, 6 skipped, 105 subtests passed**
+- Corrective targeted tests: PASS
+- Full pytest: **506 passed, 6 skipped, 105 subtests passed**
 - Full unittest: **201 OK, 6 skipped**
-- `compileall`: **PASS**
-- `scripts/verify_repository.py`: **PASS**
+- compileall: PASS
+- repository verifier: PASS
+- fresh v1.0.6.39 + Delta apply: PASS
+- frozen-file SHA contract: PASS
+- deletion count: **0**
 
-Target-Windows owner acceptance remains mandatory before Phase 1 is formally COMPLETE or v1.0.6.39 is published.
+Real Windows minimized/occluded 3–4 Task execution and actual OS-idle sleep prevention remain owner live-acceptance observations; they are not fabricated from unit/CI evidence.
 
-## Private development documentation
+## Payload
 
-`project/**` is intentionally excluded from the public GitHub/release file list. Local replace-ready development delivery may carry those private governance records separately; they must never be staged/pushed.
+- Public changed/new files: **25**
+- Private `project/` files: **10**
+- Total delta entries: **35**
+- Deletions: **0**
+
+`project/**` is private/local only and must never be staged or pushed to GitHub.

@@ -1,11 +1,18 @@
-# VibraPilot Documentation — v1.0.6.39 Phase 1 Candidate
+# VibraPilot Documentation — v1.0.6.40 Phase 1 Forensic Closure
+
+- Update: `docs/updates/v1.0.6.40-phase1-forensic-closure-fix.md`
+- Verification: `docs/verification/V1.0.6.40_PHASE1_FORENSIC_CLOSURE_FIX.md`
+- Scope contract: `config/verification/v1.0.6.40_phase1_forensic_closure_fix_scope.json`
+- Official owner-frozen baseline: v1.0.6.39 / `7bd6428a89607df34dc96fbed28d1b2ac20b9365`.
+- Classification: Phase 1 corrective forensic closure only.
+- Phase 2 Workflow Lifecycle & True Multiworkflow: NOT STARTED; planned version moved to v1.0.6.41.
+
+## Historical v1.0.6.39 Phase 1
 
 - Update: `docs/updates/v1.0.6.39-runtime-reliability-session-policy.md`
 - Verification: `docs/verification/V1.0.6.39_RUNTIME_RELIABILITY_SESSION_POLICY.md`
 - Scope contract: `config/verification/v1.0.6.39_runtime_reliability_session_policy_scope.json`
-- Frozen baseline: v1.0.6.38 / `bc894115f505b7b9ecbc15a235b91d37a9693cec`.
-- Candidate state: LOCAL VERIFIED / WINDOWS ACCEPTANCE PENDING / UNRELEASED.
-- Phase 2 Workflow Lifecycle & True Multiworkflow: NOT STARTED.
+- GitHub main commit: `7bd6428a89607df34dc96fbed28d1b2ac20b9365`; CI run `32153560933` succeeded.
 
 ---
 
