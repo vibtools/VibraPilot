@@ -1,3 +1,13 @@
+# v1.0.6.43 Version Boundary
+
+- Official input: v1.0.6.42.
+- Target: v1.0.6.43.
+- Classification: Phase-2 forensic closure only; no new feature scope.
+- Production changes are restricted to the three files explicitly authorized by `config/verification/v1.0.6.43_phase2_forensic_closure_scope.json`.
+- v1.0.6.43 becomes the next local development baseline only after final automated verification and Delta sealing; public release status still requires GitHub CI and Windows live acceptance.
+
+---
+
 # v1.0.6.42 Version Boundary
 
 - Baseline: v1.0.6.41 / `615fe1148431b90334e9ff3f9ae02b37a36bd1d8`.

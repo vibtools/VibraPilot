@@ -133,7 +133,7 @@ def test_runtime_error_blocks_browser_but_is_not_a_switch_away_blocker():
     switch = _method_source("request_workflow_switch")
     assert "_workflow_runtime_error_for(slot.workflow_id)" in can_open
     assert "workflow_runtime_error" not in switch_block
-    assert "require_runtime_factory(target)" in switch
+    assert "_workflow_runtime_error_for(target)" in switch
 
 
 def test_unresolved_recovery_hard_blocks_browser_and_switching():

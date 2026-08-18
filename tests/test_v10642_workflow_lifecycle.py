@@ -193,9 +193,12 @@ def test_load_is_fail_closed_when_lifecycle_recovery_is_unresolved():
     cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "MainWindow")
     method = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == "load_workflow_plugin")
     source = ast.get_source_segment(qt, method) or ""
-    assert "self.workflow_lifecycle_error" in source
-    assert 'self.workflow_plugin_root / ".transactions"' in source
-    assert source.index("workflow_lifecycle_error") < source.index("QFileDialog.getOpenFileName")
+    helper = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == "_workflow_lifecycle_block_reason")
+    helper_source = ast.get_source_segment(qt, helper) or ""
+    assert "_workflow_lifecycle_block_reason" in source
+    assert "self.workflow_lifecycle_error" in helper_source
+    assert 'self.workflow_plugin_root / ".transactions"' in helper_source
+    assert source.index("_workflow_lifecycle_block_reason") < source.index("QFileDialog.getOpenFileName")
 
 
 def test_unresolved_lifecycle_transaction_blocks_browser_automation_and_new_tasks():
@@ -204,8 +207,10 @@ def test_unresolved_lifecycle_transaction_blocks_browser_automation_and_new_task
     tree = ast.parse(qt)
     cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "MainWindow")
     methods = {n.name: ast.get_source_segment(qt, n) or "" for n in cls.body if isinstance(n, ast.FunctionDef)}
-    assert "self.workflow_lifecycle_error" in methods["can_open_task_browser"]
-    assert "self.workflow_lifecycle_error" in methods["add_task"]
+    assert "_workflow_lifecycle_block_reason" in methods["can_open_task_browser"]
+    assert "_workflow_lifecycle_block_reason" in methods["add_task"]
+    assert "self.workflow_lifecycle_error" in methods["_workflow_lifecycle_block_reason"]
+    assert 'self.workflow_plugin_root / ".transactions"' in methods["_workflow_lifecycle_block_reason"]
     assert "Workflow lifecycle recovery" in qt
 
 

@@ -91,10 +91,11 @@ class WorkspaceStateStore:
         raw_tasks = raw.get("active_tasks", [])
         if isinstance(raw_tasks, list):
             for item in raw_tasks:
-                normalized = self._normalize_task(
-                    item,
-                    require_workflow=schema_version == WORKSPACE_STATE_SCHEMA_VERSION,
-                )
+                # Parse the Task shell first without discarding a missing workflow
+                # identity. Schema-v2 requires workflow_id, but preserving the
+                # original file and blocking autosave is safer than silently erasing
+                # a Task shell whose identity became unavailable/corrupt.
+                normalized = self._normalize_task(item, require_workflow=False)
                 if normalized is None:
                     continue
                 slot_id = int(normalized["slot_id"])

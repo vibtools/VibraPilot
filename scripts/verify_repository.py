@@ -61,6 +61,7 @@ V10639_RUNTIME_RELIABILITY_SESSION_POLICY_SCOPE_CONTRACT = ROOT / "config" / "ve
 V10640_PHASE1_FORENSIC_CLOSURE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.40_phase1_forensic_closure_fix_scope.json"
 V10641_PHASE1_ACTIVE_PAGE_ORIGIN_CLOSURE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.41_phase1_active_page_origin_closure_scope.json"
 V10642_PHASE2_WORKFLOW_LIFECYCLE_MULTIWORKFLOW_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.42_phase2_workflow_lifecycle_multiworkflow_scope.json"
+V10643_PHASE2_FORENSIC_CLOSURE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.43_phase2_forensic_closure_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -448,11 +449,29 @@ v10642_allowed_files = (
 )
 v10642_worker_methods = set(v10642_scope.get("authorized_automationworker_method_changes", []))
 
+# v1.0.6.43 is a corrective forensic seal over Phase 2. It may change only
+# the reproduced lifecycle/multiworkflow closure surfaces declared by its scope.
+if not V10643_PHASE2_FORENSIC_CLOSURE_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.43 Phase 2 forensic closure scope contract is missing")
+try:
+    v10643_scope = json.loads(
+        V10643_PHASE2_FORENSIC_CLOSURE_SCOPE_CONTRACT.read_text(encoding="utf-8")
+    )
+except Exception as exc:
+    fail(f"v1.0.6.43 Phase 2 forensic closure scope contract is invalid: {exc}")
+v10643_production_allowed = set(v10643_scope.get("allowed_production_source_changes", []))
+v10643_allowed_files = (
+    v10643_production_allowed
+    | set(v10643_scope.get("allowed_runtime_config_changes", []))
+    | set(v10643_scope.get("authorized_nonproduction_files", []))
+)
+v10643_worker_methods = set(v10643_scope.get("authorized_automationworker_method_changes", []))
+
 current_worker_methods = (
-    v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods | v10635_worker_methods | v10636_worker_methods | v10639_worker_methods | v10640_worker_methods | v10641_worker_methods | v10642_worker_methods
+    v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods | v10635_worker_methods | v10636_worker_methods | v10639_worker_methods | v10640_worker_methods | v10641_worker_methods | v10642_worker_methods | v10643_worker_methods
 )
 current_allowed_files = (
-    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files | v10636_allowed_files | v10637_allowed_files | v10638_allowed_files | v10639_allowed_files | v10640_allowed_files | v10641_allowed_files | v10642_allowed_files
+    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files | v10636_allowed_files | v10637_allowed_files | v10638_allowed_files | v10639_allowed_files | v10640_allowed_files | v10641_allowed_files | v10642_allowed_files | v10643_allowed_files
 )
 if pr08_allowed_files != {
     "src/vibrapilot/workflow_inputs.py",
@@ -2470,11 +2489,16 @@ for forbidden_text in (
 ):
     if forbidden_text in qt_ui_text:
         fail(f"v1.0.6.34 non-essential UI description remains: {forbidden_text}")
+workflow_status_marker = (
+    'status_badge("DEFAULT" if is_active else "AVAILABLE"'
+    if V10643_PHASE2_FORENSIC_CLOSURE_SCOPE_CONTRACT.is_file()
+    else 'status_badge("ACTIVE" if is_active else "AVAILABLE"'
+)
 for required_marker in (
     'panel.setMinimumWidth(280)',
     'panel.setMaximumWidth(360)',
     'columns = 1 if compact else (3 if wide else 2)',
-    'status_badge("ACTIVE" if is_active else "AVAILABLE"',
+    workflow_status_marker,
 ):
     if required_marker not in qt_ui_text:
         fail(f"v1.0.6.34 workflow compact-grid marker missing: {required_marker}")
@@ -2900,6 +2924,86 @@ for marker in (
 if 'launch_args["channel"] = "chromium"' in backend_text:
     fail("v1.0.6.42 must not reintroduce Chromium fallback")
 
+# v1.0.6.43 Phase 2 forensic closure exact scope.
+if v10643_scope.get("plan_id") != "VP-V10643-PHASE2-FORENSIC-CLOSURE-001":
+    fail("v1.0.6.43 Phase 2 forensic closure plan identifier mismatch")
+if v10643_scope.get("baseline_version") != "1.0.6.42" or v10643_scope.get("target_version") != "1.0.6.43":
+    fail("v1.0.6.43 version boundary mismatch")
+if v10643_scope.get("baseline_commit") != "8c3e9a137ecf852aa152dba0590414e7f8f6209d":
+    fail("v1.0.6.43 baseline commit mismatch")
+if v10643_scope.get("baseline_tree") != "c61a9864e99659bf0a3d3cb229e1ad6e5e85cb69":
+    fail("v1.0.6.43 baseline tree mismatch")
+if v10643_scope.get("baseline_zip_sha256") != "0713798e061b0eef15c1a1d4cb52e1347687f7498419b9ab1a79b3017f31dae1":
+    fail("v1.0.6.43 baseline ZIP hash mismatch")
+expected_v10643_production = {
+    "src/vibrapilot/qt_app.py",
+    "src/vibrapilot/workflow/plugin_loader.py",
+    "src/vibrapilot/workspace_state.py",
+}
+if v10643_production_allowed != expected_v10643_production:
+    fail("v1.0.6.43 production source scope mismatch")
+if v10643_worker_methods:
+    fail("v1.0.6.43 must not change AutomationWorker methods")
+if v10643_scope.get("allowed_runtime_config_changes", []) != []:
+    fail("v1.0.6.43 must not change runtime settings defaults")
+if v10643_scope.get("plugin_api_version") != 1:
+    fail("v1.0.6.43 must preserve external Workflow Plugin API 1")
+if v10643_scope.get("new_top_level_ui_pages") is not False:
+    fail("v1.0.6.43 must not add a top-level navigation page")
+if v10643_scope.get("chrome_implementation_changes") != 0:
+    fail("v1.0.6.43 Chrome implementation must remain frozen")
+for relative, expected_sha in v10643_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or sha256(path) != expected_sha:
+        fail(f"v1.0.6.43 frozen surface drift detected: {relative}")
+
+plugin_loader_v10643 = (SRC / "workflow" / "plugin_loader.py").read_text(encoding="utf-8")
+workspace_v10643 = (SRC / "workspace_state.py").read_text(encoding="utf-8")
+qt_v10643 = (SRC / "qt_app.py").read_text(encoding="utf-8")
+for marker in (
+    "def _validated_installed_workflow_id",
+    "Workflow lifecycle transaction root is not a directory",
+    'context="Workflow lifecycle transaction"',
+):
+    if marker not in plugin_loader_v10643:
+        fail(f"v1.0.6.43 lifecycle safety marker missing: {marker}")
+duplicate_staging_setup = (
+    "staging_parent.mkdir(parents=True, exist_ok=True)\n"
+    "    staging_parent.mkdir(parents=True, exist_ok=True)"
+)
+if duplicate_staging_setup in plugin_loader_v10643:
+    fail("v1.0.6.43 workflow staging setup contains a duplicated consecutive mkdir")
+for marker in (
+    "self.migration_blocked = True",
+    "Workspace Task workflow identity could not be resolved",
+):
+    if marker not in workspace_v10643:
+        fail(f"v1.0.6.43 workspace preservation marker missing: {marker}")
+for marker in (
+    "def _workflow_lifecycle_block_reason(self) -> str:",
+    "Workflow package mutation is blocked by unresolved legacy recoverable Task workflow identity",
+    'status_badge("DEFAULT" if is_active else "AVAILABLE"',
+    'setText("Default workflow runtime unavailable")',
+    "return self.request_default_workflow_switch(target)",
+):
+    if marker not in qt_v10643:
+        fail(f"v1.0.6.43 Qt/lifecycle closure marker missing: {marker}")
+request_switch_start = qt_v10643.index("    def request_workflow_switch(self, target_workflow_id: str) -> str:")
+request_switch_end = qt_v10643.index("    def _refresh_report_workflow_filter", request_switch_start)
+request_switch = qt_v10643[request_switch_start:request_switch_end]
+for forbidden in ("_spawn_workflow_restart", "_finalize_committed_workflow_switch", "QTimer.singleShot(0, self.close)"):
+    if forbidden in request_switch:
+        fail(f"v1.0.6.43 historical switch compatibility path is not restart-free: {forbidden}")
+if literal_assignment(SRC / "workflow" / "schemas.py", "WORKFLOW_PLUGIN_API_VERSION") != 1:
+    fail("v1.0.6.43 Workflow Plugin API changed unexpectedly")
+if literal_assignment(ROOT / "src" / "vibrapilot" / "qt_app.py", "NAV_SECTIONS") != [
+    "Dashboard", "Tasks", "Workflows", "Workflow Inputs", "Workflow Settings",
+    "Reports", "Live Logs", "App Settings", "Browser Settings", "About",
+]:
+    fail("v1.0.6.43 top-level navigation drift detected")
+if 'launch_args["channel"] = "chromium"' in backend_text:
+    fail("v1.0.6.43 must not reintroduce Chromium fallback")
+
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
 app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
@@ -2909,8 +3013,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.42":
-    fail("AppConfig VERSION must be 1.0.6.42 for the Phase 2 workflow lifecycle/multiworkflow candidate")
+if app_version != "1.0.6.43":
+    fail("AppConfig VERSION must be 1.0.6.43 for the Phase 2 forensic closure candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -3679,6 +3783,7 @@ required = [
     "config/verification/v1.0.6.40_phase1_forensic_closure_fix_scope.json",
     "config/verification/v1.0.6.41_phase1_active_page_origin_closure_scope.json",
     "config/verification/v1.0.6.42_phase2_workflow_lifecycle_multiworkflow_scope.json",
+    "config/verification/v1.0.6.43_phase2_forensic_closure_scope.json",
     "src/vibrapilot/power_management.py",
     "src/vibrapilot/chrome_runtime.py",
     "src/vibrapilot/chrome_installer.py",
@@ -3690,6 +3795,7 @@ required = [
     "tests/test_v10642_multiworkflow_identity.py",
     "tests/test_v10642_multiworkflow_persistence.py",
     "tests/test_v10642_chrome_final_acceptance_contract.py",
+    "tests/test_v10643_phase2_forensic_closure.py",
     "src/vibrapilot/workflow/plugin_loader.py", "src/vibrapilot/workflow/schemas.py", "src/vibrapilot/workflow/settings_state.py", "src/vibrapilot/workflow/task_state.py",
     "config/verification/backend_v1.0.6_contract.json", "docs/index.md",
     "docs/updates/v1.0.6.31-chrome-only-runtime-foundation.md",
@@ -3718,6 +3824,8 @@ required = [
     "docs/verification/V1.0.6.41_PHASE1_ACTIVE_PAGE_ORIGIN_CLOSURE.md",
     "docs/updates/v1.0.6.42-phase2-workflow-lifecycle-multiworkflow.md",
     "docs/verification/V1.0.6.42_PHASE2_WORKFLOW_LIFECYCLE_MULTIWORKFLOW.md",
+    "docs/updates/v1.0.6.43-phase2-forensic-closure.md",
+    "docs/verification/V1.0.6.43_PHASE2_FORENSIC_CLOSURE.md",
     "scripts/diagnostics/verify_v10633_browser_forensic_closure.py",
     "scripts/diagnostics/verify_v10634_ui_compact_polish.py",
     "scripts/diagnostics/verify_v10635_workflow_scoped_test_safety.py",

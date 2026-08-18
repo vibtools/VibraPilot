@@ -1,3 +1,15 @@
+# Current Roadmap — v1.0.6.43 Phase 2 Forensic Closure
+
+## Phase 2 status
+
+**LOCAL CODE + AUTOMATED FORENSIC VERIFICATION COMPLETE / WINDOWS LIVE ACCEPTANCE AND GITHUB v1.0.6.43 CI PENDING.** v1.0.6.43 is limited to concrete defects reproduced while auditing the owner-frozen v1.0.6.42 Phase-2 implementation. No new feature phase is introduced.
+
+## Closure scope
+
+Restart-free compatibility switching, lifecycle transaction fail-closed safety, workspace Task-shell preservation, unresolved legacy-run mutation blocking, live transaction execution blocking and Default Workflow UI semantics. All Chrome/Plugin API/licensing/power/dependency/CI/packaging surfaces remain frozen.
+
+---
+
 # Current Roadmap — v1.0.6.42 Phase 2
 
 ## Phase 2 — Workflow Lifecycle Management & True Multiworkflow

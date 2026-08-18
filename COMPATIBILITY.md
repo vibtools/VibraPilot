@@ -1,3 +1,14 @@
+# v1.0.6.43 Phase 2 Forensic Closure Compatibility
+
+- External Workflow Plugin API remains version 1.
+- Existing v1.0.6.42 workflow packages, per-Task identities, runtime/workspace schema v2 and Chrome-only behavior are preserved.
+- Normal/default workflow switching remains restart-free, including the historical compatibility entry point.
+- Corrupt/pending lifecycle state now fails closed rather than allowing package mutation or new browser execution.
+- Unresolved or unavailable workspace workflow identity preserves persisted Task shells instead of silently rewriting them away.
+- No top-level UI page, dependency, Chrome installer/runtime, licensing, power, CI or packaging architecture change is introduced.
+
+---
+
 # v1.0.6.42 Phase 2 Workflow Lifecycle / Multiworkflow Compatibility
 
 - Baseline compatibility: v1.0.6.41; external Plugin API 1 is unchanged.

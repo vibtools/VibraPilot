@@ -1,3 +1,16 @@
+## v1.0.6.43 — Phase 2 Forensic Closure — 2026-08-18
+
+- Re-audited v1.0.6.42 workflow lifecycle and true multiworkflow implementation against the approved Phase-2 contract.
+- Made the historical `request_workflow_switch()` compatibility service restart-free instead of retaining the old destructive switch/restart path.
+- Hardened lifecycle transaction recovery and mutation blocking against malformed transaction roots and unsafe transaction workflow identities.
+- Preserved schema-v2 workspace Task shells when workflow identity is missing or temporarily unavailable, blocking autosave instead of silently dropping persisted Tasks.
+- Blocked workflow package mutation when unfinished legacy runtime identity cannot be resolved and blocked new Task/browser starts while a live lifecycle transaction exists.
+- Corrected visible workflow semantics from global `ACTIVE` language to `DEFAULT` for the workflow used by newly created Tasks.
+- Removed one duplicated staging-directory setup statement in the workflow package loader.
+- Preserved v1.0.6.42 multiworkflow architecture, Plugin API 1, Chrome secure-install/runtime, browser profiles, power management, licensing, settings defaults, dependencies, CI and portable packaging.
+
+---
+
 ## v1.0.6.42 — Phase 2 Workflow Lifecycle Management + True Multiworkflow — 2026-08-18
 
 - Added strict-newer workflow package Update/Replace with atomic staging, rollback and lifecycle transaction recovery.

@@ -14,6 +14,7 @@ import importlib.util
 import inspect
 import json
 import os
+import re
 from pathlib import Path, PurePosixPath
 import shutil
 import stat
@@ -512,6 +513,20 @@ def install_workflow_package(
 WORKFLOW_LIFECYCLE_TRANSACTION_SCHEMA_VERSION = 1
 _LIFECYCLE_PREPARED = "PREPARED"
 _LIFECYCLE_COMMITTED = "COMMITTED"
+_INSTALLED_WORKFLOW_ID_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
+
+
+def _validated_installed_workflow_id(value: str, *, context: str) -> str:
+    normalized = str(value or "").strip()
+    if not _INSTALLED_WORKFLOW_ID_RE.fullmatch(normalized):
+        if context == "Workflow remove":
+            raise WorkflowPluginInstallError(
+                f"Workflow remove ID is not a safe installed workflow identifier: {normalized!r}."
+            )
+        raise WorkflowPluginInstallError(
+            f"{context} workflow identity is invalid: {normalized!r}."
+        )
+    return normalized
 
 
 def _version_tuple(value: str) -> tuple[int, int, int, int]:
@@ -534,6 +549,10 @@ def _lifecycle_root(workflow_root: Path) -> Path:
 
 def _assert_lifecycle_idle(workflow_root: Path) -> None:
     tx_root = _lifecycle_root(workflow_root)
+    if tx_root.exists() and not tx_root.is_dir():
+        raise WorkflowPluginInstallError(
+            "Workflow lifecycle transaction root is not a directory; manual repair is required."
+        )
     if tx_root.is_dir() and any(tx_root.iterdir()):
         raise WorkflowPluginInstallError(
             "A pending workflow lifecycle transaction must be recovered before another package mutation."
@@ -604,6 +623,10 @@ def recover_workflow_lifecycle_transactions(workflow_root: Path) -> list[str]:
     tx_root = _lifecycle_root(root)
     if not tx_root.exists():
         return []
+    if not tx_root.is_dir():
+        raise WorkflowPluginInstallError(
+            "Workflow lifecycle transaction root is not a directory; manual repair is required."
+        )
     unexpected = sorted(path.name for path in tx_root.iterdir() if not path.is_dir())
     if unexpected:
         raise WorkflowPluginInstallError(
@@ -629,12 +652,21 @@ def recover_workflow_lifecycle_transactions(workflow_root: Path) -> list[str]:
             )
         status = str(payload.get("status", ""))
         action = str(payload.get("action", ""))
-        workflow_id = str(payload.get("workflow_id", "")).strip()
-        if action not in {"update", "remove"} or not workflow_id:
+        if action not in {"update", "remove"}:
             raise WorkflowPluginInstallError(
                 f"Workflow lifecycle transaction identity is invalid: {tx.name}."
             )
-        destination = root / workflow_id
+        workflow_id = _validated_installed_workflow_id(
+            str(payload.get("workflow_id", "")),
+            context="Workflow lifecycle transaction",
+        )
+        destination = (root / workflow_id).resolve()
+        try:
+            destination.relative_to(root)
+        except ValueError as exc:
+            raise WorkflowPluginInstallError(
+                f"Workflow lifecycle transaction identity is invalid: {tx.name}."
+            ) from exc
         backup = tx / "backup"
         if status == _LIFECYCLE_PREPARED:
             if backup.exists():
@@ -792,17 +824,11 @@ def update_workflow_package(
 
 def remove_installed_workflow(workflow_id: str, workflow_root: Path) -> WorkflowManifest:
     """Atomically remove one installed workflow package directory only."""
-    normalized = str(workflow_id).strip()
+    normalized = _validated_installed_workflow_id(
+        str(workflow_id), context="Workflow remove"
+    )
     root = Path(workflow_root).expanduser().resolve()
     _assert_lifecycle_idle(root)
-    if (
-        not normalized
-        or normalized in {".", ".."}
-        or "/" in normalized
-        or "\\" in normalized
-        or ":" in normalized
-    ):
-        raise WorkflowPluginInstallError("Workflow remove ID is not a safe installed workflow identifier.")
     destination = (root / normalized).resolve()
     try:
         destination.relative_to(root)
