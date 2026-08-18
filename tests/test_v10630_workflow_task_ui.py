@@ -15,9 +15,10 @@ def test_task_card_uses_workflow_schema_and_settings_dialog_while_preserving_cor
 
 
 def test_worker_receives_immutable_workflow_snapshots_and_ui_consumes_step_metric_events():
-    assert 'workflow_settings_values=self.app.current_workflow_settings_snapshot()' in QT
+    assert 'workflow_input_values=self.app.current_workflow_input_snapshot(self.workflow_id)' in QT
+    assert 'workflow_settings_values=self.app.current_workflow_settings_snapshot(self.workflow_id)' in QT
     assert 'workflow_task_values=dict(self.workflow_task_values)' in QT
-    assert 'workflow_manager=self.app.workflow_catalog.for_active_workflow' in QT
+    assert 'workflow_manager=self.app.workflow_catalog.for_active_workflow(self.workflow_id)' in QT
     assert 'elif kind == "workflow_step" and slot:' in QT
     assert 'elif kind == "workflow_metric" and slot:' in QT
 
@@ -30,4 +31,6 @@ def test_task_slot_preserves_lightweight_qt_host_constructor_compatibility():
     assert 'or "share_invite"' not in QT
     assert 'getattr(app, "workflow_catalog", None)' in QT
     assert 'getattr(app, "workflow_task_state_store", None)' in QT
-    assert 'setObjectName("TaskSubtitle")' not in QT
+    # v1.0.6.42 intentionally adds a read-only workflow identity subtitle while
+    # preserving the optional constructor/fallback compatibility above.
+    assert 'setObjectName("TaskSubtitle")' in QT

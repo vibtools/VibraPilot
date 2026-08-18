@@ -1,3 +1,15 @@
+# v1.0.6.42 Version Boundary
+
+- Baseline: v1.0.6.41 / `615fe1148431b90334e9ff3f9ae02b37a36bd1d8`.
+- Target: v1.0.6.42.
+- Classification: Phase 2 Workflow Lifecycle Management + True Multiworkflow + Chrome prerequisite final verification.
+- External Plugin API remains 1.
+- Workspace state schema advances 1 → 2 for per-Task workflow identity.
+- Task runtime database schema advances 1 → 2 for run/result workflow provenance.
+- No dependency, CI, portable packaging or licensing version boundary change.
+
+---
+
 # Current Candidate — v1.0.6.41 Phase 1 Active-Page Origin Closure
 
 - Official input baseline: **v1.0.6.40**, commit `7e6f4cc7abf49e08d4a94124ebffa97bb7794137`.

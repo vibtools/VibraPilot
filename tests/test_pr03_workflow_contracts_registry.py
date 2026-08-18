@@ -23,6 +23,7 @@ PR06_SCOPE = ROOT / "config" / "verification" / "v1.0.6.23_pr06_workflow_state_a
 PR08_SCOPE = ROOT / "config" / "verification" / "v1.0.6.25_pr08_dynamic_workflow_inputs_scope.json"
 V10630_SCOPE = ROOT / "config" / "verification" / "v1.0.6.30_workflow_plugin_system_scope.json"
 V10631_SCOPE = ROOT / "config" / "verification" / "v1.0.6.31_chrome_only_browser_runtime_scope.json"
+V10642_SCOPE = ROOT / "config" / "verification" / "v1.0.6.42_phase2_workflow_lifecycle_multiworkflow_scope.json"
 
 
 def _manifest(workflow_id: str = "alpha") -> WorkflowManifest:
@@ -168,6 +169,10 @@ def test_approved_frozen_production_files_are_byte_identical():
         superseded.update(current.get("authorized_nonproduction_files", []))
     if V10631_SCOPE.is_file():
         current = json.loads(V10631_SCOPE.read_text(encoding="utf-8"))
+        superseded.update(current.get("allowed_production_source_changes", []))
+        superseded.update(current.get("authorized_nonproduction_files", []))
+    if V10642_SCOPE.is_file():
+        current = json.loads(V10642_SCOPE.read_text(encoding="utf-8"))
         superseded.update(current.get("allowed_production_source_changes", []))
         superseded.update(current.get("authorized_nonproduction_files", []))
     for relative, expected in scope["frozen_file_sha256"].items():

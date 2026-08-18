@@ -1,3 +1,7 @@
+# VibraPilot v1.0.6.42 — Workflow Lifecycle + True Multiworkflow
+
+v1.0.6.42 completes the approved Phase 2 production update: trusted workflow packages can be updated, removed or deactivated safely without normal app restart; the persisted default workflow applies only to newly created Tasks; each Task owns an immutable workflow identity; and different workflows can execute concurrently under the existing Task/profile isolation rules. Workspace/runtime persistence, Reports and Dashboard now retain workflow provenance. The existing Google Chrome prerequisite and secure installer implementation remains unchanged and fail-closed.
+
 # VibraPilot v1.0.6.41 — Phase 1 Active-Page Origin Closure
 
 v1.0.6.41 is a scope-locked forensic seal over v1.0.6.40. It corrects one proven deterministic active-page ownership defect: browser-equivalent default HTTP/HTTPS ports are now canonicalized before target-origin comparison, preventing an explicit `:80`/`:443` workflow page from losing ownership to an unrelated restored tab. All other Phase 1 runtime behavior remains frozen. Phase 2 is not implemented and is now planned for v1.0.6.42.

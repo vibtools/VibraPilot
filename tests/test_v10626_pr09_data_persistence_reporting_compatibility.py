@@ -53,12 +53,12 @@ def test_scope_locks_no_runtime_change_and_schema_v1():
     assert SCOPE["pr10_not_started"] is True
 
 
-def test_task_runtime_sqlite_schema_remains_exact_v1_without_workflow_identity(tmp_path):
+def test_task_runtime_sqlite_schema_phase2_successor_adds_only_workflow_provenance(tmp_path):
     db = tmp_path / "task_runtime.sqlite3"
     TaskRuntimeStore(db)
-    assert SCHEMA_VERSION == 1
+    assert SCHEMA_VERSION == 2
     assert _table_columns(db, "runs") == [
-        "run_id", "schema_version", "slot_id", "target_url", "source_file",
+        "run_id", "schema_version", "slot_id", "workflow_id", "target_url", "source_file",
         "source_fingerprint", "current_index", "total", "success_count",
         "failed_count", "send_limit_used", "task_status",
         "manual_review_required", "created_at", "updated_at", "completed_at",
@@ -67,21 +67,21 @@ def test_task_runtime_sqlite_schema_remains_exact_v1_without_workflow_identity(t
         "run_id", "item_index", "email", "name", "status", "attempts", "message", "result",
     ]
     assert _table_columns(db, "results") == [
-        "run_id", "item_index", "timestamp", "slot_id", "email", "status",
+        "run_id", "item_index", "timestamp", "slot_id", "workflow_id", "email", "status",
         "message", "attempts", "target_url", "result",
     ]
     with sqlite3.connect(db) as conn:
         tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert tables == {"runs", "items", "results"}
-    assert all("workflow_id" not in _table_columns(db, table) for table in tables)
 
 
-def test_taskitem_and_report_contracts_remain_backward_compatible():
+def test_taskitem_contract_remains_backward_compatible_and_report_adds_workflow_provenance():
     assert [f.name for f in fields(TaskItem)] == SCOPE["taskitem_fields"]
+    # Historical PR-09 report columns remain documented, while v1.0.6.42 adds
+    # workflow_id as the single provenance column required by true multiworkflow.
     expected = SCOPE["live_report_columns"]
-    assert 'columns = ["timestamp", "slot_id", "email", "status", "message", "attempts", "target_url", "result"]' in QT_SOURCE
     assert expected == ["timestamp", "slot_id", "email", "status", "message", "attempts", "target_url", "result"]
-    assert "workflow_id" not in expected and "workflow_name" not in expected
+    assert 'columns = ["timestamp", "slot_id", "workflow_id", "email", "status", "message", "attempts", "target_url", "result"]' in QT_SOURCE
 
 
 def test_import_contract_preserves_txt_csv_xlsx_and_xls(tmp_path):
@@ -133,21 +133,21 @@ def test_report_exports_keep_current_columns_and_formula_safety(tmp_path):
     assert exported_xlsx.loc[0, "message"] == "'=unsafe"
 
 
-def test_workspace_schema_remains_lightweight_and_drops_unapproved_workflow_namespace(tmp_path):
-    assert WORKSPACE_STATE_SCHEMA_VERSION == 1
+def test_workspace_schema_remains_lightweight_with_task_only_workflow_namespace(tmp_path):
+    assert WORKSPACE_STATE_SCHEMA_VERSION == 2
     path = tmp_path / "state.json"
     store = WorkspaceStateStore(path)
     store.save({
-        "saved_at": "now", "active_tasks": [{"slot_id": 2, "run_id": "r", "target_url": "u", "workflow_id": "fake"}],
+        "saved_at": "now", "active_tasks": [{"slot_id": 2, "run_id": "r", "target_url": "u", "workflow_id": "workflow_a"}],
         "next_slot_id": 3, "selected_page": "Reports",
         "window": {"x": 1, "y": 2, "width": 800, "height": 600, "maximized": False},
-        "workflow_id": "fake",
+        "workflow_id": "top-level-must-not-persist",
     })
     loaded = store.load()
     assert loaded is not None
     assert set(loaded) == {"schema_version", "saved_at", "active_tasks", "next_slot_id", "selected_page", "window"}
     assert "workflow_id" not in loaded
-    assert "workflow_id" not in loaded["active_tasks"][0]
+    assert loaded["active_tasks"][0]["workflow_id"] == "workflow_a"
 
 
 def test_switch_clear_and_preserve_boundary_is_exact_and_no_wrong_workflow_recovery_path():

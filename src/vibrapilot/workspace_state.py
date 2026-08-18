@@ -10,18 +10,26 @@ import json
 import os
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
-WORKSPACE_STATE_SCHEMA_VERSION = 1
+WORKSPACE_STATE_SCHEMA_VERSION = 2
+_LEGACY_WORKSPACE_STATE_SCHEMA_VERSION = 1
 
 
 class WorkspaceStateStore:
-    """Atomic JSON workspace metadata store with safe corruption fallback."""
+    """Atomic JSON workspace metadata store with safe v1→v2 migration."""
 
-    def __init__(self, path: Path):
+    def __init__(
+        self,
+        path: Path,
+        *,
+        legacy_workflow_resolver: Callable[[int, str], str | None] | None = None,
+    ):
         self.path = Path(path)
         self.warning = ""
+        self.migration_blocked = False
+        self.legacy_workflow_resolver = legacy_workflow_resolver
 
     def _quarantine(self, reason: str) -> None:
         if not self.path.exists():
@@ -37,7 +45,7 @@ class WorkspaceStateStore:
             self.warning = reason
 
     @staticmethod
-    def _normalize_task(entry: Any) -> dict[str, Any] | None:
+    def _normalize_task(entry: Any, *, require_workflow: bool = True) -> dict[str, Any] | None:
         if not isinstance(entry, dict):
             return None
         try:
@@ -46,8 +54,12 @@ class WorkspaceStateStore:
             return None
         if slot_id <= 0:
             return None
+        workflow_id = str(entry.get("workflow_id", "") or "").strip()
+        if require_workflow and not workflow_id:
+            return None
         return {
             "slot_id": slot_id,
+            "workflow_id": workflow_id,
             "run_id": str(entry.get("run_id", "") or ""),
             "target_url": str(entry.get("target_url", "") or ""),
         }
@@ -71,9 +83,69 @@ class WorkspaceStateStore:
             "maximized": bool(value.get("maximized", False)),
         }
 
+    def _normalized_state(self, raw: dict[str, Any], *, schema_version: int) -> tuple[dict[str, Any], bool]:
+        migrated = schema_version == _LEGACY_WORKSPACE_STATE_SCHEMA_VERSION
+        tasks: list[dict[str, Any]] = []
+        seen_slots: set[int] = set()
+        unresolved_slots: list[int] = []
+        raw_tasks = raw.get("active_tasks", [])
+        if isinstance(raw_tasks, list):
+            for item in raw_tasks:
+                normalized = self._normalize_task(
+                    item,
+                    require_workflow=schema_version == WORKSPACE_STATE_SCHEMA_VERSION,
+                )
+                if normalized is None:
+                    continue
+                slot_id = int(normalized["slot_id"])
+                if slot_id in seen_slots:
+                    continue
+                if migrated:
+                    resolver = self.legacy_workflow_resolver
+                    workflow_id = (
+                        str(resolver(slot_id, str(normalized.get("run_id", ""))) or "").strip()
+                        if resolver is not None
+                        else ""
+                    )
+                    if not workflow_id:
+                        unresolved_slots.append(slot_id)
+                        continue
+                    normalized["workflow_id"] = workflow_id
+                if not str(normalized.get("workflow_id", "")).strip():
+                    unresolved_slots.append(slot_id)
+                    continue
+                seen_slots.add(slot_id)
+                tasks.append(normalized)
+
+        if unresolved_slots:
+            self.migration_blocked = True
+            self.warning = (
+                "Workspace Task workflow identity could not be resolved for slot(s): "
+                + ", ".join(str(value) for value in sorted(set(unresolved_slots)))
+                + ". Those Task shells were not restored; no workflow identity was guessed."
+            )
+
+        try:
+            next_slot_id = max(1, int(raw.get("next_slot_id", 1)))
+        except (TypeError, ValueError):
+            next_slot_id = 1
+
+        return (
+            {
+                "schema_version": WORKSPACE_STATE_SCHEMA_VERSION,
+                "saved_at": str(raw.get("saved_at", "") or ""),
+                "active_tasks": tasks,
+                "next_slot_id": next_slot_id,
+                "selected_page": str(raw.get("selected_page", "Dashboard") or "Dashboard"),
+                "window": self._normalize_window(raw.get("window", {})),
+            },
+            migrated,
+        )
+
     def load(self) -> dict[str, Any] | None:
-        """Return normalized workspace metadata, or ``None`` for safe fallback."""
+        """Return normalized workspace metadata, migrating legacy v1 state in place."""
         self.warning = ""
+        self.migration_blocked = False
         if not self.path.exists():
             return None
         try:
@@ -88,43 +160,24 @@ class WorkspaceStateStore:
             schema_version = int(raw.get("schema_version", 0))
         except (TypeError, ValueError):
             schema_version = 0
-        if schema_version != WORKSPACE_STATE_SCHEMA_VERSION:
+        if schema_version not in {
+            _LEGACY_WORKSPACE_STATE_SCHEMA_VERSION,
+            WORKSPACE_STATE_SCHEMA_VERSION,
+        }:
             self._quarantine(
                 f"Unsupported workspace state schema {schema_version}; expected "
-                f"{WORKSPACE_STATE_SCHEMA_VERSION}."
+                f"{_LEGACY_WORKSPACE_STATE_SCHEMA_VERSION} or {WORKSPACE_STATE_SCHEMA_VERSION}."
             )
             return None
-
-        tasks: list[dict[str, Any]] = []
-        seen_slots: set[int] = set()
-        raw_tasks = raw.get("active_tasks", [])
-        if isinstance(raw_tasks, list):
-            for item in raw_tasks:
-                normalized = self._normalize_task(item)
-                if normalized is None:
-                    continue
-                slot_id = int(normalized["slot_id"])
-                if slot_id in seen_slots:
-                    continue
-                seen_slots.add(slot_id)
-                tasks.append(normalized)
-
-        try:
-            next_slot_id = max(1, int(raw.get("next_slot_id", 1)))
-        except (TypeError, ValueError):
-            next_slot_id = 1
-
-        return {
-            "schema_version": WORKSPACE_STATE_SCHEMA_VERSION,
-            "saved_at": str(raw.get("saved_at", "") or ""),
-            "active_tasks": tasks,
-            "next_slot_id": next_slot_id,
-            "selected_page": str(raw.get("selected_page", "Dashboard") or "Dashboard"),
-            "window": self._normalize_window(raw.get("window", {})),
-        }
+        state, migrated = self._normalized_state(raw, schema_version=schema_version)
+        if migrated and not self.migration_blocked:
+            warning = self.warning
+            self.save(state)
+            self.warning = warning
+        return state
 
     def save(self, state: dict[str, Any]) -> None:
-        """Atomically replace ``state.json`` with normalized metadata."""
+        """Atomically replace ``state.json`` with normalized v2 metadata."""
         if not isinstance(state, dict):
             raise TypeError("Workspace state must be a dictionary.")
         payload = {
@@ -137,7 +190,7 @@ class WorkspaceStateStore:
         }
         seen_slots: set[int] = set()
         for item in state.get("active_tasks", []):
-            normalized = self._normalize_task(item)
+            normalized = self._normalize_task(item, require_workflow=True)
             if normalized is None:
                 continue
             slot_id = int(normalized["slot_id"])

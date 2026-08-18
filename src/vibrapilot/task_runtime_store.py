@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+LEGACY_SCHEMA_VERSION = 1
 RECOVERABLE_STATUSES = {
     "Ready", "Running", "Paused", "Stopped", "Interrupted", "Failed",
     "Login/Test Mode Required", "Test Send Limit Reached", "Manual Review Required",
@@ -127,6 +128,7 @@ class TaskRuntimeStore:
                     run_id TEXT PRIMARY KEY,
                     schema_version INTEGER NOT NULL,
                     slot_id INTEGER NOT NULL,
+                    workflow_id TEXT NOT NULL DEFAULT '',
                     target_url TEXT NOT NULL DEFAULT '',
                     source_file TEXT NOT NULL DEFAULT '',
                     source_fingerprint TEXT NOT NULL DEFAULT '',
@@ -162,6 +164,7 @@ class TaskRuntimeStore:
                     item_index INTEGER NOT NULL,
                     timestamp TEXT NOT NULL,
                     slot_id INTEGER NOT NULL,
+                    workflow_id TEXT NOT NULL DEFAULT '',
                     email TEXT NOT NULL,
                     status TEXT NOT NULL,
                     message TEXT NOT NULL DEFAULT '',
@@ -175,6 +178,24 @@ class TaskRuntimeStore:
                     ON results(slot_id, status, timestamp);
                     """
                 )
+                run_columns = {str(row[1]) for row in conn.execute("PRAGMA table_info(runs)").fetchall()}
+                if "workflow_id" not in run_columns:
+                    conn.execute("ALTER TABLE runs ADD COLUMN workflow_id TEXT NOT NULL DEFAULT ''")
+                result_columns = {str(row[1]) for row in conn.execute("PRAGMA table_info(results)").fetchall()}
+                if "workflow_id" not in result_columns:
+                    conn.execute("ALTER TABLE results ADD COLUMN workflow_id TEXT NOT NULL DEFAULT ''")
+                conn.execute(
+                    "UPDATE runs SET schema_version=? WHERE schema_version=?",
+                    (SCHEMA_VERSION, LEGACY_SCHEMA_VERSION),
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_runs_workflow_status "
+                    "ON runs(workflow_id, task_status, updated_at)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_results_workflow_status "
+                    "ON results(workflow_id, status, timestamp)"
+                )
 
     @staticmethod
     def new_run_id() -> str:
@@ -184,6 +205,7 @@ class TaskRuntimeStore:
         self,
         *,
         slot_id: int,
+        workflow_id: str = "",
         target_url: str,
         source_file: str,
         source_fingerprint: str,
@@ -201,12 +223,12 @@ class TaskRuntimeStore:
             )
             conn.execute(
                 """INSERT INTO runs(
-                    run_id,schema_version,slot_id,target_url,source_file,source_fingerprint,
+                    run_id,schema_version,slot_id,workflow_id,target_url,source_file,source_fingerprint,
                     current_index,total,success_count,failed_count,send_limit_used,task_status,
                     manual_review_required,created_at,updated_at
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    run_id, SCHEMA_VERSION, int(slot_id), target_url, source_file,
+                    run_id, SCHEMA_VERSION, int(slot_id), str(workflow_id or ""), target_url, source_file,
                     source_fingerprint, 0, len(item_rows), 0, 0, 0, "Ready", 0,
                     created_at, created_at,
                 ),
@@ -290,15 +312,15 @@ class TaskRuntimeStore:
         with self._write_connection() as conn:
             conn.execute(
                 """INSERT INTO results(
-                    run_id,item_index,timestamp,slot_id,email,status,message,attempts,target_url,result
-                ) VALUES(?,?,?,?,?,?,?,?,?,?)
+                    run_id,item_index,timestamp,slot_id,workflow_id,email,status,message,attempts,target_url,result
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(run_id,item_index) DO UPDATE SET
-                    timestamp=excluded.timestamp,slot_id=excluded.slot_id,email=excluded.email,
+                    timestamp=excluded.timestamp,slot_id=excluded.slot_id,workflow_id=excluded.workflow_id,email=excluded.email,
                     status=excluded.status,message=excluded.message,attempts=excluded.attempts,
                     target_url=excluded.target_url,result=excluded.result""",
                 (
                     run_id, int(item_index), str(row.get("timestamp", "")),
-                    int(row.get("slot_id", 0)), str(row.get("email", "")),
+                    int(row.get("slot_id", 0)), str(row.get("workflow_id", "")), str(row.get("email", "")),
                     str(row.get("status", "")), str(row.get("message", "")),
                     int(row.get("attempts", 0)), str(row.get("target_url", "")),
                     str(row.get("result", "")),
@@ -345,15 +367,15 @@ class TaskRuntimeStore:
                 row = result_row
                 conn.execute(
                     """INSERT INTO results(
-                        run_id,item_index,timestamp,slot_id,email,status,message,attempts,target_url,result
-                    ) VALUES(?,?,?,?,?,?,?,?,?,?)
+                        run_id,item_index,timestamp,slot_id,workflow_id,email,status,message,attempts,target_url,result
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
                     ON CONFLICT(run_id,item_index) DO UPDATE SET
-                        timestamp=excluded.timestamp,slot_id=excluded.slot_id,email=excluded.email,
+                        timestamp=excluded.timestamp,slot_id=excluded.slot_id,workflow_id=excluded.workflow_id,email=excluded.email,
                         status=excluded.status,message=excluded.message,attempts=excluded.attempts,
                         target_url=excluded.target_url,result=excluded.result""",
                     (
                         run_id, int(item_index), str(row.get("timestamp", "")),
-                        int(row.get("slot_id", 0)), str(row.get("email", "")),
+                        int(row.get("slot_id", 0)), str(row.get("workflow_id", "")), str(row.get("email", "")),
                         str(row.get("status", "")), str(row.get("message", "")),
                         int(row.get("attempts", 0)), str(row.get("target_url", "")),
                         str(row.get("result", "")),
@@ -549,13 +571,13 @@ class TaskRuntimeStore:
                 (index + 1, timestamp, run_id),
             )
             conn.execute(
-                """INSERT INTO results(run_id,item_index,timestamp,slot_id,email,status,message,attempts,target_url,result)
-                   VALUES(?,?,?,?,?,?,?,?,?,?)
-                   ON CONFLICT(run_id,item_index) DO UPDATE SET timestamp=excluded.timestamp,status=excluded.status,
+                """INSERT INTO results(run_id,item_index,timestamp,slot_id,workflow_id,email,status,message,attempts,target_url,result)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(run_id,item_index) DO UPDATE SET timestamp=excluded.timestamp,workflow_id=excluded.workflow_id,status=excluded.status,
                    message=excluded.message,attempts=excluded.attempts,result=excluded.result""",
                 (
                     run_id, index, timestamp, int(data.get("slot_id", 0)),
-                    str(item.get("email", "")), "interrupted", item["message"],
+                    str(data.get("workflow_id", "")), str(item.get("email", "")), "interrupted", item["message"],
                     int(item.get("attempts", 0)), str(data.get("target_url", "")),
                     str(item.get("result", "")),
                 ),
@@ -565,6 +587,7 @@ class TaskRuntimeStore:
         self,
         *,
         slot_id: int | None = None,
+        workflow_id: str | None = None,
         status: str | None = None,
         search: str = "",
         limit: int | None = None,
@@ -574,6 +597,9 @@ class TaskRuntimeStore:
         if slot_id is not None:
             clauses.append("slot_id=?")
             params.append(int(slot_id))
+        if workflow_id and workflow_id != "All Workflows":
+            clauses.append("workflow_id=?")
+            params.append(str(workflow_id))
         if status and status != "All":
             clauses.append("status=?")
             params.append(status)
@@ -584,7 +610,7 @@ class TaskRuntimeStore:
                 "OR lower(target_url) LIKE ? OR lower(result) LIKE ?)"
             )
             params.extend([needle] * 5)
-        sql = "SELECT timestamp,slot_id,email,status,message,attempts,target_url,result,run_id,item_index FROM results"
+        sql = "SELECT timestamp,slot_id,workflow_id,email,status,message,attempts,target_url,result,run_id,item_index FROM results"
         if clauses:
             sql += " WHERE " + " AND ".join(clauses)
         sql += " ORDER BY timestamp DESC, slot_id DESC, item_index DESC"
@@ -598,6 +624,13 @@ class TaskRuntimeStore:
         with self._connection() as conn:
             rows = conn.execute("SELECT DISTINCT slot_id FROM results ORDER BY slot_id").fetchall()
         return [int(row[0]) for row in rows]
+
+    def result_workflow_ids(self) -> list[str]:
+        with self._connection() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT workflow_id FROM results WHERE workflow_id != '' ORDER BY workflow_id"
+            ).fetchall()
+        return [str(row[0]) for row in rows if str(row[0]).strip()]
 
     def clear_results(self) -> None:
         with self._write_connection() as conn:

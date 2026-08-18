@@ -1,3 +1,13 @@
+# VibraPilot Documentation — v1.0.6.42 Phase 2
+
+- Update: `docs/updates/v1.0.6.42-phase2-workflow-lifecycle-multiworkflow.md`
+- Verification: `docs/verification/V1.0.6.42_PHASE2_WORKFLOW_LIFECYCLE_MULTIWORKFLOW.md`
+- Scope contract: `config/verification/v1.0.6.42_phase2_workflow_lifecycle_multiworkflow_scope.json`
+- Classification: Workflow Lifecycle Management + True Multiworkflow + Chrome prerequisite final verification.
+- Windows live acceptance remains owner evidence before release closure.
+
+---
+
 # VibraPilot Documentation — v1.0.6.41 Phase 1 Active-Page Origin Closure
 
 - Update: `docs/updates/v1.0.6.41-phase1-active-page-origin-closure.md`

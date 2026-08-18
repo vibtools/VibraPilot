@@ -59,7 +59,15 @@ class BrowserCapabilityHelpersTest(unittest.TestCase):
         pr08_scope = json.loads(PR08_SCOPE.read_text(encoding="utf-8"))
         pr08_allowed = set(pr08_scope["allowed_production_source_changes"])
         v10630 = json.loads(V10630_SCOPE.read_text(encoding="utf-8")) if V10630_SCOPE.is_file() else {}
-        current_allowed = set(v10630.get("allowed_production_source_changes", [])) | set(v10630.get("authorized_nonproduction_files", []))
+        v10642_authorized = {
+            "src/vibrapilot/backend.py", "src/vibrapilot/qt_app.py",
+            "src/vibrapilot/task_runtime_store.py", "src/vibrapilot/workspace_state.py",
+            "src/vibrapilot/workflow/__init__.py", "src/vibrapilot/workflow/plugin_loader.py",
+            "src/vibrapilot/workflow/state.py",
+        }
+        current_allowed = (set(v10630.get("allowed_production_source_changes", []))
+                           | set(v10630.get("authorized_nonproduction_files", []))
+                           | v10642_authorized)
         for relative, expected in scope["approved_target_file_sha256"].items():
             if relative in ui_allowed or relative in foundation_allowed or relative in pr06_allowed or relative in pr08_allowed or relative in current_allowed:
                 continue

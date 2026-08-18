@@ -1,3 +1,14 @@
+## v1.0.6.42 — Phase 2 Workflow Lifecycle Management + True Multiworkflow — 2026-08-18
+
+- Added strict-newer workflow package Update/Replace with atomic staging, rollback and lifecycle transaction recovery.
+- Added workflow Remove and default Deactivate while preserving saved workflow configuration and historical result data.
+- Made default workflow activation/switch and normal workflow lifecycle operations restart-free.
+- Converted the persisted active workflow into the default for new Tasks; every Task now owns an immutable workflow ID and different workflows may execute concurrently.
+- Migrated workspace and TaskRuntimeStore persistence to schema v2 workflow provenance; unresolved legacy recoverable identity fails closed and completed legacy history remains non-fabricated.
+- Added workflow-aware Reports filtering/provenance and Dashboard metric aggregation per workflow schema.
+- Re-verified the existing Chrome prerequisite, official Google MSI, Authenticode/Google LLC, UAC and Chrome-only guard contracts without changing Chrome implementation.
+- Preserved Plugin API 1, licensing, browser-profile architecture, Windows power guard, settings defaults, dependencies, CI and portable packaging.
+
 ## v1.0.6.41 — Phase 1 Active-Page Origin Closure — 2026-08-18
 
 - Forensically re-audited the owner-frozen v1.0.6.40 Phase 1 closure against its deterministic active-page ownership contract.

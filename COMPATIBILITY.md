@@ -1,3 +1,14 @@
+# v1.0.6.42 Phase 2 Workflow Lifecycle / Multiworkflow Compatibility
+
+- Baseline compatibility: v1.0.6.41; external Plugin API 1 is unchanged.
+- Existing workflow packages remain loadable; same-ID package installation now routes through a strict-newer update path instead of blind replacement.
+- Default workflow state is preserved but now controls new Task creation only; existing Tasks keep immutable workflow identity.
+- Workspace and runtime storage migrate from schema v1 to v2 while preserving completed legacy history without inventing workflow identity.
+- Browser profile isolation, Chrome-only runtime, Chrome secure install, licensing, Windows power management, settings defaults, dependencies, CI and portable packaging are unchanged.
+- No new top-level UI page is added.
+
+---
+
 # v1.0.6.41 Phase 1 Active-Page Origin Closure Compatibility
 
 - Baseline compatibility: v1.0.6.40; external Plugin API 1 workflows remain unchanged.

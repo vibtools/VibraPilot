@@ -134,9 +134,10 @@ def test_pr06_switch_boundary_keeps_legacy_clear_but_not_canonical_input_store()
     else:
         assert "Canonical per-workflow Workflow Input values will be preserved" in confirm
 
-def test_new_workers_receive_snapshot_without_live_worker_mutation_path():
+def test_new_workers_receive_task_owned_snapshot_without_live_worker_mutation_path():
     open_browser = _source(_task_method("open_browser"))
-    assert "workflow_input_values=self.app.current_workflow_input_snapshot()" in open_browser
+    # v1.0.6.42 resolves the immutable snapshot from the Task-owned workflow ID.
+    assert "workflow_input_values=self.app.current_workflow_input_snapshot(self.workflow_id)" in open_browser
     for source in (
         _source(_main_method("save_workflow_inputs")),
         _source(_main_method("_persist_active_workflow_input_values")),
@@ -168,7 +169,13 @@ def test_share_invite_runtime_and_pr06_workflow_engine_are_frozen():
     v10630 = json.loads(V10630_SCOPE_PATH.read_text(encoding="utf-8")) if V10630_SCOPE_PATH.is_file() else {}
     v10631 = json.loads(V10631_SCOPE_PATH.read_text(encoding="utf-8")) if V10631_SCOPE_PATH.is_file() else {}
     v10636 = json.loads(V10636_SCOPE_PATH.read_text(encoding="utf-8")) if V10636_SCOPE_PATH.is_file() else {}
-    current_authorized = (pr10_authorized
+    v10642_authorized = {
+        "src/vibrapilot/backend.py", "src/vibrapilot/qt_app.py",
+        "src/vibrapilot/task_runtime_store.py", "src/vibrapilot/workspace_state.py",
+        "src/vibrapilot/workflow/__init__.py", "src/vibrapilot/workflow/plugin_loader.py",
+        "src/vibrapilot/workflow/state.py",
+    }
+    current_authorized = (pr10_authorized | v10642_authorized
         | set(v10630.get("allowed_production_source_changes", [])) | set(v10630.get("authorized_nonproduction_files", []))
         | set(v10631.get("allowed_production_source_changes", [])) | set(v10631.get("authorized_nonproduction_files", []))
         | set(v10636.get("allowed_production_source_changes", [])) | set(v10636.get("authorized_nonproduction_files", []))

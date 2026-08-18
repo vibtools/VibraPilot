@@ -149,18 +149,22 @@ def test_runtime_availability_uses_existing_fail_closed_factory_resolution():
     assert "except WorkflowError:" in source
 
 
-def test_valid_inactive_workflow_activation_delegates_only_to_pr06_service():
+def test_valid_inactive_workflow_activation_delegates_only_to_restart_free_phase2_service():
     source = _source("_activate_workflow_from_showcase")
-    assert "self.request_workflow_switch(workflow_id)" in source
-    assert source.count("request_workflow_switch(") == 1
-    for forbidden in ("WorkflowSwitchTransaction(", "commit_active_workflow(", "_confirm_workflow_switch(", "transaction.prepare("):
+    # v1.0.6.42 keeps the showcase thin but supersedes the restart-required PR-06
+    # UI path with the approved default-for-new-Tasks service.
+    assert "self.request_default_workflow_switch(resolved)" in source
+    assert source.count("request_default_workflow_switch(") == 1
+    assert "_confirm_default_workflow_switch(resolved)" in source
+    for forbidden in ("WorkflowSwitchTransaction(", "commit_active_workflow(", "_confirm_workflow_switch(", "transaction.prepare(", "_spawn_workflow_restart("):
         assert forbidden not in source
 
 
-def test_activation_handler_preserves_pr06_status_ownership():
+def test_activation_handler_preserves_phase2_default_switch_status_ownership():
     source = _source("_activate_workflow_from_showcase")
-    for status in ("already_active", "cancelled", "committed_restart_required", "switched"):
+    for status in ("already_active", "activated", "switched"):
         assert status in source
+    assert "committed_restart_required" not in source
 
 
 def test_logo_resolution_is_deterministic_and_has_no_discovery():
@@ -212,7 +216,17 @@ def test_frozen_runtime_config_dependency_and_ci_files_are_byte_identical():
     v10631 = json.loads(V10631_SCOPE_PATH.read_text(encoding="utf-8")) if V10631_SCOPE_PATH.is_file() else {}
     v10636_path = ROOT / "config/verification/v1.0.6.36_share_invite_externalization_scope.json"
     v10636 = json.loads(v10636_path.read_text(encoding="utf-8")) if v10636_path.is_file() else {}
-    current_authorized = (pr08_authorized_supersession | pr10_authorized_supersession
+    # v1.0.6.42 approved Phase-2 successor files; dependency/CI and every other
+    # PR-07 frozen surface remain hash-enforced.
+    v10642_authorized_supersession = {
+        "src/vibrapilot/qt_app.py",
+        "src/vibrapilot/task_runtime_store.py",
+        "src/vibrapilot/workspace_state.py",
+        "src/vibrapilot/workflow/__init__.py",
+        "src/vibrapilot/workflow/plugin_loader.py",
+        "src/vibrapilot/workflow/state.py",
+    }
+    current_authorized = (pr08_authorized_supersession | pr10_authorized_supersession | v10642_authorized_supersession
         | set(v10630.get("allowed_production_source_changes", [])) | set(v10630.get("authorized_nonproduction_files", []))
         | set(v10631.get("allowed_production_source_changes", [])) | set(v10631.get("authorized_nonproduction_files", []))
         | set(v10636.get("allowed_production_source_changes", [])) | set(v10636.get("authorized_nonproduction_files", []))
