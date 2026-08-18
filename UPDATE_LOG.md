@@ -1,3 +1,11 @@
+## v1.0.6.39 — Phase 1 Runtime Reliability & Workflow-Scoped Session Policy
+
+**Baseline:** v1.0.6.38 / `bc894115f505b7b9ecbc15a235b91d37a9693cec`
+
+Implemented Phase 1 only: workflow-scoped session policy, production-safe Chrome background execution policy v2, Windows system-sleep protection while Tasks process, deterministic multi-tab page ownership, and outcome-safe browser resilience. Existing session-required behavior, browser profiles, persistence/reporting, licensing, plugin API, portable Nuitka architecture, and Phase 2 workflow lifecycle behavior remain unchanged.
+
+Local source verification is required before Windows acceptance. Phase 1 is not formally COMPLETE until the Windows 3–4 Task background/sleep-guard acceptance matrix passes.
+
 ## v1.0.6.38 — Portable runtime-root fix
 
 - Baseline source: v1.0.6.37 / `299e93a89db3d30505350f474f79eefc330ee923`.

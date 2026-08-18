@@ -17,6 +17,7 @@ V10632_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.32_chrome_prerequ
 V10633_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.33_browser_forensic_closure_scope.json"
 V10636_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.36_share_invite_externalization_scope.json"
 V10637_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.37_portable_release_packaging_scope.json"
+V10639_SCOPE_PATH = ROOT / "config" / "verification" / "v1.0.6.39_runtime_reliability_session_policy_scope.json"
 
 
 def load_module(path: Path, name: str):
@@ -176,6 +177,7 @@ class PR11FrozenRuntimeContractTest(unittest.TestCase):
         v10633_scope = json.loads(V10633_SCOPE_PATH.read_text(encoding="utf-8")) if V10633_SCOPE_PATH.is_file() else {}
         v10636_scope = json.loads(V10636_SCOPE_PATH.read_text(encoding="utf-8")) if V10636_SCOPE_PATH.is_file() else {}
         v10637_scope = json.loads(V10637_SCOPE_PATH.read_text(encoding="utf-8")) if V10637_SCOPE_PATH.is_file() else {}
+        v10639_scope = json.loads(V10639_SCOPE_PATH.read_text(encoding="utf-8")) if V10639_SCOPE_PATH.is_file() else {}
         current_allowed = (
             set(v10630_scope.get("allowed_production_source_changes", []))
             | set(v10631_scope.get("allowed_production_source_changes", []))
@@ -183,6 +185,7 @@ class PR11FrozenRuntimeContractTest(unittest.TestCase):
             | set(v10633_scope.get("allowed_production_source_changes", []))
             | set(v10636_scope.get("allowed_production_source_changes", []))
             | set(v10637_scope.get("allowed_production_source_changes", []))
+            | set(v10639_scope.get("allowed_production_source_changes", []))
         )
         deleted = set(v10636_scope.get("deleted_production_paths", []))
         historical = set(hashes)

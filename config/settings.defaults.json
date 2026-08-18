@@ -1,6 +1,6 @@
 {
   "browser_slot_default": 1,
-  "browser_runtime_policy_version": 1,
+  "browser_runtime_policy_version": 2,
   "headless": false,
   "use_chrome_channel": true,
   "allow_chromium_fallback": false,
@@ -129,7 +129,7 @@
   "additional_chromium_args": "",
   "ignored_default_args": "",
   "browser_env_json": "{}",
-  "background_throttling_enabled": true,
+  "background_throttling_enabled": false,
   "renderer_process_limit": 0,
   "browser_console_logging": false,
   "network_event_logging": false,

@@ -1,3 +1,12 @@
+## v1.0.6.39 — Runtime Reliability & Workflow-Scoped Session Policy — 2026-08-18
+
+- Made each workflow Task schema's `requires_session` flag authoritative across Core worker and Qt UI behavior. Sessionless workflows no longer receive Core login polling, fake `Login Required` state, or an unconditional pre-Start `ensure_session()` call; session-required workflows preserve the existing verification path.
+- Promoted browser runtime policy to version 2 and changed the production default to `background_throttling_enabled=false`, preserving the existing operator control after a one-time migration while keeping Chrome timer/occluded-renderer anti-throttling switches effective for long-running automation.
+- Added a Windows-only process-level system sleep guard using `PowerRequestSystemRequired`, reference-owned by actively processing Task workers. The guard does not request display power and is released on Task finalization and application shutdown.
+- Added deterministic browser page ownership: target-origin startup preference, post-navigation adoption while idle, workflow-popup ownership during processing, closed-page failover, and safe host/path diagnostics without query/fragment secrets.
+- Hardened browser resilience so automatic crash restart remains disabled by default and is permitted only at idle/outcome-safe checkpoints; planned page replacement and context recycling preserve lifecycle ownership and session policy.
+- Added Phase 1 tests for workflow-scoped session behavior, background policy migration, power-guard reference counting, deterministic page ownership, browser restart safety, and four-Task background architecture. Phase 2 workflow Update/Unload/hot-switch/per-Task workflow identity remains explicitly out of scope.
+
 ## v1.0.6.38 — Portable OneDir Runtime Root Fix — 2026-08-17
 
 - Forensically traced GitHub Actions Portable Windows Release run `32056816056` / job `95468779983` to a single packaged-runtime root defect after Nuitka compilation, OneDir packaging, ZIP/checksum verification, no-Chromium enforcement and no-WiX/MSI enforcement had already passed.

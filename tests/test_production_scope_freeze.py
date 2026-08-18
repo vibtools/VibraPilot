@@ -66,6 +66,11 @@ class ProductionScopeFreezeTest(unittest.TestCase):
             settings["allow_chromium_fallback"] = True
             settings["sandbox_enabled"] = False
             settings["http_cache_enabled"] = False
+        v10639_scope = ROOT / "config/verification/v1.0.6.39_runtime_reliability_session_policy_scope.json"
+        if v10639_scope.is_file():
+            # Reverse only the approved Phase-1 background-policy default before
+            # comparing with the historical v1.0.6.5 canonical settings contract.
+            settings["background_throttling_enabled"] = True
         payload = json.dumps(settings, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
         self.assertEqual(
             hashlib.sha256(payload).hexdigest(),
@@ -118,6 +123,12 @@ class ProductionScopeFreezeTest(unittest.TestCase):
         current_allowed |= set(v10636.get("authorized_nonproduction_files", []))
         current_allowed |= set(v10636.get("deleted_production_paths", []))
         approved_worker |= set(v10636.get("authorized_automationworker_method_changes", []))
+        v10639_scope = ROOT / "config/verification/v1.0.6.39_runtime_reliability_session_policy_scope.json"
+        v10639 = json.loads(v10639_scope.read_text(encoding="utf-8")) if v10639_scope.is_file() else {}
+        current_allowed |= set(v10639.get("allowed_production_source_changes", []))
+        current_allowed |= set(v10639.get("allowed_runtime_config_changes", []))
+        current_allowed |= set(v10639.get("authorized_test_changes", []))
+        approved_worker |= set(v10639.get("authorized_automationworker_method_changes", []))
         for relative, expected in CONTRACT["frozen_file_sha256"].items():
             if current_focus_scope.is_file() and relative == "vib_validation_app/focus_manager.py":
                 continue

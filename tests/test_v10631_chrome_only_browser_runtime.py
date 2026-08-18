@@ -21,7 +21,7 @@ def _v10632_satisfy_new_chrome_prerequisite_guard(monkeypatch):
 
 def test_v10631_source_defaults_are_chrome_only_and_secure():
     defaults = json.loads((ROOT / "config/settings.defaults.json").read_text(encoding="utf-8"))
-    assert defaults["browser_runtime_policy_version"] == 1
+    assert defaults["browser_runtime_policy_version"] == 2
     assert defaults["use_chrome_channel"] is True
     assert defaults["allow_chromium_fallback"] is False
     assert defaults["browser_executable_path"] == ""
@@ -49,7 +49,7 @@ def test_v10631_legacy_settings_migrate_to_mandatory_chrome_policy(tmp_path):
         encoding="utf-8",
     )
     settings = SettingsManager(path)
-    assert settings.get("browser_runtime_policy_version") == 1
+    assert settings.get("browser_runtime_policy_version") == 2
     assert settings.get("use_chrome_channel") is True
     assert settings.get("allow_chromium_fallback") is False
     assert settings.get("browser_executable_path") == ""

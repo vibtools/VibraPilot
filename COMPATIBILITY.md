@@ -1,3 +1,15 @@
+# v1.0.6.39 Phase 1 Compatibility Addendum
+
+- Baseline compatibility: v1.0.6.38 external workflows and Plugin API 1 remain supported.
+- `requires_session=true`: existing Login Verification behavior is preserved.
+- `requires_session=false`: Core login polling, fake Login state and pre-Start session enforcement are bypassed.
+- Browser runtime policy v2 defaults `background_throttling_enabled` to `false`; a one-time migration normalizes older persisted policy state.
+- Windows processing Tasks request system-awake state without forcing the display on; non-Windows behavior is a no-op.
+- Existing global active-workflow/switch architecture is unchanged; true per-Task multiworkflow remains Phase 2.
+- v1.0.6.39 is LOCAL VERIFIED / WINDOWS ACCEPTANCE PENDING until the target-Windows acceptance matrix passes.
+
+---
+
 # v1.0.6.38 Portable Runtime Root Compatibility
 
 The only production source change is `src/vibrapilot/runtime_environment.py`. In Nuitka standalone execution, packaged data now resolves from the directory containing the launched `VibraPilot.exe`. Historical PyInstaller `_MEIPASS` handling and source-checkout root handling remain unchanged.

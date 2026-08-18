@@ -61,6 +61,7 @@ from .browser_diagnostics import (
 )
 from .workflow import WorkflowManager, WorkflowRuntime, WorkflowRuntimeResolutionError
 from .runtime_environment import application_root, is_packaged_runtime
+from .power_management import SYSTEM_SLEEP_GUARD
 
 DISPLAY_APP_NAME = APP.display_name
 APP_NAME = APP.app_name
@@ -571,8 +572,11 @@ def effective_ignored_default_args(
 
 
 def _enforce_browser_runtime_policy(data: dict[str, Any]) -> None:
-    """Apply the non-bypassable v1.0.6.31 browser identity/security policy."""
-    data["browser_runtime_policy_version"] = 1
+    """Apply the non-bypassable browser identity/security policy version."""
+    # v1.0.6.39 promotes policy v2. Identity/security values remain mandatory;
+    # the v2 migration separately moves background throttling to a production-safe
+    # default while leaving the operator free to change it after migration.
+    data["browser_runtime_policy_version"] = 2
     data["use_chrome_channel"] = True
     data["allow_chromium_fallback"] = False
     data["browser_executable_path"] = ""
@@ -670,6 +674,11 @@ class SettingsManager:
             browser_policy_version = 0
         if browser_policy_version < 1:
             self.data["http_cache_enabled"] = True
+        # v1.0.6.39 policy v2: migrate any pre-v2 persisted setting to the
+        # production-safe background automation default exactly once. After this
+        # save, users may explicitly re-enable Chrome background throttling.
+        if browser_policy_version < 2:
+            self.data["background_throttling_enabled"] = False
 
         browser_bool_keys = (
             "headless",
@@ -1703,6 +1712,8 @@ class AutomationWorker(threading.Thread):
         self._lifecycle_browser_id: int | None = None
         self._lifecycle_context_id: int | None = None
         self._lifecycle_page_ids: set[int] = set()
+        self._configured_page_ids: set[int] = set()
+        self._power_guard_owner = f"task:{self.state.slot_id}:worker:{id(self)}"
         # A FileChooser wrapper is retained only inside the Playwright owner
         # thread. Qt receives an opaque request ID and returns local paths through
         # the command queue, so no Playwright object crosses thread boundaries.
@@ -1885,6 +1896,135 @@ class AutomationWorker(threading.Thread):
                 continue
         return live
 
+    @staticmethod
+    def _page_url(page) -> str:
+        try:
+            return str(getattr(page, "url", "") or "")
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _is_internal_page_url(url: str) -> bool:
+        normalized = str(url or "").strip().lower()
+        return not normalized or normalized in {"about:blank", "chrome://newtab/"} or normalized.startswith("chrome://")
+
+    def _page_is_usable(self, page) -> bool:
+        if page is None:
+            return False
+        try:
+            if page.is_closed():
+                return False
+        except Exception:
+            return False
+        return not self._is_internal_page_url(self._page_url(page))
+
+    @staticmethod
+    def _origin_from_url(url: str) -> tuple[str, str, int | None] | None:
+        try:
+            parsed = urlparse(str(url or ""))
+        except Exception:
+            return None
+        scheme = parsed.scheme.lower()
+        host = (parsed.hostname or "").lower()
+        if scheme not in {"http", "https"} or not host:
+            return None
+        return (scheme, host, parsed.port)
+
+    def _select_preferred_page(
+        self, pages: list[Any], *, preferred_url: str | None = None
+    ):
+        """Choose a deterministic owned page without workflow-specific host rules."""
+        live: list[Any] = []
+        for page in pages:
+            try:
+                if page is not None and not page.is_closed():
+                    live.append(page)
+            except Exception:
+                continue
+        if not live:
+            return None
+
+        preferred = preferred_url
+        if preferred is None:
+            preferred = self.state.target_url or self.initial_url
+        target_origin = self._origin_from_url(preferred or "")
+        if target_origin is not None:
+            same_origin = [
+                page
+                for page in live
+                if self._origin_from_url(self._page_url(page)) == target_origin
+                and self._page_is_usable(page)
+            ]
+            if same_origin:
+                return same_origin[-1]
+
+        usable = [page for page in live if self._page_is_usable(page)]
+        if usable:
+            return usable[-1]
+        return live[0]
+
+    @staticmethod
+    def _page_opener(page):
+        try:
+            opener = getattr(page, "opener", None)
+            return opener() if callable(opener) else opener
+        except Exception:
+            return None
+
+    def _should_adopt_new_page(self, page) -> bool:
+        if not self._page_is_usable(page):
+            return False
+        if self.active_page is None:
+            return True
+        if not self.processing_event.is_set():
+            return True
+        return self._page_opener(page) is self.active_page
+
+    def _safe_page_identity(self, page, *, pages: list[Any] | None = None) -> str:
+        url = self._page_url(page)
+        try:
+            parsed = urlparse(url)
+            scheme = parsed.scheme or "unknown"
+            host = parsed.hostname or ""
+            path = parsed.path or "/"
+        except Exception:
+            scheme, host, path = "unknown", "", "/"
+        if pages is None:
+            pages = self._live_context_pages()
+        index = 0
+        for offset, candidate in enumerate(pages, start=1):
+            if candidate is page:
+                index = offset
+                break
+        return f"page={index or '?'} scheme={scheme} host={host or '-'} path={path}"
+
+    def _adopt_active_page(self, page, *, reason: str, clear_session: bool = True) -> bool:
+        if page is None:
+            return False
+        try:
+            if page.is_closed():
+                return False
+        except Exception:
+            return False
+        previous = self.active_page
+        if previous is page:
+            return True
+        self.active_page = page
+        if clear_session and self.workflow_requires_session():
+            self.login_verified_event.clear()
+            self.emit(
+                "login",
+                {
+                    "verified": False,
+                    "message": "The controlled browser page changed; verify the workflow session again.",
+                },
+            )
+        self.log(
+            f"Browser page ownership changed ({reason}): {self._safe_page_identity(page)}",
+            "INFO",
+        )
+        return True
+
     def _mark_browser_unavailable(self, reason: str = "") -> None:
         """Clear browser/login readiness once for an external lifecycle loss."""
         self._clear_pending_file_chooser(reason or "Browser session closed.", log_event=True)
@@ -1892,7 +2032,7 @@ class AutomationWorker(threading.Thread):
         with self._browser_lifecycle_lock:
             was_available = self._browser_lifecycle_state != "CLOSED"
         self._set_browser_lifecycle_state("CLOSED")
-        if was_login_verified or (reason and was_available):
+        if self.workflow_requires_session() and (was_login_verified or (reason and was_available)):
             self.emit(
                 "login",
                 {
@@ -1915,16 +2055,14 @@ class AutomationWorker(threading.Thread):
             live_pages = self._live_context_pages(exclude=page)
             if not live_pages:
                 return False
-            self.active_page = live_pages[-1]
-            if self.login_verified_event.is_set():
-                self.login_verified_event.clear()
-                self.emit(
-                    "login",
-                    {
-                        "verified": False,
-                        "message": "The active browser page changed; verify the current login session again.",
-                    },
-                )
+            replacement = self._select_preferred_page(
+                live_pages, preferred_url=self._page_url(page)
+            )
+            if replacement is None:
+                return False
+            self._adopt_active_page(
+                replacement, reason="active page health failover", clear_session=True
+            )
         if self.persistent_context_mode:
             return True
         browser = self.browser
@@ -1972,6 +2110,7 @@ class AutomationWorker(threading.Thread):
 
         def page_closed(_page=None) -> None:
             self._lifecycle_page_ids.discard(id(page))
+            self._configured_page_ids.discard(id(page))
             if self._pending_file_chooser_page_id == id(page):
                 self._clear_pending_file_chooser(
                     "Pending browser file selection was cancelled because its page closed.",
@@ -1986,16 +2125,14 @@ class AutomationWorker(threading.Thread):
                 return
             live_pages = self._live_context_pages(exclude=page)
             if live_pages:
-                self.active_page = live_pages[-1]
-                self.login_verified_event.clear()
-                self.emit(
-                    "login",
-                    {
-                        "verified": False,
-                        "message": "The active browser page was closed; another open page is now active and must be verified.",
-                    },
+                replacement = self._select_preferred_page(
+                    live_pages, preferred_url=self._page_url(page)
                 )
-                return
+                if replacement is not None:
+                    self._adopt_active_page(
+                        replacement, reason="active page closed failover", clear_session=True
+                    )
+                    return
             self.active_page = None
             self._mark_browser_unavailable("The controlled browser page was closed manually.")
 
@@ -2164,18 +2301,51 @@ class AutomationWorker(threading.Thread):
     def is_login_verified(self) -> bool:
         return self.login_verified_event.is_set()
 
+    def workflow_requires_session(self) -> bool:
+        """Return the active Task schema session policy as the Core authority."""
+        workflow_id = self._workflow_manager.active_workflow_id
+        if not workflow_id:
+            # Compatibility/direct-worker constructions predate workflow-neutral
+            # production tasks. Treat an absent schema as session-required so
+            # historical browser lifecycle safety remains fail-closed.
+            return True
+        try:
+            return bool(self._workflow_manager.task_schema(workflow_id).requires_session)
+        except Exception:
+            # Production workers are created only for a validated active workflow.
+            # If that invariant is unexpectedly lost, fail closed rather than
+            # silently bypassing a workflow-declared authentication requirement.
+            return True
+
+    def ensure_workflow_session_if_required(self) -> None:
+        """Apply the pre-Start session gate only to session-required workflows."""
+        if self.workflow_requires_session():
+            self.ensure_workflow_session()
+
+    def _browser_restart_is_safe(self) -> bool:
+        """Allow automatic browser restart only at an idle, outcome-safe checkpoint."""
+        return (
+            not self.processing_event.is_set()
+            and not bool(self.state.manual_review_required)
+            and not self.close_event.is_set()
+        )
+
     def run(self) -> None:
         restart_attempts = 0
         try:
             self._set_browser_lifecycle_state("OPENING")
             self.launch_browser()
             self._set_browser_lifecycle_state("OPEN")
-            self.state.status = "Login Required"
-            self.emit("status", {"status": "Login Required"})
-            self.emit(
-                "login",
-                {"verified": False, "message": "Complete login in the opened browser."},
-            )
+            if self.workflow_requires_session():
+                self.state.status = "Login Required"
+                self.emit("status", {"status": "Login Required"})
+                self.emit(
+                    "login",
+                    {"verified": False, "message": "Complete login in the opened browser."},
+                )
+            else:
+                self.state.status = "Ready"
+                self.emit("status", {"status": "Ready"})
 
             while not self.close_event.is_set():
                 try:
@@ -2183,11 +2353,14 @@ class AutomationWorker(threading.Thread):
                 except queue.Empty:
                     if not self._browser_objects_ready():
                         self._mark_browser_unavailable("Browser was closed outside the application.")
-                        if bool(
-                            self.settings.get(
-                                "auto_restart_browser_on_crash",
-                                DEFAULT_SETTINGS["auto_restart_browser_on_crash"],
+                        if (
+                            bool(
+                                self.settings.get(
+                                    "auto_restart_browser_on_crash",
+                                    DEFAULT_SETTINGS["auto_restart_browser_on_crash"],
+                                )
                             )
+                            and self._browser_restart_is_safe()
                         ):
                             max_restarts = max(
                                 0,
@@ -2232,13 +2405,14 @@ class AutomationWorker(threading.Thread):
                                 self.active_page = None
                                 self.launch_browser()
                                 self._set_browser_lifecycle_state("OPEN")
-                                self.emit(
-                                    "login",
-                                    {
-                                        "verified": False,
-                                        "message": "Browser restarted. Verify the current login session.",
-                                    },
-                                )
+                                if self.workflow_requires_session():
+                                    self.emit(
+                                        "login",
+                                        {
+                                            "verified": False,
+                                            "message": "Browser restarted. Verify the current login session.",
+                                        },
+                                    )
                                 continue
                         if self.state.status not in {
                             "Completed",
@@ -2255,7 +2429,8 @@ class AutomationWorker(threading.Thread):
                         )
                         break
                     restart_attempts = 0
-                    self.refresh_login_verification()
+                    if self.workflow_requires_session():
+                        self.refresh_login_verification()
                     continue
 
                 if command == "close":
@@ -2442,7 +2617,8 @@ class AutomationWorker(threading.Thread):
                     continue
                 if command == "focus":
                     self.bring_browser_to_front()
-                    self.refresh_login_verification(force_emit=True)
+                    if self.workflow_requires_session():
+                        self.refresh_login_verification(force_emit=True)
                     continue
                 if command == "filechooser_response":
                     self._apply_file_chooser_selection(payload)
@@ -2465,19 +2641,27 @@ class AutomationWorker(threading.Thread):
                     self.last_autosave_at = time.monotonic()
                     self._save_runtime_progress(force=True)
                     try:
-                        self.ensure_workflow_session()
+                        self.ensure_workflow_session_if_required()
                         if self._uses_test_send_limit():
                             self.emit(
                                 "send_limit", {"used": self.run_send_count, "limit": self.run_send_limit}
                             )
                         self.process_batch()
                     except SessionVerificationError as exc:
-                        runtime = self._workflow_runtime()
-                        self.state.status = str(getattr(runtime, "blocked_task_status", "Login Required"))
-                        self.login_verified_event.clear()
-                        self.log(str(exc), "ERROR")
-                        self.emit("login", {"verified": False, "message": str(exc)})
-                        self.emit("status", {"status": "Login Required"})
+                        if self.workflow_requires_session():
+                            runtime = self._workflow_runtime()
+                            self.state.status = str(getattr(runtime, "blocked_task_status", "Login Required"))
+                            self.login_verified_event.clear()
+                            self.log(str(exc), "ERROR")
+                            self.emit("login", {"verified": False, "message": str(exc)})
+                            self.emit("status", {"status": "Login Required"})
+                        else:
+                            self.state.status = "Failed"
+                            self.log(
+                                f"Sessionless workflow raised SessionVerificationError: {exc}",
+                                "ERROR",
+                            )
+                            self.emit("status", {"status": "Failed"})
         except Exception as exc:
             self.state.status = "Browser Failed"
             self.log(f"Browser worker failed: {exc}", "ERROR")
@@ -2584,6 +2768,11 @@ class AutomationWorker(threading.Thread):
         return decision
 
     def refresh_login_verification(self, force_emit: bool = False) -> bool:
+        if not self.workflow_requires_session():
+            # Sessionless workflows must never construct/probe a runtime merely
+            # for Core login state; their browser readiness is independent.
+            self.login_verified_event.clear()
+            return False
         if self.processing_event.is_set() or not self.browser_ready_event.is_set():
             return self.login_verified_event.is_set()
         now = time.monotonic()
@@ -2602,8 +2791,15 @@ class AutomationWorker(threading.Thread):
         verified = False
         try:
             verified = self.workflow_session_ready(self.active_page)
-        except Exception:
+        except Exception as exc:
             verified = False
+            self.log(
+                "Workflow session probe failed: "
+                f"workflow={self._workflow_manager.active_workflow_id or '-'} "
+                f"{self._safe_page_identity(self.active_page)} "
+                f"error={exc.__class__.__name__}",
+                "WARNING",
+            )
         previous = self.login_verified_event.is_set()
         if verified:
             self.login_verified_event.set()
@@ -2624,6 +2820,12 @@ class AutomationWorker(threading.Thread):
 
     def process_batch(self) -> None:
         self.processing_event.set()
+        sleep_guard_acquired = SYSTEM_SLEEP_GUARD.acquire(self._power_guard_owner)
+        if not sleep_guard_acquired:
+            self.log(
+                "System sleep guard could not be acquired; automation will continue without OS sleep inhibition.",
+                "WARNING",
+            )
         self.state.status = "Running"
         self.emit("status", {"status": "Running"})
         self.emit_progress()
@@ -2739,6 +2941,7 @@ class AutomationWorker(threading.Thread):
         finally:
             self.save_failed()
             self.processing_event.clear()
+            SYSTEM_SLEEP_GUARD.release(self._power_guard_owner)
             self._save_runtime_progress(force=True)
             self.emit_progress()
             self.emit("done", {"status": self.state.status})
@@ -3854,7 +4057,15 @@ class AutomationWorker(threading.Thread):
         self.context_created_at = time.monotonic()
         self.context_item_count = 0
 
-        def attach_page_events(page) -> None:
+        def attach_page_events(page, *, consider_ownership: bool = False) -> None:
+            if page is None:
+                return
+            page_id = id(page)
+            if page_id in self._configured_page_ids:
+                if consider_ownership and self._should_adopt_new_page(page):
+                    self._adopt_active_page(page, reason="new browser page", clear_session=True)
+                return
+            self._configured_page_ids.add(page_id)
             self._attach_page_lifecycle_events(page)
 
             def dialog_handler(dialog):
@@ -3894,6 +4105,19 @@ class AutomationWorker(threading.Thread):
                     )
 
             page.on("console", console_handler)
+
+            def frame_navigated_handler(frame):
+                try:
+                    if frame is not page.main_frame:
+                        return
+                except Exception:
+                    pass
+                if self._should_adopt_new_page(page):
+                    self._adopt_active_page(
+                        page, reason="browser page navigation", clear_session=True
+                    )
+
+            page.on("framenavigated", frame_navigated_handler)
 
             def page_error_handler(error):
                 if bool(
@@ -3947,26 +4171,31 @@ class AutomationWorker(threading.Thread):
             page.on("requestfailed", request_failed_handler)
             page.on("download", self._handle_download)
             page.on("filechooser", lambda chooser, attached_page=page: self._handle_file_chooser(attached_page, chooser))
+            if consider_ownership and self._should_adopt_new_page(page):
+                self._adopt_active_page(page, reason="new browser page", clear_session=True)
 
         self._attach_browser_lifecycle_events()
-        self.context.on("page", attach_page_events)
+        self.context.on(
+            "page",
+            lambda page: attach_page_events(page, consider_ownership=True),
+        )
         pages = list(self.context.pages)
         if using_precreated_persistent_context and pages:
-            if bool(
-                self.settings.get(
-                    "restore_previous_session",
-                    DEFAULT_SETTINGS["restore_previous_session"],
+            # Restored pages existed before the Context page listener, so every
+            # live page gets lifecycle/event wiring before one deterministic owner
+            # is selected.
+            for restored_page in pages:
+                attach_page_events(restored_page, consider_ownership=False)
+            selected_page = self._select_preferred_page(pages)
+            if selected_page is not None:
+                self._adopt_active_page(
+                    selected_page, reason="persistent startup selection", clear_session=False
                 )
-            ):
-                self.active_page = pages[-1]
-            else:
-                self.active_page = pages[0]
-            # Pages restored with a persistent profile existed before this
-            # listener was registered, so attach handlers explicitly.
-            attach_page_events(self.active_page)
         else:
             # New pages are configured through the BrowserContext page event.
-            self.active_page = self.context.new_page()
+            created_page = self.context.new_page()
+            attach_page_events(created_page, consider_ownership=False)
+            self._adopt_active_page(created_page, reason="new context page", clear_session=False)
 
         should_open_initial_url = initial_url.startswith(("http://", "https://"))
         if (
@@ -4010,17 +4239,30 @@ class AutomationWorker(threading.Thread):
 
     def reopen_active_page(self) -> None:
         current_url = self.state.target_url
+        old_page = self.active_page
         try:
-            if self.active_page and not self.active_page.is_closed():
-                current_url = self.active_page.url or current_url
-                self.active_page.close()
+            if old_page and not old_page.is_closed():
+                current_url = old_page.url or current_url
         except Exception:
             pass
-        # BrowserContext page event wiring configured in new_context() attaches
-        # dialog, console and network handlers to this replacement page.
-        self.active_page = self.context.new_page()
-        if current_url.startswith(("http://", "https://")):
-            self.safe_goto(self.active_page, current_url)
+        # This is an intentional maintenance transition. Create/adopt the
+        # replacement before closing the old page so lifecycle callbacks cannot
+        # temporarily classify the managed browser as externally closed.
+        self._context_transitioning = True
+        try:
+            replacement = self.context.new_page()
+            self._adopt_active_page(
+                replacement, reason="planned page reopen", clear_session=True
+            )
+            if current_url.startswith(("http://", "https://")):
+                self.safe_goto(replacement, current_url)
+            try:
+                if old_page and old_page is not replacement and not old_page.is_closed():
+                    old_page.close()
+            except Exception:
+                pass
+        finally:
+            self._context_transitioning = False
 
     def maybe_recycle_context(self) -> None:
         self.context_item_count += 1
@@ -4132,10 +4374,12 @@ class AutomationWorker(threading.Thread):
                 self.initial_url = old_initial_url
                 self._context_transitioning = False
             # The recycle is an internal maintenance transition, not a manual
-            # Browser Close. Re-verify the active workflow-required session against
-            # the relaunched managed profile before processing can continue.
+            # Browser Close. Session-required workflows must re-verify against
+            # the relaunched managed profile; sessionless workflows do not enter
+            # the Core Login Verification path at all.
             self.login_verified_event.clear()
-            self.refresh_login_verification(force_emit=True)
+            if self.workflow_requires_session():
+                self.refresh_login_verification(force_emit=True)
             return
 
         self.new_context(

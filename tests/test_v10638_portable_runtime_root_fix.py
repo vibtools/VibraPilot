@@ -14,6 +14,7 @@ if str(SRC) not in sys.path:
 from vibrapilot import runtime_environment
 
 SCOPE = ROOT / "config/verification/v1.0.6.38_portable_runtime_root_fix_scope.json"
+V10639_SCOPE = ROOT / "config/verification/v1.0.6.39_runtime_reliability_session_policy_scope.json"
 
 
 def _sha256(path: Path) -> str:
@@ -86,7 +87,11 @@ def test_pyinstaller_and_source_root_contracts_remain_unchanged(tmp_path):
 
 def test_v10638_freezes_runtime_and_build_surfaces_outside_root_helper():
     scope = json.loads(SCOPE.read_text(encoding="utf-8"))
+    later = json.loads(V10639_SCOPE.read_text(encoding="utf-8")) if V10639_SCOPE.is_file() else {}
+    later_allowed = set(later.get("allowed_production_source_changes", [])) | set(later.get("allowed_runtime_config_changes", []))
     for relative, expected in scope["frozen_file_sha256"].items():
+        if relative in later_allowed:
+            continue
         assert _sha256(ROOT / relative) == expected, relative
     runtime_source = (ROOT / "src/vibrapilot/runtime_environment.py").read_text(encoding="utf-8")
     assert "Path(sys.argv[0]).resolve().parent" in runtime_source

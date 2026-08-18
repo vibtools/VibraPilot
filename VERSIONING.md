@@ -1,3 +1,17 @@
+# Current Candidate — v1.0.6.39 Phase 1
+
+- Frozen source baseline: v1.0.6.38 / `bc894115f505b7b9ecbc15a235b91d37a9693cec`.
+- Target: v1.0.6.39.
+- Scope: Runtime Reliability & Workflow-Scoped Session Policy only.
+- Local automated verification: GREEN.
+- Windows live acceptance: PENDING.
+- GitHub publication/tag/release: NOT STARTED for v1.0.6.39.
+- Phase 2 workflow lifecycle/true multiworkflow: NOT STARTED.
+
+A v1.0.6.39 release may be tagged only after target-Windows acceptance, GitHub PR/CI, portable RC and release gates are green. The historical version records below are retained unchanged as release evidence.
+
+---
+
 # Current portable fix candidate — v1.0.6.38
 
 `v1.0.6.38` is a defect-only packaging/runtime-location increment from the v1.0.6.37 portable release candidate. It fixes the exact packaged data-root failure proven by GitHub Actions run `32056816056`; it does not redesign the portable architecture or reopen application business logic.

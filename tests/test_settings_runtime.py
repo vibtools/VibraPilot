@@ -167,7 +167,7 @@ def test_master_browser_settings_defaults_preserve_existing_runtime_behavior():
         "extensions_enabled": False,
         "devtools_auto_open": False,
         "remote_debugging_port": 0,
-        "background_throttling_enabled": True,
+        "background_throttling_enabled": False,
         "browser_console_logging": False,
         "network_event_logging": False,
         "record_har_enabled": False,

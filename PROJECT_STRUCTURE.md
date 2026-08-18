@@ -1,3 +1,24 @@
+# v1.0.6.39 Phase 1 Structure Addendum
+
+New/updated Phase 1 surfaces:
+
+```text
+src/vibrapilot/power_management.py
+config/verification/v1.0.6.39_runtime_reliability_session_policy_scope.json
+tests/test_v10639_workflow_scoped_session_policy.py
+tests/test_v10639_background_runtime_policy.py
+tests/test_v10639_windows_sleep_guard.py
+tests/test_v10639_active_page_ownership.py
+tests/test_v10639_browser_resilience.py
+tests/test_v10639_background_multitask_contract.py
+docs/updates/v1.0.6.39-runtime-reliability-session-policy.md
+docs/verification/V1.0.6.39_RUNTIME_RELIABILITY_SESSION_POLICY.md
+```
+
+Existing workflow loader/state/switch, licensing, persistence, report, CI and portable packaging structures remain unchanged in Phase 1.
+
+---
+
 # Project Structure — v1.0.6.38 Portable Runtime Root Fix
 
 ```text

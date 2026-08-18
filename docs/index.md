@@ -1,3 +1,14 @@
+# VibraPilot Documentation — v1.0.6.39 Phase 1 Candidate
+
+- Update: `docs/updates/v1.0.6.39-runtime-reliability-session-policy.md`
+- Verification: `docs/verification/V1.0.6.39_RUNTIME_RELIABILITY_SESSION_POLICY.md`
+- Scope contract: `config/verification/v1.0.6.39_runtime_reliability_session_policy_scope.json`
+- Frozen baseline: v1.0.6.38 / `bc894115f505b7b9ecbc15a235b91d37a9693cec`.
+- Candidate state: LOCAL VERIFIED / WINDOWS ACCEPTANCE PENDING / UNRELEASED.
+- Phase 2 Workflow Lifecycle & True Multiworkflow: NOT STARTED.
+
+---
+
 # v1.0.6.38 Portable Runtime Root Fix
 
 - Update: `docs/updates/v1.0.6.38-portable-runtime-root-fix.md`

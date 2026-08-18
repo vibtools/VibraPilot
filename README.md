@@ -1,3 +1,7 @@
+# VibraPilot v1.0.6.39 — Phase 1 Runtime Reliability & Workflow-Scoped Session Policy
+
+v1.0.6.39 is the local Phase 1 candidate built from the frozen v1.0.6.38 baseline. It makes `WorkflowTaskSchema.requires_session` authoritative in Core, moves sessionless workflows onto a true no-login-gate path, changes the production browser runtime policy to disable Chrome background throttling by default, adds a Windows system-sleep guard while Tasks are processing, makes multi-tab page ownership deterministic, and constrains browser restart to safe checkpoints. Phase 2 workflow update/remove/hot-switch/per-Task multiworkflow work is explicitly out of scope. Windows background/sleep acceptance remains required before release.
+
 # VibraPilot v1.0.6.38 — Portable OneDir Runtime Root Fix
 
 v1.0.6.38 is a defect-only continuation of the portable release track. GitHub Actions run `32056816056` proved that the Nuitka OneDir payload was built and verified correctly but startup resolved packaged data one directory above `VibraPilot.exe`. The correction changes only the Nuitka application-root calculation to use the launched executable directory; the Windows 2022 / Python 3.12 / Nuitka 4.1.3 standalone OneDir architecture, system Google Chrome-only policy, external workflows, licensing, persistence, UI behavior, and no-WiX/MSI boundary remain unchanged.

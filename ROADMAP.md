@@ -1,3 +1,24 @@
+# Current Roadmap — v1.0.6.39 Phase 1
+
+## Phase 1 — Runtime Reliability & Workflow-Scoped Session Policy
+
+Implementation is locally complete and automated verification is green. Remaining release gate: target-Windows owner acceptance for session-required/sessionless behavior, minimized/occluded 3–4 Task execution and the Windows system-sleep guard.
+
+Implemented Phase 1 work packages:
+
+1. authoritative `requires_session` contract
+2. background Chrome production policy v2
+3. Windows system-sleep guard
+4. deterministic active-page/multi-tab ownership
+5. safe browser-restart/checkpoint hardening
+6. background multi-task acceptance contract
+
+## Phase 2 — v1.0.6.40
+
+NOT STARTED. Workflow Update/Replace, Remove/Unload/Deactivate, restart-free switch, per-Task workflow identity and true simultaneous different-workflow execution remain frozen until v1.0.6.39 is accepted and frozen.
+
+---
+
 # Current — v1.0.6.38 Portable Runtime Root Fix
 
 - Input source baseline: v1.0.6.37 / `299e93a89db3d30505350f474f79eefc330ee923`.

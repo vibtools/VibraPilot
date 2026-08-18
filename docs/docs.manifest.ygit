@@ -3,12 +3,12 @@
   "documentation": {
     "id": "vibrapilot",
     "title": "VibraPilot Documentation",
-    "description": "Documentation for VibraPilot v1.0.6.38 Portable Runtime Root Fix.",
-    "version": "1.0.6.38",
+    "description": "Documentation for VibraPilot v1.0.6.39 Runtime Reliability & Workflow-Scoped Session Policy.",
+    "version": "1.0.6.39",
     "root": "docs",
     "home": "index.md"
   },
   "product": {
-    "description": "v1.0.6.38 corrects Nuitka OneDir packaged data-root resolution proven by GitHub Actions startup diagnostics; the portable architecture remains system-Google-Chrome-only with no bundled Chromium and no WiX/MSI."
+    "description": "v1.0.6.39 Phase 1 makes requires_session authoritative, defaults Chrome to production-safe background execution, adds Windows system-sleep protection during active processing, and hardens deterministic multi-tab browser ownership without changing Phase 2 workflow lifecycle architecture."
   }
 }

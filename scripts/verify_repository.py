@@ -57,6 +57,7 @@ V10635_WORKFLOW_SCOPED_TEST_SAFETY_SCOPE_CONTRACT = ROOT / "config" / "verificat
 V10636_SHARE_INVITE_EXTERNALIZATION_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.36_share_invite_externalization_scope.json"
 V10637_PORTABLE_RELEASE_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.37_portable_release_packaging_scope.json"
 V10638_PORTABLE_RUNTIME_ROOT_FIX_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.38_portable_runtime_root_fix_scope.json"
+V10639_RUNTIME_RELIABILITY_SESSION_POLICY_SCOPE_CONTRACT = ROOT / "config" / "verification" / "v1.0.6.39_runtime_reliability_session_policy_scope.json"
 APP_CONFIG_ROOT = ROOT / "config" / "AppConfig"
 APP_CONFIG_APP = APP_CONFIG_ROOT / "app.py"
 
@@ -376,11 +377,29 @@ v10638_allowed_files = (
     | set(v10638_scope.get("authorized_nonproduction_files", []))
 )
 
+# v1.0.6.39 Phase 1 hardens background execution and makes the workflow
+# Task schema the authoritative session policy without reopening Phase 2.
+if not V10639_RUNTIME_RELIABILITY_SESSION_POLICY_SCOPE_CONTRACT.is_file():
+    fail("v1.0.6.39 runtime reliability/session policy scope contract is missing")
+try:
+    v10639_scope = json.loads(
+        V10639_RUNTIME_RELIABILITY_SESSION_POLICY_SCOPE_CONTRACT.read_text(encoding="utf-8")
+    )
+except Exception as exc:
+    fail(f"v1.0.6.39 runtime reliability/session policy scope contract is invalid: {exc}")
+v10639_production_allowed = set(v10639_scope.get("allowed_production_source_changes", []))
+v10639_allowed_files = (
+    v10639_production_allowed
+    | set(v10639_scope.get("allowed_runtime_config_changes", []))
+    | set(v10639_scope.get("authorized_nonproduction_files", []))
+)
+v10639_worker_methods = set(v10639_scope.get("authorized_automationworker_method_changes", []))
+
 current_worker_methods = (
-    v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods | v10635_worker_methods | v10636_worker_methods
+    v10630_worker_methods | v10631_worker_methods | v10632_worker_methods | v10633_worker_methods | v10635_worker_methods | v10636_worker_methods | v10639_worker_methods
 )
 current_allowed_files = (
-    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files | v10636_allowed_files | v10637_allowed_files | v10638_allowed_files
+    v10630_allowed_files | v10631_allowed_files | v10632_allowed_files | v10633_allowed_files | v10634_allowed_files | v10635_allowed_files | v10636_allowed_files | v10637_allowed_files | v10638_allowed_files | v10639_allowed_files
 )
 if pr08_allowed_files != {
     "src/vibrapilot/workflow_inputs.py",
@@ -1172,6 +1191,11 @@ for approved_key in v10631_scope.get("approved_new_setting_keys", []):
 for key, change in v10631_scope.get("approved_settings_default_changes", {}).items():
     if isinstance(change, dict) and "from" in change:
         settings_defaults_for_scope[key] = change["from"]
+# v1.0.6.39 explicitly changes the production default for long-running
+# automation. Reverse that one approved change before comparing against the
+# historical production-scope canonical baseline.
+if V10639_RUNTIME_RELIABILITY_SESSION_POLICY_SCOPE_CONTRACT.is_file():
+    settings_defaults_for_scope["background_throttling_enabled"] = True
 settings_scope_payload = json.dumps(
     settings_defaults_for_scope, sort_keys=True, separators=(",", ":"), ensure_ascii=False
 ).encode("utf-8")
@@ -2173,14 +2197,14 @@ for key, expected in {
     if v10631_scope.get(key) != expected:
         fail(f"v1.0.6.31 scope boundary mismatch: {key}")
 for relative, expected_sha in v10631_scope.get("frozen_file_sha256", {}).items():
-    if relative in v10636_allowed_files:
+    if relative in current_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
         fail(f"v1.0.6.31 frozen surface drift detected: {relative}")
 v10631_settings_defaults = json.loads((ROOT / "config" / "settings.defaults.json").read_text(encoding="utf-8"))
-if v10631_settings_defaults.get("browser_runtime_policy_version") != 1:
-    fail("v1.0.6.31 browser runtime policy version must be 1")
+if v10631_settings_defaults.get("browser_runtime_policy_version") != 2:
+    fail("current browser runtime policy version must be 2 after the v1.0.6.39 migration")
 for key, expected in {
     "use_chrome_channel": True,
     "allow_chromium_fallback": False,
@@ -2243,7 +2267,7 @@ if v10632_scope.get("allowed_download_hosts") != ["dl.google.com"]:
 if v10632_scope.get("required_installer_publisher") != "Google LLC":
     fail("v1.0.6.32 installer publisher policy mismatch")
 for relative, expected_sha in v10632_scope.get("frozen_file_sha256", {}).items():
-    if relative in v10633_allowed_files or relative in v10636_allowed_files:
+    if relative in current_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
@@ -2317,7 +2341,7 @@ for key, expected in {
     if v10633_scope.get(key) != expected:
         fail(f"v1.0.6.33 forensic scope boundary mismatch: {key}")
 for relative, expected_sha in v10633_scope.get("frozen_file_sha256", {}).items():
-    if relative in v10635_production_allowed or relative in v10636_allowed_files:
+    if relative in current_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
@@ -2371,7 +2395,7 @@ for key in ("build_changes", "dependency_changes", "database_changes", "backend_
     if v10634_scope.get(key) is not False:
         fail(f"v1.0.6.34 forbidden scope boundary changed: {key}")
 for relative, expected_sha in v10634_scope.get("frozen_file_sha256", {}).items():
-    if relative in v10635_production_allowed or relative in v10636_allowed_files:
+    if relative in current_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
@@ -2432,7 +2456,7 @@ for key in ("build_changes", "dependency_changes", "database_schema_changes", "l
     if v10635_scope.get(key) is not False:
         fail(f"v1.0.6.35 frozen scope boundary changed: {key}")
 for relative, expected_sha in v10635_scope.get("frozen_file_sha256", {}).items():
-    if relative in v10636_allowed_files or relative in v10637_allowed_files:
+    if relative in current_allowed_files:
         continue
     path = ROOT / relative
     if not path.is_file() or sha256(path) != expected_sha:
@@ -2589,6 +2613,8 @@ if v10638_invariants != {
 }:
     fail("v1.0.6.38 portable architecture invariant mismatch")
 for relative, expected in v10638_scope.get("frozen_file_sha256", {}).items():
+    if relative in v10639_allowed_files:
+        continue
     if sha256(ROOT / relative) != expected:
         fail(f"v1.0.6.38 frozen file changed outside runtime-root scope: {relative}")
 if "return Path(sys.argv[0]).resolve().parent" not in runtime_environment_text:
@@ -2600,6 +2626,53 @@ if 'print(f"V{VERSION} PORTABLE RELEASE VERIFY: PASS")' not in portable_verifier
 if 'print(f"V{VERSION} PORTABLE RELEASE VERIFY: FAIL — {exc}")' not in portable_verifier:
     fail("v1.0.6.38 portable verifier FAIL identity is not AppConfig-driven")
 
+# v1.0.6.39 Phase 1 exact scope and production contracts.
+if v10639_scope.get("plan_id") != "VP-V10639-RUNTIME-RELIABILITY-SESSION-POLICY-001":
+    fail("v1.0.6.39 Phase 1 plan identifier mismatch")
+if v10639_scope.get("baseline_version") != "1.0.6.38" or v10639_scope.get("target_version") != "1.0.6.39":
+    fail("v1.0.6.39 Phase 1 version boundary mismatch")
+if v10639_scope.get("baseline_commit") != "bc894115f505b7b9ecbc15a235b91d37a9693cec":
+    fail("v1.0.6.39 Phase 1 baseline commit mismatch")
+if v10639_scope.get("baseline_tree") != "8bc5cba5c2d6256769caf1e2fdd5e0a1afd53faf":
+    fail("v1.0.6.39 Phase 1 baseline tree mismatch")
+if set(v10639_scope.get("allowed_production_source_changes", [])) != {
+    "src/vibrapilot/backend.py",
+    "src/vibrapilot/qt_app.py",
+    "src/vibrapilot/power_management.py",
+}:
+    fail("v1.0.6.39 Phase 1 production source scope mismatch")
+if set(v10639_scope.get("allowed_runtime_config_changes", [])) != {"config/settings.defaults.json"}:
+    fail("v1.0.6.39 Phase 1 runtime config scope mismatch")
+for relative, expected_sha in v10639_scope.get("frozen_file_sha256", {}).items():
+    path = ROOT / relative
+    if not path.is_file() or sha256(path) != expected_sha:
+        fail(f"v1.0.6.39 frozen surface drift detected: {relative}")
+phase1_settings = json.loads((ROOT / "config/settings.defaults.json").read_text(encoding="utf-8"))
+if phase1_settings.get("browser_runtime_policy_version") != 2:
+    fail("v1.0.6.39 browser runtime policy version must be 2")
+if phase1_settings.get("background_throttling_enabled") is not False:
+    fail("v1.0.6.39 production background throttling default must be disabled")
+for marker in (
+    "def workflow_requires_session",
+    "def ensure_workflow_session_if_required",
+    "if not self.workflow_requires_session():",
+    "SYSTEM_SLEEP_GUARD.acquire",
+    "SYSTEM_SLEEP_GUARD.release",
+    'page.on("framenavigated", frame_navigated_handler)',
+    "def _select_preferred_page",
+    "def _browser_restart_is_safe",
+):
+    if marker not in backend_text:
+        fail(f"v1.0.6.39 backend contract marker missing: {marker}")
+power_management_text = (SRC / "power_management.py").read_text(encoding="utf-8")
+for marker in ("PowerCreateRequest", "PowerSetRequest", "PowerClearRequest", "PowerRequestSystemRequired", "class SystemSleepGuard"):
+    if marker not in power_management_text:
+        fail(f"v1.0.6.39 Windows system sleep guard marker missing: {marker}")
+if "PowerRequestDisplayRequired" in power_management_text:
+    fail("v1.0.6.39 must not force the Windows display to remain on")
+if "Allow Chrome Background Throttling" not in qt_text:
+    fail("v1.0.6.39 Browser Settings background policy label missing")
+
 app_version = literal_assignment(APP_CONFIG_APP, "VERSION")
 app_id = literal_assignment(APP_CONFIG_APP, "APP_ID")
 app_name = literal_assignment(APP_CONFIG_APP, "APP_NAME")
@@ -2609,8 +2682,8 @@ owner_name = literal_assignment(APP_CONFIG_APP, "OWNER_NAME")
 license_identifier = literal_assignment(APP_CONFIG_APP, "LICENSE_IDENTIFIER")
 homepage_url = literal_assignment(APP_CONFIG_APP, "HOMEPAGE_URL")
 repository_url = literal_assignment(APP_CONFIG_APP, "REPOSITORY_URL")
-if app_version != "1.0.6.38":
-    fail("AppConfig VERSION must be 1.0.6.38 for the portable runtime-root fix candidate")
+if app_version != "1.0.6.39":
+    fail("AppConfig VERSION must be 1.0.6.39 for the Phase 1 runtime reliability candidate")
 for name, value in {
     "APP_ID": app_id,
     "APP_NAME": app_name,
@@ -3374,6 +3447,8 @@ required = [
     "config/verification/v1.0.6.36_share_invite_externalization_scope.json",
     "config/verification/v1.0.6.37_portable_release_packaging_scope.json",
     "config/verification/v1.0.6.38_portable_runtime_root_fix_scope.json",
+    "config/verification/v1.0.6.39_runtime_reliability_session_policy_scope.json",
+    "src/vibrapilot/power_management.py",
     "src/vibrapilot/chrome_runtime.py",
     "src/vibrapilot/chrome_installer.py",
     "src/vibrapilot/windows_authenticode.py",
@@ -3399,6 +3474,8 @@ required = [
     "docs/verification/V1.0.6.37_PORTABLE_RELEASE_PACKAGING.md",
     "docs/updates/v1.0.6.38-portable-runtime-root-fix.md",
     "docs/verification/V1.0.6.38_PORTABLE_RUNTIME_ROOT_FIX.md",
+    "docs/updates/v1.0.6.39-runtime-reliability-session-policy.md",
+    "docs/verification/V1.0.6.39_RUNTIME_RELIABILITY_SESSION_POLICY.md",
     "scripts/diagnostics/verify_v10633_browser_forensic_closure.py",
     "scripts/diagnostics/verify_v10634_ui_compact_polish.py",
     "scripts/diagnostics/verify_v10635_workflow_scoped_test_safety.py",

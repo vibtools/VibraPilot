@@ -117,6 +117,7 @@ from .task_runtime_store import TaskRuntimeStore, file_sha256
 from .workflow_inputs import WORKFLOW_INPUT_KEYS
 from .workflow.input_state import WorkflowInputStateError, WorkflowInputStateStore
 from .workspace_state import WorkspaceStateStore
+from .power_management import SYSTEM_SLEEP_GUARD
 from .workflow import (
     WorkflowError,
     WorkflowFieldSchema,
@@ -502,7 +503,7 @@ BROWSER_SETTING_LABELS = {'browser_slot_default': 'Browser Slot Default',
  'disable_chrome_features': 'Disable Chrome Features',
  'enable_blink_features': 'Enable Blink Features',
  'disable_blink_features': 'Disable Blink Features',
- 'background_throttling_enabled': 'Background Throttling Enabled',
+ 'background_throttling_enabled': 'Allow Chrome Background Throttling',
  'renderer_process_limit': 'Renderer Process Limit (0 = browser default)',
  'browser_console_logging': 'Log Browser Console',
  'network_event_logging': 'Log Browser Network Events',
@@ -1354,7 +1355,12 @@ class TaskSlotWidget(QFrame):
             "core_send_limit": f"0/{self._resolved_test_send_limit()}",
             "core_total": "0", "core_success": "0", "core_failed": "0", "core_remaining": "0",
         }
-        visible_metrics = [metric for metric in self.task_schema.metrics if metric.visible]
+        visible_metrics = [
+            metric
+            for metric in self.task_schema.metrics
+            if metric.visible
+            and not (metric.source == "core_login" and not self.task_schema.requires_session)
+        ]
         for i, metric_schema in enumerate(visible_metrics):
             metric = QFrame()
             metric.setObjectName("TaskMetric")
@@ -1633,7 +1639,8 @@ class TaskSlotWidget(QFrame):
         self.stop_event.clear()
         self.pause_event.clear()
         self._render_browser_status("Opening")
-        self._set_metric("Login", "Not Verified")
+        if self.task_schema.requires_session:
+            self._set_metric("Login", "Not Verified")
         self._set_metric("Status", "Opening Browser")
         self.state.target_url = "" if url == "about:blank" else url
         self.worker = AutomationWorker(
@@ -1886,9 +1893,13 @@ class TaskSlotWidget(QFrame):
         if not self.worker or not self.worker.is_processing():
             self._set_metric(
                 "Status",
-                "Login Verified"
-                if self.is_login_verified()
-                else ("Login Required" if self.is_browser_open() else "Ready"),
+                (
+                    "Login Verified"
+                    if self.task_schema.requires_session and self.is_login_verified()
+                    else "Login Required"
+                    if self.task_schema.requires_session and self.is_browser_open()
+                    else "Ready"
+                ),
             )
             return
         self.stop_event.set()
@@ -1916,10 +1927,12 @@ class TaskSlotWidget(QFrame):
         worker = self.worker
         if not worker:
             self._render_browser_status("Closed")
-            self._set_metric("Login", "Not Verified")
+            if self.task_schema.requires_session:
+                self._set_metric("Login", "Not Verified")
             return True
         self._render_browser_status("Closing")
-        self._set_metric("Login", "Not Verified")
+        if self.task_schema.requires_session:
+            self._set_metric("Login", "Not Verified")
         worker.request_close()
         self._set_metric("Status", "Closing")
         if wait and worker.is_alive():
@@ -1936,7 +1949,8 @@ class TaskSlotWidget(QFrame):
             return False
         self.worker = None
         self._render_browser_status("Closed")
-        self._set_metric("Login", "Not Verified")
+        if self.task_schema.requires_session:
+            self._set_metric("Login", "Not Verified")
         return True
 
     def _persist_closed_task(self) -> None:
@@ -2009,7 +2023,8 @@ class TaskSlotWidget(QFrame):
             return
         self.worker = None
         self._render_browser_status("Closed")
-        self._set_metric("Login", "Not Verified")
+        if self.task_schema.requires_session:
+            self._set_metric("Login", "Not Verified")
         if not self.is_running() and self.state.status not in {
             "Completed", "Failed", "Stopped", "Test Send Limit Reached", "Login Required", "Login/Test Mode Required"
         }:
@@ -2022,7 +2037,8 @@ class TaskSlotWidget(QFrame):
             # The visible browser is already unavailable, but keep the Task action
             # disabled until the worker finishes its deterministic cleanup.
             self._render_browser_status("Closing")
-            self._set_metric("Login", "Not Verified")
+            if self.task_schema.requires_session:
+                self._set_metric("Login", "Not Verified")
             if not self.is_running():
                 self._set_metric("Status", "Closing")
             QTimer.singleShot(100, self._finalize_closed_browser_state)
@@ -2032,20 +2048,28 @@ class TaskSlotWidget(QFrame):
         if normalized == "Closed" and self.worker and not self.worker.is_alive():
             self.worker = None
         if normalized == "Open" and not self.is_running():
-            self._set_metric("Status", "Login Verified" if self.is_login_verified() else "Login Required")
+            if self.task_schema.requires_session:
+                self._set_metric("Status", "Login Verified" if self.is_login_verified() else "Login Required")
+            else:
+                self._set_metric("Status", "Ready")
         elif normalized == "Opening" and not self.is_running():
-            self._set_metric("Login", "Not Verified")
+            if self.task_schema.requires_session:
+                self._set_metric("Login", "Not Verified")
             self._set_metric("Status", "Opening Browser")
         elif normalized == "Closing" and not self.is_running():
-            self._set_metric("Login", "Not Verified")
+            if self.task_schema.requires_session:
+                self._set_metric("Login", "Not Verified")
             self._set_metric("Status", "Closing")
         elif normalized == "Closed" and not self.is_running() and self.state.status not in {
             "Completed", "Failed", "Stopped", "Test Send Limit Reached", "Login Required", "Login/Test Mode Required"
         }:
-            self._set_metric("Login", "Not Verified")
+            if self.task_schema.requires_session:
+                self._set_metric("Login", "Not Verified")
             self._set_metric("Status", "Ready")
 
     def set_login_status(self, verified: bool, message: str = "") -> None:
+        if not self.task_schema.requires_session:
+            return
         self._set_metric("Login", "Verified" if verified else "Not Verified")
         if not self.is_running():
             if not verified and self.browser_lifecycle_state == "Closing":
@@ -2505,7 +2529,8 @@ class MainWindow(QMainWindow):
                 slot.url.setText(target_url)
                 slot.state.target_url = target_url
             slot._render_browser_status("Closed")
-            slot._set_metric("Login", "Not Verified")
+            if slot.task_schema.requires_session:
+                slot._set_metric("Login", "Not Verified")
 
         try:
             saved_next = max(1, int(state.get("next_slot_id", 1)))
@@ -3660,6 +3685,10 @@ class MainWindow(QMainWindow):
                     w.setToolTip(
                         "Initial browser/task slot count for a newly created workspace."
                     )
+                elif key == "background_throttling_enabled":
+                    w.setToolTip(
+                        "OFF is recommended for long-running automation. When OFF, VibraPilot disables Chrome timer, occluded-window, and renderer background throttling when the browser is next opened."
+                    )
                 elif key in launch_only_keys:
                     w.setToolTip(
                         "Launch-level control. Saved immediately; takes effect when the browser is next opened."
@@ -4230,7 +4259,8 @@ class MainWindow(QMainWindow):
                 continue
             slot.restore_runtime(run, preserve_task_status=True)
             slot._render_browser_status("Closed")
-            slot._set_metric("Login", "Not Verified")
+            if slot.task_schema.requires_session:
+                slot._set_metric("Login", "Not Verified")
             restored += 1
             self.log_ui(
                 f"Task {slot_id}: reopened from Closed Tasks; browser remains closed until explicitly opened."
@@ -6153,7 +6183,8 @@ class MainWindow(QMainWindow):
         }
 
         browsers_ready = sum(1 for task in tasks if task.is_browser_open())
-        login_verified = sum(1 for task in tasks if task.is_login_verified())
+        session_required_tasks = [task for task in tasks if task.task_schema.requires_session]
+        login_verified = sum(1 for task in session_required_tasks if task.is_login_verified())
         tasks_with_data = sum(1 for task in tasks if task.state.total > 0)
         ready_to_start = sum(
             1
@@ -6199,7 +6230,11 @@ class MainWindow(QMainWindow):
 
         details = {
             "Browsers Ready": f"{browsers_ready} / {task_count}",
-            "Login Verified": f"{login_verified} / {task_count}",
+            "Login Verified": (
+                f"{login_verified} / {len(session_required_tasks)} required"
+                if session_required_tasks
+                else "Not required"
+            ),
             "Tasks with Data": f"{tasks_with_data} / {task_count}",
             "Ready to Start": str(ready_to_start),
             "Processed": str(processed),
@@ -6470,6 +6505,7 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
         self.save_workspace_state()
+        SYSTEM_SLEEP_GUARD.release_all()
         self.license_stop.set()
         self.runtime_store.close()
         self.log_ui("App closing. All task workers and browser sessions stopped cleanly.")
