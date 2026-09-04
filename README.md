@@ -1,5 +1,9 @@
 # VibraPilot v1.0.6.44 — Final Release Candidate
 
+## External workflow: Fiskl Invoice Sender
+
+The repository now includes the source and verification tests for the standalone **Fiskl Invoice Sender v1.0.0** Plugin API 1 workflow. It batch-sends the currently open Fiskl invoice from uploaded TXT/CSV/XLSX/XLS recipient data, supports configurable send delay and periodic test recipients, and treats an unconfirmed post-click outcome as manual-review-only. VibraPilot Core, app version, UI, API, dependencies, persistence and browser architecture are unchanged. See [`docs/workflows/fiskl-invoice-sender.md`](docs/workflows/fiskl-invoice-sender.md).
+
 v1.0.6.44 seals the completed Phase-1/Phase-2 production work and fixes the Windows portable Chrome prerequisite download TLS failure. Chrome installation remains fail-closed: exact approved Google HTTPS source, verified TLS, redirect revalidation, Windows Authenticode trust and Google LLC publisher identity are required before execution.
 
 ---

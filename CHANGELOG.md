@@ -1,3 +1,12 @@
+## Unreleased — External Fiskl Workflow
+
+- Added the standalone `fiskl_invoice_sender` Plugin API 1 source package without changing VibraPilot Core or the application version.
+- Added dynamic active-invoice verification, recipient batching, exact form read-back, transient notification capture, confirmed-failure retry and uncertain-send manual-review protection.
+- Added periodic test recipients, workflow recipient metrics, install/configuration/usage/troubleshooting documentation and workflow-package regression tests.
+- Excluded the supplied DOM capture, personal email address, signed object URL and invoice/customer data from production source and package contents.
+
+---
+
 ## v1.0.6.44 — Final Release Chrome TLS Closure — 2026-08-18
 
 - Final forensic verification of completed Phase-1 and Phase-2 behavior against the v1.0.6.43 baseline.

@@ -1,5 +1,10 @@
 # VibraPilot v1.0.6.44
 
+## External workflows
+
+- [Fiskl Invoice Sender](workflows/fiskl-invoice-sender.md): installation, configuration, execution, Plugin API surface, safety behavior and troubleshooting for the standalone v1.0.0 package.
+- [Fiskl Forensic Audit](forensic/FISKL_WORKFLOW_FORENSIC_AUDIT.md): evidence integrity, findings, closures, verification record and owner acceptance gate.
+
 Final release forensic closure: Phase-1 and Phase-2 remain complete; the Chrome prerequisite MSI download now uses verified Requests CA transport while exact Google source, redirect, Authenticode and Google LLC policies remain enforced.
 
 ---

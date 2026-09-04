@@ -1,0 +1,23 @@
+{
+  "title": "Fiskl Invoice Email",
+  "fields": [
+    {
+      "key": "email_subject",
+      "label": "Email Subject",
+      "kind": "text",
+      "default": "",
+      "placeholder": "Invoice INV-0001",
+      "help_text": "Subject applied to every normal and test invoice send.",
+      "required": true
+    },
+    {
+      "key": "email_message",
+      "label": "Email Message",
+      "kind": "multiline",
+      "default": "",
+      "placeholder": "Enter the invoice email message",
+      "help_text": "Message applied to every normal and test invoice send.",
+      "required": true
+    }
+  ]
+}

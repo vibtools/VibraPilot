@@ -1,3 +1,12 @@
+## External Fiskl Workflow — 2026-09-04
+
+- Baseline: VibraPilot v1.0.6.44, commit `315e089fd60dfa6f0b5263834260cf7071bbd971`.
+- Scope: one standalone Plugin API 1 Fiskl invoice-sending workflow plus its tests and documentation.
+- Core production source, app version, UI, APIs, dependencies, persistence, browser implementation and GitHub workflows remain frozen.
+- Reference evidence: `Fiskl.zip` documentation, saved DOM, logo and screenshots; sensitive captured data is intentionally excluded.
+
+---
+
 # v1.0.6.44 — Final Release Chrome TLS Closure
 
 Replaced only the Chrome MSI network transport path with Requests verified-CA HTTPS transport while preserving the existing exact Google source/redirect policy and Authenticode/Google LLC execution gate. Phase-1, Phase-2, UI, persistence, workflow lifecycle and multiworkflow behavior remain unchanged.

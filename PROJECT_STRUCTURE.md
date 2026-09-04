@@ -1,5 +1,32 @@
 # Project Structure — v1.0.6.44 Final Release Closure
 
+## External Fiskl workflow addendum
+
+```text
+workflows/fiskl_invoice_sender/
+    manifest.json, inputs.json, settings.json, task.json
+        Declarative Plugin API 1 identity and Core-rendered configuration.
+    workflow.py
+        Fiskl-only recipient loading, batching, active-page DOM automation,
+        confirmation/retry/manual-review handling and workflow metrics.
+    assets/logo.png
+        Workflow card/package logo supplied with the Fiskl reference.
+    README.md
+        Package installation, configuration, usage and safety notes.
+
+tests/test_fiskl_invoice_workflow.py
+    Package inspection/install, data-loader, URL, periodic-test and privacy regressions.
+
+docs/workflows/fiskl-invoice-sender.md
+    User/developer architecture, configuration, API, execution and troubleshooting guide.
+
+docs/forensic/FISKL_WORKFLOW_FORENSIC_AUDIT.md
+config/verification/fiskl_invoice_sender_v1.0.0_scope.json
+    Forensic evidence, exact scope lock, privacy closure and verification record.
+```
+
+This addendum introduces no Core source module, dependency, application-version change, UI page, API, persistence schema or browser architecture change.
+
 `src/vibrapilot/chrome_installer.py` is the only production source modified. It retains exact Google-source validation and Windows Authenticode/Google LLC verification while using Requests verified TLS transport for the MSI download.
 
 ---

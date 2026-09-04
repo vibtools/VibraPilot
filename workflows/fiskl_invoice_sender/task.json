@@ -1,0 +1,51 @@
+{
+  "title": "Fiskl Invoice Sender Task Settings",
+  "single_item": false,
+  "requires_session": true,
+  "uses_test_send_limit": false,
+  "inputs": [
+    {
+      "key": "data_file",
+      "label": "Email List",
+      "kind": "file",
+      "default": "",
+      "help_text": "TXT, CSV, XLSX or XLS file containing recipient email addresses.",
+      "required": true,
+      "role": "data_file"
+    }
+  ],
+  "settings": [
+    {
+      "key": "target_url",
+      "label": "Target URL",
+      "kind": "text",
+      "default": "#",
+      "placeholder": "#",
+      "help_text": "Informational only. The workflow uses the active Fiskl invoice page and never reloads or navigates it."
+    },
+    {
+      "key": "sending_delay",
+      "label": "Sending Delay (seconds)",
+      "kind": "integer",
+      "default": 0,
+      "minimum": 0,
+      "help_text": "Pause after every confirmed invoice send before the next send."
+    },
+    {
+      "key": "per_sending_total_email",
+      "label": "Per Sending Total Email",
+      "kind": "integer",
+      "default": 8,
+      "minimum": 1,
+      "help_text": "Maximum number of uploaded recipients added to one Fiskl send operation."
+    }
+  ],
+  "metrics": [
+    {"key": "login", "label": "Fiskl Page", "source": "core_login", "visible": true},
+    {"key": "total_recipients", "label": "Total Recipients", "source": "workflow", "visible": true},
+    {"key": "sent_recipients", "label": "Recipients Sent", "source": "workflow", "visible": true},
+    {"key": "failed_recipients", "label": "Recipients Failed", "source": "workflow", "visible": true},
+    {"key": "remaining_recipients", "label": "Recipients Remaining", "source": "workflow", "visible": true},
+    {"key": "test_sends", "label": "Test Sends", "source": "workflow", "visible": true}
+  ]
+}

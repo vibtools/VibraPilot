@@ -1,0 +1,21 @@
+{
+  "title": "Fiskl Invoice Sender Settings",
+  "fields": [
+    {
+      "key": "test_emails",
+      "label": "Test Email",
+      "kind": "text",
+      "default": "",
+      "placeholder": "qa@example.com, owner@example.com",
+      "help_text": "Optional comma-separated addresses used for periodic test sends."
+    },
+    {
+      "key": "after_send_test_email",
+      "label": "After Send Test Email",
+      "kind": "integer",
+      "default": 0,
+      "minimum": 0,
+      "help_text": "Send one test batch after each configured number of confirmed normal recipients. Zero disables periodic test sends."
+    }
+  ]
+}

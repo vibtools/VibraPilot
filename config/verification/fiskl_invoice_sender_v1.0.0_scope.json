@@ -1,0 +1,38 @@
+{
+  "scope_id": "VIBRAPILOT-FISKL-WORKFLOW-1.0.0",
+  "baseline_version": "1.0.6.44",
+  "baseline_commit": "315e089fd60dfa6f0b5263834260cf7071bbd971",
+  "reference_archive": "Fiskl.zip",
+  "reference_archive_sha256": "6f26f1439185fa2a2a3e3ee9d358b96196506829b08485e668ba3fbcb7308935",
+  "deliverable": "Fiskl_Invoice_Sender_v1.0.0.vpworkflow",
+  "deliverable_sha256": "1a7ce3a3cad954bc28fec2410c0094a8356e533310dfbb92fc64c83bd6686f3d",
+  "workflow_id": "fiskl_invoice_sender",
+  "workflow_version": "1.0.0",
+  "plugin_api": 1,
+  "allowed_changes": [
+    "workflow package source and supplied workflow logo",
+    "workflow-specific tests",
+    "workflow-specific user, developer, architecture, troubleshooting and forensic documentation",
+    "top-level documentation indexes and development history"
+  ],
+  "frozen_surfaces": [
+    "src/vibrapilot",
+    "VibraPilot application version",
+    "UI and UX implementation",
+    "public and internal Core APIs",
+    "dependencies",
+    "persistence schemas",
+    "browser runtime and profiles",
+    "licensing",
+    "packaging and GitHub Actions workflows"
+  ],
+  "runtime_constraints": {
+    "fixed_invoice_url": false,
+    "active_page_only": true,
+    "page_navigation": false,
+    "page_reload": false,
+    "browser_close_or_reopen": false,
+    "automatic_retry_after_uncertain_click": false,
+    "manual_login_only": true
+  }
+}

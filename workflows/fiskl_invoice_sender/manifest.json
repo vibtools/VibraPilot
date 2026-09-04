@@ -1,0 +1,9 @@
+{
+  "workflow_id": "fiskl_invoice_sender",
+  "name": "Fiskl Invoice Sender",
+  "description": "Batch-send the active Fiskl invoice to uploaded recipient lists.",
+  "version": "1.0.0",
+  "logo": "assets/logo.png",
+  "entrypoint": "create_workflow",
+  "plugin_api": 1
+}
