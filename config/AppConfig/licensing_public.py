@@ -6,7 +6,7 @@ tokens locally.  No API v1 shared key, server private signing key, license key,
 device private key, access token, or refresh token belongs in source control.
 """
 
-LICORA_API_BASE_URL = "https://mxflow.shop"
+LICORA_API_BASE_URL = "https://license.vib.tools"
 LICORA_API_VERSION = 2
 LICORA_PROTOCOL = "licora-api-v2"
 LICORA_APP_ID = "vibrapilot"
@@ -22,18 +22,18 @@ LICORA_SIGNING_KEY_ID = "primary-v1"
 # Public material only.  The corresponding private key remains exclusively on
 # the Licora server and must never be packaged with VibraPilot.
 LICORA_SIGNING_PUBLIC_KEY_PEM = """-----BEGIN PUBLIC KEY-----
-MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAtyagxZBg0ZyKPdWvc+KW
-jHIjjMHi34yHFh9hOWB/ciMRvDDquyCsIaFEVwE+70w8bwqoUy/aXv0DQUNgBZhU
-Y2snjSiRm4V0S/YvDYR+1zFXmVVx9jHT1E29OTSzlz0GFUV+wDx5ErKMZtt+Gns/
-r3CF0iADf5FlPnBey7+5jl7gvn5yQYZNztDcAL6WU9QSO0lo2GqCjClGE17yrIdz
-0ybr20YiL9rNKaI4PVwFCQuJGhh5bjcmOjZmyt9+8OjxoywOyzWxRSeT669QZBgw
-nHJ8vwQftFt4dPhtHih11FOzOmjSqW7+u8R3WkDuKSTA4uyiiLVb/go0bka3g3kO
-NfU0NL9gWoN/cy8OBqdWxfA1ZgoX5IeOjVTung/GYNgKALCK98xGA+1wr2wwAItY
-coCMzQ9zTDs42l0/Pew9fUyhEgc6jdkCyhRnLUaPq+4HYlQZexUX5TCtbgw4va9o
-sbhQ3Mzsy8RlD5noNI10tw85RgjQO9HKK62u4jeaImY/AgMBAAE=
+MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAutnTEEYmknkLbkVMUoIM
+w4idtNUCRzM/kiHfwuyzNfTwO8THNmf9444BktFxVRP92FLUCRc9mMnR/RKrle4Z
+jYKn712hzBN+Ixr5qIJCKLI6jMsfk4oRQxixP0zhRiRoK6y/UZMZn4GUhYvN7Ibo
+FzWgJyQPgrcmyUz3LGqhiTjCnERAeOb8Uwpy/bpCA1W+6TML+TQEGabUJ4/R+zH4
+xacIvJCMF6AocJTtX/3GslrJUzjWPh3bKxo47O7/JaPoUqRQgONNPklVwvvRsGkB
+a8PGitFB5K3Peit7+jnM+vxjQsuijD5xaICukbcvrDhWQEMEAcSfXrnmvikZcaVP
+klSwznsx9/xlRNJNPR6hj/FfUEQ3PLTsaMREfJJIZ8tjqp5meAupdc8VDDpKuOfs
+F4tZaFvd4l2JAfuoB8kz3JoRD3BkEa+HHb+CErUNvUmYZRWzAHaNc3RDoLOXWcdk
+btwgN8eITUGiWRiD7XwQsaMw8P6ooZWY9gJJHv0symznAgMBAAE=
 -----END PUBLIC KEY-----
 """
-LICORA_SIGNING_PUBLIC_KEY_SHA256 = "e4c15e883f17f89482f3423245d2bf71da64190dba4ea01d39da0a1d88942783"
+LICORA_SIGNING_PUBLIC_KEY_SHA256 = "a10f52d70a8a5813495e3b5904639d65b8530d8cfde228657ff19e49ca5790a4"
 
 # Request proof and token validation use the production server clock-skew policy.
 LICORA_CLOCK_SKEW_SECONDS = 300
