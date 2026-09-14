@@ -23,7 +23,7 @@
     "build.py": "3bd9a4fe725de8b6dce7127fd7d3c7924fbc1bd431dc2068fd2c8544ecbe61b7",
     "config/AppConfig/__init__.py": "2d2c6c44d737698f861de6540daa1e23862932bddade1c51f8ab0b060296ed0e",
     "config/AppConfig/about.py": "ea5eb9ddb9e0870685f372e61f83479db53ddec554bc4d58ea933772a63e7f18",
-    "config/AppConfig/licensing_public.py": "f1311c5e8cb18f31b322d65d30ed2ca074dbc1274911a2055f6a066b16c7c7ad",
+    "config/AppConfig/licensing_public.py": "6729a33fca7b8fa65c80b7764d10f3fba5b996264292f774d2eecd15df82b9ae",
     "config/AppConfig/social.py": "b3f484161a524f574c8f09c97c98d9597cc63472078f2f6356bbb7c8bf4d5681",
     "config/AppConfig/support.py": "3a1955dfe8454f999b13e897887cb768ed0e09d0b573d3ca2735a4969e6fe685",
     "config/settings.defaults.json": "564e432df41f362a99590921092df56b7e014af993439619c88111382ec7569c",

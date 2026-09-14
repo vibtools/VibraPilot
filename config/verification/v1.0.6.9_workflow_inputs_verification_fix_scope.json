@@ -6,9 +6,7 @@
   "official_baseline_tree_fingerprint": "8358ffdca13bedd491ee319aae299fdf9ff636e6cb74caf7dbb53c389d94f6b7",
   "target_version": "1.0.6.9",
   "scope": "Verify VP-WORKFLOW-INPUTS-001 and fix only Workflow Inputs Save/Reset persistence-error handling while preserving all other v1.0.6.8 runtime behavior and architecture.",
-  "allowed_runtime_source_changes": [
-    "src/vibrapilot/qt_app.py"
-  ],
+  "allowed_runtime_source_changes": ["src/vibrapilot/qt_app.py"],
   "approved_mainwindow_method_changes": [
     "save_workflow_inputs",
     "reset_workflow_inputs"
@@ -19,9 +17,7 @@
   ],
   "preserve_setting_keys": true,
   "preserve_saved_values": true,
-  "do_not_move": [
-    "default_target_url"
-  ],
+  "do_not_move": ["default_target_url"],
   "no_fake_workflow_selector": true,
   "ast_hash_algorithm": "canonical-semantic-ast-v2",
   "frozen_file_sha256": {
@@ -30,7 +26,7 @@
     "requirements.txt": "92890827d0d19fe07168cf801d15c96cf48b846813d7f687a04531e40ed2b083",
     "requirements-build.txt": "39d98aacb5781de72933397e6c431b83a4b62aa1177798600db1907c8def53eb",
     "config/settings.defaults.json": "cee3a7a688af488a22dc0f871f161a3e66ce454cd68c5a4ffa50824a13ef968d",
-    "config/AppConfig/licensing_public.py": "f1311c5e8cb18f31b322d65d30ed2ca074dbc1274911a2055f6a066b16c7c7ad",
+    "config/AppConfig/licensing_public.py": "6729a33fca7b8fa65c80b7764d10f3fba5b996264292f774d2eecd15df82b9ae",
     "src/vibrapilot/backend.py": "02ce200e0c203e428472d962d81de27960e53684c87df06446cb8eb1a789a365",
     "src/vibrapilot/app_config.py": "2ae2e500037e640a2506fde0679d30907c020e3e97a561ba7c4f36c50961121e",
     "src/vibrapilot/data_io.py": "ac8adddec1cfc2ba6784562c7f85e18ceb4da6d7906edac3296f79ed48af3c31",

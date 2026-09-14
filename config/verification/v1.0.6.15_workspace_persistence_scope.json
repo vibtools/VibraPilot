@@ -1,8 +1,6 @@
 {
   "contract_name": "VibraPilot v1.0.6.15 workspace persistence scope lock",
-  "plan_ids": [
-    "VP-WORKSPACE-PERSISTENCE-001"
-  ],
+  "plan_ids": ["VP-WORKSPACE-PERSISTENCE-001"],
   "official_baseline": "VibraPilot v1.0.6.14",
   "official_baseline_archive": "VibraPilot_v1.0.6.14_Development_Baseline_Candidate.zip",
   "official_baseline_archive_sha256": "e101033ec35fee04023e6690203105cd4cf784850a4e96b665b1cfb59e2b4f54",
@@ -32,10 +30,7 @@
     "_restore_workspace_geometry",
     "_restore_active_workspace_tasks"
   ],
-  "approved_taskslotwidget_method_changes": [
-    "_build",
-    "load_data"
-  ],
+  "approved_taskslotwidget_method_changes": ["_build", "load_data"],
   "new_runtime_module_responsibility": "Atomic lightweight workspace metadata only; no Task rows, browser profile, licensing or UI ownership.",
   "no_database_schema_change": true,
   "required_taskruntime_schema_version": 1,
@@ -63,7 +58,7 @@
     "src/vibrapilot/data_io.py": "ac8adddec1cfc2ba6784562c7f85e18ceb4da6d7906edac3296f79ed48af3c31",
     "src/vibrapilot/workflow_inputs.py": "095e46558736ae9cf073bd4883a5bd43eefd1b2a1eb3de62156baa863f4a5ce9",
     "config/settings.defaults.json": "64c0377a5a84167bdd480b8302d3ca7ac7c9b0db89d56df0d118bf5566444b76",
-    "config/AppConfig/licensing_public.py": "f1311c5e8cb18f31b322d65d30ed2ca074dbc1274911a2055f6a066b16c7c7ad",
+    "config/AppConfig/licensing_public.py": "6729a33fca7b8fa65c80b7764d10f3fba5b996264292f774d2eecd15df82b9ae",
     "vib_validation_app/focus_manager.py": "a073051b05cbd2442b0bdec0a1251cf8185b54cbb71e755cc25c2ee85ce7f86e"
   },
   "approved_verification_file_changes": [
